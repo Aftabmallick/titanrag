@@ -92,6 +92,32 @@ async def retry_failed_task(
         .values(status=OutboxStatus.PENDING, attempts=0, last_error=None)
     )
     await db.commit()
+
+    # Re-dispatch Celery task for actual execution
+    doc = (
+        await db.execute(
+            select(Document).where(
+                Document.id == task.document_id,
+                Document.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+
+    if doc:
+        try:
+            from titan_workers.tasks.ingestion import process_document_pipeline
+
+            process_document_pipeline.delay(
+                tenant_id=str(task.tenant_id),
+                workspace_id=str(task.workspace_id),
+                document_id=str(task.document_id),
+                storage_path=doc.storage_path,
+                filename=doc.title,
+                mime_type=doc.mime_type,
+            )
+        except Exception as e:
+            logger.warning("celery_dlq_dispatch_skipped", error=str(e))
+
     logger.info("dlq_task_retried", task_id=str(task_id))
     return {"status": "requeued", "task_id": str(task_id)}
 

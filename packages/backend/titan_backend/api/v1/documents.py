@@ -1,8 +1,10 @@
 import asyncio
+import datetime
 import hashlib
 import json
 import uuid
 import zipfile
+from collections.abc import AsyncGenerator
 from io import BytesIO
 from uuid import UUID
 
@@ -12,7 +14,7 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter, Body, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from redis.asyncio import Redis
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_backend.api.v1.schemas.documents import (
@@ -26,6 +28,8 @@ from titan_backend.api.v1.schemas.documents import (
     IngestionPreviewResponse,
     URLIngestionRequest,
 )
+from titan_backend.clients.qdrant_client import TenantIngestionSemaphore
+from titan_backend.clients.redis_client import get_redis_client
 from titan_backend.clients.s3_client import build_scoped_storage_path, get_minio_client
 from titan_backend.core.config import settings
 from titan_backend.core.dependencies import CurrentUser, get_current_user, require_permission
@@ -71,8 +75,24 @@ async def upload_document(
     file_size = len(file_bytes)
 
     # 1. FinOps Quotas Check
-    await check_storage_quota(db, tenant_id, file_size)
-    await check_document_quota(db, tenant_id)
+    await check_storage_quota(tenant_id, file_size)
+    await check_document_quota(tenant_id, db)
+
+    # 2. Concurrency Semaphore Check
+    sem = TenantIngestionSemaphore(tenant_id=str(tenant_id), max_concurrent=5)
+    try:
+        redis = await get_redis_client()
+        active_str = await redis.get(sem.key)
+        if active_str and int(active_str) >= sem.max_concurrent:
+            raise AppException(
+                message="Tenant concurrent ingestion limit reached. Please wait for ongoing jobs to complete.",
+                status_code=429,
+                error_code="CONCURRENCY_LIMIT_EXCEEDED",
+            )
+    except AppException:
+        raise
+    except Exception as e:
+        logger.warning("concurrency_check_skipped", error=str(e))
 
     # 2. Content Hash & Deduplication Check
     content_hash = hashlib.sha256(file_bytes).hexdigest()
@@ -106,7 +126,7 @@ async def upload_document(
     parsed_tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
     parsed_acls = [a.strip() for a in acl_groups.split(",") if a.strip()] if acl_groups else ["all-members"]
 
-    # 4. Insert Document record
+    now = datetime.datetime.now(datetime.UTC)
     new_doc = Document(
         id=document_id,
         tenant_id=tenant_id,
@@ -121,6 +141,10 @@ async def upload_document(
         doc_type=doc_type,
         folder=folder,
         tags=parsed_tags,
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
         meta={"acl_groups": parsed_acls},
     )
     db.add(new_doc)
@@ -188,6 +212,10 @@ async def bulk_upload_documents(
     for f in files:
         filename = f.filename or "file.bin"
         file_bytes = await f.read()
+        file_size = len(file_bytes)
+
+        await check_storage_quota(tenant_id, file_size)
+        await check_document_quota(tenant_id, db)
 
         # Handle zip archives
         if filename.lower().endswith(".zip"):
@@ -232,6 +260,21 @@ async def bulk_upload_documents(
                         )
                         await db.commit()
                         await db.refresh(doc)
+
+                        try:
+                            from titan_workers.tasks.ingestion import process_document_pipeline
+
+                            process_document_pipeline.delay(
+                                tenant_id=str(tenant_id),
+                                workspace_id=str(workspace_id),
+                                document_id=str(doc_id),
+                                storage_path=s_path,
+                                filename=extracted_filename,
+                                mime_type="application/octet-stream",
+                            )
+                        except Exception as e:
+                            logger.warning("celery_dispatch_skipped_in_test", error=str(e))
+
                         results.append(
                             DocumentUploadResponse(
                                 document=DocumentResponse.model_validate(doc),
@@ -272,6 +315,21 @@ async def bulk_upload_documents(
             )
             await db.commit()
             await db.refresh(doc)
+
+            try:
+                from titan_workers.tasks.ingestion import process_document_pipeline
+
+                process_document_pipeline.delay(
+                    tenant_id=str(tenant_id),
+                    workspace_id=str(workspace_id),
+                    document_id=str(doc_id),
+                    storage_path=s_path,
+                    filename=filename,
+                    mime_type=f.content_type or "application/octet-stream",
+                )
+            except Exception as e:
+                logger.warning("celery_dispatch_skipped_in_test", error=str(e))
+
             results.append(
                 DocumentUploadResponse(
                     document=DocumentResponse.model_validate(doc),
@@ -599,6 +657,166 @@ async def preview_ingestion(
     )
 
 
+@router.post("/{document_id}/reindex", response_model=DocumentUploadResponse)
+async def reindex_document(
+    workspace_id: UUID,
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.REINDEX)),
+) -> DocumentUploadResponse:
+    """
+    Re-indexes an individual document:
+    1. Stages outbox DELETE events to purge old vector projections in Qdrant.
+    2. Marks existing chunks inactive in Postgres.
+    3. Resets document status to PENDING and queues new IngestionTask.
+    4. Dispatches asynchronous Celery pipeline worker.
+    """
+    tenant_id = current_user.tenant_id
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    doc = (await db.execute(stmt)).scalars().first()
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    # 1. Fetch existing chunks and stage DELETE outbox events
+    chunk_stmt = select(Chunk.id).where(Chunk.document_id == document_id)
+    chunk_ids = (await db.execute(chunk_stmt)).scalars().all()
+    for cid in chunk_ids:
+        db.add(
+            ChunkOutbox(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                chunk_id=cid,
+                event_type="DELETE",
+                status=OutboxStatus.PENDING,
+            )
+        )
+
+    # 2. Mark existing chunks inactive in Postgres
+    await db.execute(update(Chunk).where(Chunk.document_id == document_id).values(is_active=False))
+
+    # 3. Reset document status to PENDING
+    doc.status = DocumentStatus.PENDING
+    task_id = uuid.uuid4()
+    ingestion_task = IngestionTask(
+        id=task_id,
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        document_id=document_id,
+        status=TaskStatus.QUEUED,
+        stage="QUEUED",
+        progress_percent=0.0,
+    )
+    db.add(ingestion_task)
+    await db.commit()
+    await db.refresh(doc)
+
+    # 4. Dispatch Celery task
+    try:
+        from titan_workers.tasks.ingestion import process_document_pipeline
+
+        process_document_pipeline.delay(
+            tenant_id=str(tenant_id),
+            workspace_id=str(workspace_id),
+            document_id=str(document_id),
+            storage_path=doc.storage_path,
+            filename=doc.title,
+            mime_type=doc.mime_type,
+        )
+    except Exception as e:
+        logger.warning("celery_dispatch_skipped_in_test", error=str(e))
+
+    return DocumentUploadResponse(
+        document=DocumentResponse.model_validate(doc),
+        task_id=task_id,
+        is_duplicate=False,
+    )
+
+
+@router.post("/reindex", response_model=list[DocumentUploadResponse])
+async def bulk_reindex_documents(
+    workspace_id: UUID,
+    folder: str | None = Query(None),
+    doc_type: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.REINDEX)),
+) -> list[DocumentUploadResponse]:
+    """
+    Bulk re-indexes all active documents in a workspace or within a folder.
+    """
+    tenant_id = current_user.tenant_id
+    stmt = select(Document).where(
+        Document.tenant_id == tenant_id,
+        Document.workspace_id == workspace_id,
+        Document.status != DocumentStatus.DELETING,
+    )
+    if folder:
+        stmt = stmt.where(Document.folder == folder)
+    if doc_type:
+        stmt = stmt.where(Document.doc_type == doc_type)
+
+    docs = (await db.execute(stmt)).scalars().all()
+    results: list[DocumentUploadResponse] = []
+
+    for doc in docs:
+        chunk_stmt = select(Chunk.id).where(Chunk.document_id == doc.id)
+        chunk_ids = (await db.execute(chunk_stmt)).scalars().all()
+        for cid in chunk_ids:
+            db.add(
+                ChunkOutbox(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    workspace_id=workspace_id,
+                    chunk_id=cid,
+                    event_type="DELETE",
+                    status=OutboxStatus.PENDING,
+                )
+            )
+        await db.execute(update(Chunk).where(Chunk.document_id == doc.id).values(is_active=False))
+        doc.status = DocumentStatus.PENDING
+        task_id = uuid.uuid4()
+        db.add(
+            IngestionTask(
+                id=task_id,
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                document_id=doc.id,
+                status=TaskStatus.QUEUED,
+                stage="QUEUED",
+            )
+        )
+        await db.commit()
+        await db.refresh(doc)
+
+        try:
+            from titan_workers.tasks.ingestion import process_document_pipeline
+
+            process_document_pipeline.delay(
+                tenant_id=str(tenant_id),
+                workspace_id=str(workspace_id),
+                document_id=str(doc.id),
+                storage_path=doc.storage_path,
+                filename=doc.title,
+                mime_type=doc.mime_type,
+            )
+        except Exception as e:
+            logger.warning("celery_dispatch_skipped_in_test", error=str(e))
+
+        results.append(
+            DocumentUploadResponse(
+                document=DocumentResponse.model_validate(doc),
+                task_id=task_id,
+                is_duplicate=False,
+            )
+        )
+
+    return results
+
+
 @router.get("/{document_id}/status")
 async def stream_document_status(
     workspace_id: UUID,
@@ -610,7 +828,7 @@ async def stream_document_status(
     """
     doc_str = str(document_id)
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         try:
             r = Redis.from_url(settings.REDIS_URL)
             pubsub = r.pubsub()

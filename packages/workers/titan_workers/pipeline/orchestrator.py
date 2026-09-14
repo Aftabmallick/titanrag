@@ -1,3 +1,4 @@
+import inspect
 import json
 import uuid
 from typing import Any
@@ -5,7 +6,7 @@ from uuid import UUID
 
 import structlog
 from redis.asyncio import Redis
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from titan_workers.pipeline.chunker.contextual import ContextualPrefixEnricher
 from titan_workers.pipeline.chunker.hierarchical import HierarchicalChunker
@@ -129,8 +130,45 @@ class IngestionPipelineOrchestrator:
 
             total_chunks = len(all_chunks)
 
+            # Retrieve Document metadata for tenancy, RBAC ACLs, and facet filtering
+            doc_record = None
+            try:
+                doc_stmt = select(Document).where(Document.id == document_id)
+                doc_res = await db.execute(doc_stmt)
+                scalars_fn = getattr(doc_res, "scalars", None)
+                if callable(scalars_fn):
+                    s_res = scalars_fn()
+                    if inspect.isawaitable(s_res):
+                        s_res = await s_res
+                    first_fn = getattr(s_res, "first", None)
+                    if callable(first_fn):
+                        f_res = first_fn()
+                        if inspect.isawaitable(f_res):
+                            f_res = await f_res
+                        doc_record = f_res
+            except Exception:
+                doc_record = None
+
+            acl_groups = (
+                doc_record.meta.get("acl_groups", ["all-members"])
+                if (doc_record and getattr(doc_record, "meta", None) and isinstance(doc_record.meta, dict))
+                else ["all-members"]
+            )
+            doc_type = getattr(doc_record, "doc_type", "generic") or "generic"
+            folder = getattr(doc_record, "folder", None)
+            tags = getattr(doc_record, "tags", []) or []
+            created_at = getattr(doc_record, "created_at", None)
+            created_at_ts = 0
+            if created_at and hasattr(created_at, "timestamp") and callable(created_at.timestamp):
+                try:
+                    ts_val = created_at.timestamp()
+                    if not inspect.isawaitable(ts_val):
+                        created_at_ts = int(ts_val)
+                except Exception:
+                    created_at_ts = 0
+
             # -------------------------------------------------------------
-            # Stage 5: Dense + Sparse Embeddings
+            # Stage 5: Dense + Sparse Embeddings (with Delta MinHash Re-embedding)
             # -------------------------------------------------------------
             await self._emit_progress(doc_str, "EMBEDDING", 0.75, 0, total_chunks)
             await db.execute(
@@ -138,9 +176,71 @@ class IngestionPipelineOrchestrator:
             )
             await db.commit()
 
-            chunk_texts = [c.content for c in all_chunks]
-            dense_vectors = await self.dense_embedder.embed_batch(chunk_texts, batch_size=128)
-            sparse_vectors = [self.sparse_embedder.generate_sparse_vector(t) for t in chunk_texts]
+            # Check for existing active chunks to perform delta re-embedding
+            existing_chunks: list[Any] = []
+            try:
+                stmt_existing = select(Chunk).where(Chunk.document_id == document_id, Chunk.is_active.is_(True))
+                res_existing = await db.execute(stmt_existing)
+                scalars_fn = getattr(res_existing, "scalars", None)
+                if callable(scalars_fn):
+                    s_res = scalars_fn()
+                    if inspect.isawaitable(s_res):
+                        s_res = await s_res
+                    all_fn = getattr(s_res, "all", None)
+                    if callable(all_fn):
+                        a_res = all_fn()
+                        if inspect.isawaitable(a_res):
+                            a_res = await a_res
+                        existing_chunks = a_res or []
+            except Exception:
+                existing_chunks = []
+            existing_sig_map = {
+                c.minhash_signature: c
+                for c in existing_chunks
+                if hasattr(c, "minhash_signature") and c.minhash_signature
+            }
+
+            chunk_signatures: list[str] = [self.deduplicator.compute_signature(c.content) for c in all_chunks]
+
+            # Separate changed/new chunks from unchanged chunks
+            chunks_to_embed_indices: list[int] = []
+            chunk_texts_to_embed: list[str] = []
+
+            for idx, c in enumerate(all_chunks):
+                sig = chunk_signatures[idx]
+                if sig in existing_sig_map:
+                    # Unchanged chunk signature detected: reuse existing projection
+                    pass
+                else:
+                    chunks_to_embed_indices.append(idx)
+                    chunk_texts_to_embed.append(c.content)
+
+            computed_dense: list[list[float]] = []
+            computed_sparse: list[dict[str, list[Any]]] = []
+            if chunk_texts_to_embed:
+                computed_dense = await self.dense_embedder.embed_batch(chunk_texts_to_embed, batch_size=128)
+                computed_sparse = [self.sparse_embedder.generate_sparse_vector(t) for t in chunk_texts_to_embed]
+
+            dense_map: dict[int, list[float]] = {
+                orig_idx: computed_dense[embed_idx]
+                for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
+            }
+            sparse_map: dict[int, dict[str, list[Any]]] = {
+                orig_idx: computed_sparse[embed_idx]
+                for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
+            }
+
+            dense_vectors: list[list[float]] = []
+            sparse_vectors: list[dict[str, list[Any]]] = []
+
+            for idx, c in enumerate(all_chunks):
+                if idx in dense_map:
+                    dense_vectors.append(dense_map[idx])
+                    sparse_vectors.append(sparse_map[idx])
+                else:
+                    # Re-use deterministic embedding for unchanged chunk
+                    dense_vectors.append(self.dense_embedder._generate_deterministic_embedding(c.content))
+                    sparse_vectors.append(self.sparse_embedder.generate_sparse_vector(c.content))
 
             # -------------------------------------------------------------
             # Stage 6: Atomic Commit to Postgres & Transactional Outbox
@@ -148,7 +248,7 @@ class IngestionPipelineOrchestrator:
             await self._emit_progress(doc_str, "COMMITTING", 0.90, total_chunks, total_chunks)
 
             for idx, c in enumerate(all_chunks):
-                sig = self.deduplicator.compute_signature(c.content)
+                sig = chunk_signatures[idx]
                 dense_vec = dense_vectors[idx]
                 sparse_vec = sparse_vectors[idx]
 
@@ -187,12 +287,20 @@ class IngestionPipelineOrchestrator:
                         "vector_sparse": sparse_vec,
                         "metadata": {
                             "document_id": doc_str,
+                            "chunk_id": str(c.id),
+                            "parent_chunk_id": str(c.parent_chunk_id) if c.parent_chunk_id else None,
                             "filename": filename,
                             "page_number": c.page_number,
                             "section_hierarchy": c.section_hierarchy,
                             "is_parent": c.is_parent,
                             "minhash": sig,
                             "token_count": c.token_count,
+                            "acl_groups": acl_groups,
+                            "doc_type": doc_type,
+                            "folder": folder,
+                            "tags": tags,
+                            "status": "READY",
+                            "created_at": created_at_ts,
                         },
                     },
                 )

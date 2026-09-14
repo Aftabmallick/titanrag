@@ -13,6 +13,8 @@ PATTERNS = {
     "PHONE_NUMBER": re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"),
     "CREDIT_CARD": re.compile(r"\b(?:\d{4}[-–\s]?){3}\d{4}\b"),
     "IP_ADDRESS": re.compile(r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"),
+    "US_BANK_NUMBER": re.compile(r"(?i)\b(?:account|acct|routing|bank)[\s#:]*(\d{8,17})\b"),
+    "PERSON": re.compile(r"\b(?:Mr\.|Mrs\.|Ms\.|Dr\.|Prof\.)\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b"),
 }
 
 

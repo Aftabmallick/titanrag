@@ -58,27 +58,35 @@ async def _execute_ingestion(
         logger.error("minio_download_failed", storage_path=storage_path, error=str(e))
         raise e
 
-    # 2. Setup async DB session and run orchestrator
-    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
-    session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+    from titan_backend.clients.qdrant_client import TenantIngestionSemaphore
 
-    orchestrator = IngestionPipelineOrchestrator()
-    async with session_factory() as session:
-        result = await orchestrator.run_pipeline(
-            db=session,
-            tenant_id=UUID(tenant_id),
-            workspace_id=UUID(workspace_id),
-            document_id=UUID(document_id),
-            file_bytes=file_bytes,
-            filename=filename,
-            mime_type=mime_type,
-            redaction_mode=redaction_mode,
-            webhook_url=webhook_url,
-            webhook_secret=webhook_secret,
-        )
+    sem = TenantIngestionSemaphore(tenant_id=tenant_id, max_concurrent=5)
+    async with sem as acquired:
+        if not acquired:
+            logger.warning("tenant_semaphore_saturated_retrying", tenant_id=tenant_id)
+            raise RuntimeError("Tenant ingestion concurrency limit reached. Re-queueing task.")
 
-    await engine.dispose()
-    return result
+        # 2. Setup async DB session and run orchestrator
+        engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
+        session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+
+        orchestrator = IngestionPipelineOrchestrator()
+        async with session_factory() as session:
+            result = await orchestrator.run_pipeline(
+                db=session,
+                tenant_id=UUID(tenant_id),
+                workspace_id=UUID(workspace_id),
+                document_id=UUID(document_id),
+                file_bytes=file_bytes,
+                filename=filename,
+                mime_type=mime_type,
+                redaction_mode=redaction_mode,
+                webhook_url=webhook_url,
+                webhook_secret=webhook_secret,
+            )
+
+        await engine.dispose()
+        return result
 
 
 @celery_app.task(

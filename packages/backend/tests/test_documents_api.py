@@ -119,9 +119,27 @@ async def test_end_to_end_orchestrator_pipeline():
     # Verify chunks and outbox entries were staged in db
     assert mock_db.add.call_count >= result["total_chunks"] * 2
 
+    # Verify outbox payload contains complete metadata schema required by Qdrant
+    from titan_backend.db.models.outbox import ChunkOutbox
+
+    added_objects = [call[0][0] for call in mock_db.add.call_args_list]
+    outbox_entries = [o for o in added_objects if isinstance(o, ChunkOutbox)]
+    assert len(outbox_entries) == result["total_chunks"]
+    first_outbox = outbox_entries[0]
+    meta = first_outbox.payload["metadata"]
+    assert "acl_groups" in meta
+    assert "doc_type" in meta
+    assert "folder" in meta
+    assert "tags" in meta
+    assert "status" in meta
+    assert "created_at" in meta
+
 
 @pytest.mark.asyncio
-async def test_dlq_endpoints(async_client, mock_db_session, test_user):
+async def test_dlq_endpoints(async_client, mock_db_session, test_user, monkeypatch):
+    mock_delay = MagicMock()
+    monkeypatch.setattr("titan_workers.tasks.ingestion.process_document_pipeline.delay", mock_delay)
+
     admin_user = CurrentUser(
         id=test_user.id,
         tenant_id=test_user.tenant_id,
@@ -132,12 +150,44 @@ async def test_dlq_endpoints(async_client, mock_db_session, test_user):
     app.dependency_overrides[get_current_user] = lambda: admin_user
     mock_db_session.execute.return_value.scalars.return_value.all.return_value = []
 
+    # Test DLQ listing
     resp = await async_client.get("/api/v1/admin/dlq")
     assert resp.status_code == 200
     data = resp.json()
     assert "failed_ingestion_tasks" in data
     assert "failed_outbox_projections" in data
     assert data["failed_outbox_projections"] == 0
+
+    # Test DLQ retry
+    task_id = uuid4()
+    doc_id = uuid4()
+    from titan_backend.db.models.documents import Document, DocumentStatus
+    from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
+
+    mock_task = IngestionTask(
+        id=task_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=uuid4(),
+        document_id=doc_id,
+        status=TaskStatus.FAILED,
+        stage="FAILED",
+    )
+    mock_doc = Document(
+        id=doc_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=mock_task.workspace_id,
+        title="failed_doc.pdf",
+        storage_path="path",
+        content_hash="hash",
+        mime_type="application/pdf",
+        status=DocumentStatus.FAILED,
+    )
+
+    mock_db_session.execute.return_value.scalars.return_value.first.side_effect = [mock_task, mock_doc]
+    retry_resp = await async_client.post(f"/api/v1/admin/dlq/{task_id}/retry")
+    assert retry_resp.status_code == 200
+    assert retry_resp.json()["status"] == "requeued"
+    assert mock_delay.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -205,3 +255,82 @@ async def test_tenant_ingestion_semaphore(monkeypatch):
         assert counters[sem.key] == 1
 
     assert counters[sem.key] == 0
+
+
+@pytest.mark.asyncio
+async def test_upload_document_endpoint_success(async_client, mock_db_session, test_user, monkeypatch):
+    # Monkeypatch Celery task delay to avoid attempting connection to real Redis
+    monkeypatch.setattr("titan_workers.tasks.ingestion.process_document_pipeline.delay", MagicMock())
+
+    ws_id = uuid4()
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+    # mock_ws, mock_member, and 0 for check_document_quota count
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member, 0]
+    mock_db_session.execute.return_value.scalars.return_value.first.return_value = None
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    files = {"file": ("manual.md", b"# Manual\n\nOperational guidelines.", "text/markdown")}
+    resp = await async_client.post(f"/api/v1/workspaces/{ws_id}/documents", files=files)
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["document"]["title"] == "manual.md"
+    assert data["is_duplicate"] is False
+    assert "task_id" in data
+
+
+@pytest.mark.asyncio
+async def test_reindex_endpoints(async_client, mock_db_session, test_user, monkeypatch):
+    import datetime
+
+    monkeypatch.setattr("titan_workers.tasks.ingestion.process_document_pipeline.delay", MagicMock())
+
+    ws_id = uuid4()
+    doc_id = uuid4()
+    now = datetime.datetime.now(datetime.UTC)
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+    from titan_backend.db.models.documents import Document, DocumentStatus
+
+    mock_doc = Document(
+        id=doc_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="spec.pdf",
+        source_type="file",
+        storage_path="path",
+        content_hash="hash",
+        mime_type="application/pdf",
+        file_size_bytes=1024,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        folder="docs",
+        tags=["spec"],
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
+    )
+
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+    mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+    mock_db_session.execute.return_value.scalars.return_value.all.return_value = [uuid4()]
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    # 1. Test single document reindex
+    resp = await async_client.post(f"/api/v1/workspaces/{ws_id}/documents/{doc_id}/reindex")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["document"]["id"] == str(doc_id)
+    assert "task_id" in data
+
+    # 2. Test bulk reindex
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+    mock_db_session.execute.return_value.scalars.return_value.all.side_effect = [[mock_doc], [uuid4()]]
+    bulk_resp = await async_client.post(f"/api/v1/workspaces/{ws_id}/documents/reindex")
+    assert bulk_resp.status_code == 200
+    bulk_data = bulk_resp.json()
+    assert len(bulk_data) == 1
+    assert bulk_data[0]["document"]["id"] == str(doc_id)

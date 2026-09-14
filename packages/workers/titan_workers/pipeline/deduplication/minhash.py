@@ -29,7 +29,8 @@ class MinHashDeduplicator:
 
         # Convert hashvalues to compact hex signature
         sig_bytes = m.digest()
-        return sig_bytes.tobytes().hex()[:64]
+        hex_str: str = sig_bytes.tobytes().hex()
+        return hex_str[:64]
 
     def estimate_jaccard(self, text1: str, text2: str) -> float:
         m1 = MinHash(num_perm=self.num_perm)
