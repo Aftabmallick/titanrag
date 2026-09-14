@@ -2,7 +2,7 @@ import math
 
 import pytest
 from titan_workers.pipeline.embedding.dense_embedder import DenseEmbedder
-from titan_workers.pipeline.embedding.sparse_embedder import SparseBM25Embedder
+from titan_workers.pipeline.embedding.sparse_embedder import SparseBM25Embedder, WorkspaceIDFManager
 
 
 @pytest.mark.asyncio
@@ -39,3 +39,29 @@ def test_sparse_bm25_embedder():
     for val in sparse_vec["values"]:
         assert isinstance(val, float)
         assert val > 0.0
+
+
+def test_sparse_bm25_workspace_idf_weighting():
+    idf_mgr = WorkspaceIDFManager()
+    ws_id = "ws_test_idf"
+
+    # Record 10 documents where 'contract' appears in 1 doc, and 'general' appears in 10 docs
+    for _ in range(9):
+        idf_mgr.record_document_terms(ws_id, {"general", "standard"})
+    idf_mgr.record_document_terms(ws_id, {"general", "contract"})
+
+    embedder = SparseBM25Embedder(idf_manager=idf_mgr)
+
+    # Compute sparse vector for document containing both 'contract' and 'general'
+    test_doc = "general contract"
+    vec = embedder.generate_sparse_vector(test_doc, workspace_id=ws_id)
+
+    contract_idx = embedder._hash_token("contract")
+    general_idx = embedder._hash_token("general")
+
+    contract_weight = vec["values"][vec["indices"].index(contract_idx)]
+    general_weight = vec["values"][vec["indices"].index(general_idx)]
+
+    # Rare term 'contract' must have a significantly higher IDF weight than frequent term 'general'
+    assert contract_weight > general_weight
+    assert idf_mgr.compute_idf(ws_id, "contract") > idf_mgr.compute_idf(ws_id, "general")
