@@ -40,6 +40,8 @@ class Chunk(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     page_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    minhash_signature: Mapped[str | None] = mapped_column(nullable=True)
+    is_active: Mapped[bool] = mapped_column(default=True, nullable=False)
     meta: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")  # type: ignore # noqa: F821

@@ -13,6 +13,7 @@ celery_app = Celery(
     backend=RESULT_BACKEND,
     include=[
         "titan_workers.tasks.housekeeping",
+        "titan_workers.tasks.ingestion",
         "titan_workers.outbox.reconciler",
     ],
 )
@@ -53,5 +54,9 @@ celery_app.conf.beat_schedule = {
     "hourly-stale-cleanup": {
         "task": "titan_workers.tasks.housekeeping.cleanup_stale_tasks",
         "schedule": crontab(minute=30),  # Hourly at :30
+    },
+    "daily-staleness-check": {
+        "task": "titan_workers.tasks.housekeeping.check_document_staleness",
+        "schedule": crontab(hour=4, minute=0),  # Daily at 04:00 UTC
     },
 }

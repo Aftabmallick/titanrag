@@ -86,18 +86,31 @@ async def run_outbox_relay() -> None:
                         try:
                             if event_type == "UPSERT":
                                 dense_vec = payload_data.get("vector_dense")
+                                sparse_data = payload_data.get("vector_sparse")
                                 point_payload = payload_data.get("metadata", {})
                                 point_payload["tenant_id"] = tenant_id
                                 point_payload["workspace_id"] = workspace_id
                                 point_payload["chunk_id"] = chunk_id
 
-                                if dense_vec:
+                                vector_to_upsert: Any = None
+                                if dense_vec and sparse_data and sparse_data.get("indices"):
+                                    vector_to_upsert = {
+                                        "dense": dense_vec,
+                                        "bm25": qmodels.SparseVector(
+                                            indices=sparse_data["indices"],
+                                            values=sparse_data["values"],
+                                        ),
+                                    }
+                                elif dense_vec:
+                                    vector_to_upsert = {"dense": dense_vec}
+
+                                if vector_to_upsert:
                                     await qdrant.upsert(
                                         collection_name=collection_name,
                                         points=[
                                             qmodels.PointStruct(
                                                 id=chunk_id,
-                                                vector=dense_vec,
+                                                vector=vector_to_upsert,
                                                 payload=point_payload,
                                             )
                                         ],
