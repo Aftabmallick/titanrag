@@ -1,7 +1,7 @@
 """Phase 3 Ingestion Schema Evolution
 
-Revision ID: 0002_phase3_ingestion_schema
-Revises: 0001_initial_schema
+Revision ID: 0003_phase3_ingestion_schema
+Revises: 0002_rls_policies_and_auth
 Create Date: 2026-09-14 13:50:00.000000
 
 """
@@ -12,8 +12,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0002_phase3_ingestion_schema"
-down_revision: str | None = "0001_initial_schema"
+revision: str = "0003_phase3_ingestion_schema"
+down_revision: str | None = "0002_rls_policies_and_auth"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
