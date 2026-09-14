@@ -1,21 +1,27 @@
 "use client";
 
 import React, { useState, useRef } from "react";
-import { UploadCloud, File, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
+import { UploadCloud, File, CheckCircle2, AlertCircle, Loader2, X, Sparkles, ShieldAlert } from "lucide-react";
+import { api, IngestionPreviewResponse } from "@/lib/api";
 
 interface UploadDropzoneProps {
   workspaceId: string;
   onUploadSuccess: (documentId: string, filename: string) => void;
+  onPreviewRequested: (data: IngestionPreviewResponse) => void;
 }
 
-export function UploadDropzone({ workspaceId, onUploadSuccess }: UploadDropzoneProps) {
+export function UploadDropzone({
+  workspaceId,
+  onUploadSuccess,
+  onPreviewRequested,
+}: UploadDropzoneProps) {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [folder, setFolder] = useState("");
   const [tags, setTags] = useState("");
   const [docType, setDocType] = useState("generic");
-  const [redaction, setRedaction] = useState("REPLACE");
   const [uploading, setUploading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -46,6 +52,25 @@ export function UploadDropzone({ workspaceId, onUploadSuccess }: UploadDropzoneP
     }
   };
 
+  const handlePreview = async () => {
+    if (!selectedFile) return;
+    setPreviewing(true);
+    setErrorMsg(null);
+
+    const formData = new FormData();
+    formData.append("file", selectedFile);
+    formData.append("filename", selectedFile.name);
+
+    try {
+      const previewRes = await api.previewDocument(workspaceId, formData);
+      onPreviewRequested(previewRes);
+    } catch (err: any) {
+      setErrorMsg("Preview failed: " + err.message);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
 
@@ -54,35 +79,18 @@ export function UploadDropzone({ workspaceId, onUploadSuccess }: UploadDropzoneP
 
     const formData = new FormData();
     formData.append("file", selectedFile);
-    if (folder) formData.append("folder", folder);
-    if (tags) formData.append("tags", tags);
+    if (folder.trim()) formData.append("folder", folder.trim());
+    if (tags.trim()) formData.append("tags", tags.trim());
     formData.append("doc_type", docType);
 
     try {
-      const res = await fetch(`/api/v1/workspaces/${workspaceId}/documents`, {
-        method: "POST",
-        body: formData,
-        headers: {
-          // Pass mock Bearer token for demo/local interaction
-          Authorization: "Bearer mock-admin-token",
-        },
-      });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error?.message || `Upload failed with status ${res.status}`);
-      }
-
-      const data = await res.json();
-      const docId = data.document?.id || data.task_id || "new-doc";
-      onUploadSuccess(docId, selectedFile.name);
+      const res = await api.uploadDocument(workspaceId, formData);
+      onUploadSuccess(res.document.id, selectedFile.name);
       setSelectedFile(null);
+      setFolder("");
+      setTags("");
     } catch (err: any) {
-      // If backend is offline in mock dev mode, simulate successful trigger for UI testing
-      console.warn("Backend upload error, entering dev simulation:", err.message);
-      const simulatedDocId = "doc-" + Math.random().toString(36).substring(2, 9);
-      onUploadSuccess(simulatedDocId, selectedFile.name);
-      setSelectedFile(null);
+      setErrorMsg(err.message || "Document upload failed");
     } finally {
       setUploading(false);
     }
@@ -96,18 +104,18 @@ export function UploadDropzone({ workspaceId, onUploadSuccess }: UploadDropzoneP
           Ingest Enterprise Document
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Supports native PDFs, scanned documents (OCR), DOCX, PPTX presentations, CSV tables, and Markdown.
+          Supports native PDFs, scanned docs (OCR), DOCX, PPTX presentations, CSV/TSV tables, and Markdown.
         </p>
       </div>
 
       {errorMsg && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-400">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          <span>{errorMsg}</span>
+          <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+          <span className="font-medium">{errorMsg}</span>
         </div>
       )}
 
-      {/* Drop area */}
+      {/* Drop Area */}
       <div
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
@@ -125,128 +133,130 @@ export function UploadDropzone({ workspaceId, onUploadSuccess }: UploadDropzoneP
           type="file"
           className="hidden"
           onChange={handleFileChange}
-          accept=".pdf,.docx,.doc,.pptx,.csv,.tsv,.txt,.md,.zip"
+          accept=".pdf,.docx,.doc,.pptx,.ppt,.csv,.tsv,.md,.txt"
         />
 
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="p-3 rounded-full bg-slate-800/80 text-sky-400 shadow-inner">
+        <div className="flex flex-col items-center justify-center text-center space-y-2">
+          <div className="rounded-full bg-sky-500/10 p-3 text-sky-400 border border-sky-500/20">
             <UploadCloud className="w-7 h-7" />
           </div>
-          <div className="text-sm font-medium text-slate-200">
-            {selectedFile ? (
-              <span className="text-sky-400 font-semibold">{selectedFile.name}</span>
-            ) : (
-              <>
-                <span className="text-sky-400 font-semibold">Click to upload</span> or drag and drop
-              </>
-            )}
-          </div>
+          <p className="text-sm font-semibold text-slate-200">
+            Click to upload or drag and drop document
+          </p>
           <p className="text-xs text-slate-500">
-            PDF (scanned/native), DOCX, PPTX, CSV, TXT, MD up to 100MB
+            Enforces magic-byte signature check, anti-malware scan, and hierarchical token chunking
           </p>
         </div>
-
-        {selectedFile && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedFile(null);
-            }}
-            className="absolute top-3 right-3 p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
-      {/* Metadata Configuration */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-5">
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            Folder / Category
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Finance, Legal"
-            value={folder}
-            onChange={(e) => setFolder(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
-          />
-        </div>
+      {/* Selected File Details & Metadata Inputs */}
+      {selectedFile && (
+        <div className="mt-6 space-y-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-slate-800 p-2 text-slate-300">
+                <File className="w-5 h-5 text-sky-400" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-white">{selectedFile.name}</div>
+                <div className="text-xs text-slate-400">
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB • {selectedFile.type || "application/octet-stream"}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="text-slate-400 hover:text-white p-1 rounded-md hover:bg-slate-800"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            Document Type
-          </label>
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
-          >
-            <option value="generic">Generic Document</option>
-            <option value="contract">Contract / NDA</option>
-            <option value="technical">Architecture / Spec</option>
-            <option value="financial">Financial Report</option>
-            <option value="presentation">Slide Deck</option>
-          </select>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Folder / Namespace
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Architecture"
+                value={folder}
+                onChange={(e) => setFolder(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+              />
+            </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            PII Redaction Mode
-          </label>
-          <select
-            value={redaction}
-            onChange={(e) => setRedaction(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
-          >
-            <option value="REPLACE">REPLACE ([US_SSN])</option>
-            <option value="HASH">HASH ([HASH:8fa2])</option>
-            <option value="MASK">MASK (J***n)</option>
-            <option value="OFF">OFF (No redaction)</option>
-          </select>
-        </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Tags (Comma Separated)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. core, spec, v2"
+                value={tags}
+                onChange={(e) => setTags(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500"
+              />
+            </div>
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-            Tags (comma separated)
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. q3, confidential"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500"
-          />
-        </div>
-      </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Document Type
+              </label>
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value)}
+                className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-sky-500"
+              >
+                <option value="generic">Generic Document</option>
+                <option value="technical">Technical Specification</option>
+                <option value="financial">Financial Report / CSV</option>
+                <option value="contract">Legal Contract</option>
+                <option value="presentation">Presentation Deck</option>
+              </select>
+            </div>
+          </div>
 
-      {/* Action Button */}
-      <div className="mt-6 flex justify-end">
-        <button
-          type="button"
-          disabled={!selectedFile || uploading}
-          onClick={handleUpload}
-          className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition-all shadow-lg ${
-            !selectedFile || uploading
-              ? "bg-slate-800 text-slate-500 cursor-not-allowed"
-              : "bg-sky-500 text-white hover:bg-sky-400 shadow-sky-500/20 active:scale-95"
-          }`}
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Dispatching Ingestion Pipeline...
-            </>
-          ) : (
-            <>
-              <UploadCloud className="w-4 h-4" />
-              Start Ingestion Pipeline
-            </>
-          )}
-        </button>
-      </div>
+          {/* Action Buttons: Preview Chunks + Upload */}
+          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800/80">
+            <button
+              onClick={handlePreview}
+              disabled={previewing || uploading}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {previewing ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Parsing Chunks...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Preview Chunks</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={handleUpload}
+              disabled={uploading || previewing}
+              className="flex items-center gap-2 px-5 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-white text-xs font-bold shadow-lg shadow-sky-500/20 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Uploading to TitanRAG...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Ingest Document</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
