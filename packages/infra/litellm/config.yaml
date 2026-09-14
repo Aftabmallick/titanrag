@@ -1,0 +1,26 @@
+model_list:
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: openai/text-embedding-3-small
+      api_key: "os.environ/OPENAI_API_KEY"
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: "os.environ/OPENAI_API_KEY"
+  - model_name: claude-3-5-sonnet
+    litellm_params:
+      model: anthropic/claude-3-5-sonnet-20240620
+      api_key: "os.environ/ANTHROPIC_API_KEY"
+
+general_settings:
+  master_key: sk-titanrag-litellm-master-key
+  database_url: "redis://redis:6379/2"
+
+router_settings:
+  routing_strategy: "latency-based-routing"
+  redis_host: "redis"
+  redis_port: 6379
+  redis_password: ""
+  timeout: 30
+  num_retries: 3
+  retry_after: 1

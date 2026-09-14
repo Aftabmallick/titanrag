@@ -1,0 +1,46 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Qdrant Total Points Indexed",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum(qdrant_points_count) by (collection)",
+          "legendFormat": "{{collection}}"
+        }
+      ]
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "title": "Qdrant Search Latency",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(qdrant_search_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P95 Search"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["titanrag", "qdrant"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "TitanRAG — Qdrant Health",
+  "uid": "titan-qdrant-health"
+}

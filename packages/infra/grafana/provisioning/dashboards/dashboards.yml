@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: "TitanRAG Dashboards"
+    orgId: 1
+    folder: "TitanRAG"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
