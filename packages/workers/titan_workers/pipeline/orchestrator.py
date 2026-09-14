@@ -27,11 +27,11 @@ class IngestionPipelineOrchestrator:
     Emits live progress via Redis Pub/Sub, supports checkpoints, and executes saga rollbacks.
     """
 
-    def __init__(self, redis_url: str = "redis://localhost:6379/0"):
+    def __init__(self, redis_url: str = "redis://localhost:6379/0", minio_client: Any | None = None):
         self.redis_url = redis_url
         self.chunker = HierarchicalChunker()
         self.redactor = PIIRedactor()
-        self.contextual_enricher = ContextualPrefixEnricher()
+        self.contextual_enricher = ContextualPrefixEnricher(minio_client=minio_client)
         self.dense_embedder = DenseEmbedder()
         self.sparse_embedder = SparseBM25Embedder()
         self.deduplicator = MinHashDeduplicator()
@@ -119,7 +119,9 @@ class IngestionPipelineOrchestrator:
             # -------------------------------------------------------------
             if enable_contextual and child_chunks:
                 await self._emit_progress(doc_str, "CONTEXTUALIZING", 0.60)
-                child_chunks = await self.contextual_enricher.enrich_chunks(child_chunks)
+                child_chunks = await self.contextual_enricher.enrich_chunks(
+                    child_chunks, tenant_id=str(tenant_id), document_summary=filename
+                )
                 all_chunks = parent_chunks + child_chunks
 
             total_chunks = len(all_chunks)
@@ -209,9 +211,25 @@ class IngestionPipelineOrchestrator:
 
             computed_dense: list[list[float]] = []
             computed_sparse: list[dict[str, list[Any]]] = []
+            ws_id_str = str(workspace_id)
+
             if chunk_texts_to_embed:
                 computed_dense = await self.dense_embedder.embed_batch(chunk_texts_to_embed, batch_size=128)
-                computed_sparse = [self.sparse_embedder.generate_sparse_vector(t) for t in chunk_texts_to_embed]
+                computed_sparse = [
+                    self.sparse_embedder.generate_sparse_vector(t, workspace_id=ws_id_str, update_idf=True)
+                    for t in chunk_texts_to_embed
+                ]
+                # Persist batch checkpoint state
+                await db.execute(
+                    update(IngestionTask)
+                    .where(IngestionTask.document_id == document_id)
+                    .values(
+                        processed_chunks=len(computed_dense),
+                        total_chunks=len(chunk_texts_to_embed),
+                        checkpoint_data={"embedded_chunks": len(computed_dense), "stage": "EMBEDDING"},
+                    )
+                )
+                await db.commit()
 
             dense_map: dict[int, list[float]] = {
                 orig_idx: computed_dense[embed_idx] for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
@@ -230,7 +248,9 @@ class IngestionPipelineOrchestrator:
                 else:
                     # Re-use deterministic embedding for unchanged chunk
                     dense_vectors.append(self.dense_embedder._generate_deterministic_embedding(c.content))
-                    sparse_vectors.append(self.sparse_embedder.generate_sparse_vector(c.content))
+                    sparse_vectors.append(
+                        self.sparse_embedder.generate_sparse_vector(c.content, workspace_id=ws_id_str)
+                    )
 
             # -------------------------------------------------------------
             # Stage 6: Atomic Commit to Postgres & Transactional Outbox

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from titan_backend.clients.redis_client import get_redis_client
 from titan_backend.core.config import settings
 from titan_backend.core.errors import AppException
-from titan_backend.db.models.documents import Document
+from titan_backend.db.models.documents import Document, DocumentStatus
 
 logger = structlog.get_logger("titanrag.quotas")
 
@@ -107,7 +107,7 @@ async def check_document_quota(
     """
     stmt = select(func.count(Document.id)).where(
         Document.tenant_id == tenant_id,
-        Document.status != "failed",
+        Document.status != DocumentStatus.FAILED,
     )
     res = await db.execute(stmt)
     doc_count = res.scalar_one_or_none() or 0
