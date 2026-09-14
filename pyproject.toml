@@ -10,6 +10,7 @@ dependencies = []
 members = [
     "packages/backend",
     "packages/workers",
+    "packages/sdk",
 ]
 
 [tool.ruff]

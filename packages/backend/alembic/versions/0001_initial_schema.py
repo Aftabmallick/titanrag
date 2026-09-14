@@ -413,14 +413,125 @@ def upgrade() -> None:
     )
     op.create_index("ix_ingestion_tasks_doc_status", "ingestion_tasks", ["document_id", "status"])
 
+    # 15. Feedback
+    op.create_table(
+        "feedback",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "session_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("chat_sessions.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "message_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("chat_messages.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("rating", sa.Integer(), nullable=False),
+        sa.Column("comment", sa.Text(), nullable=True),
+        sa.Column("corrected_answer", sa.Text(), nullable=True),
+        sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    )
+    op.create_index("ix_feedback_tenant_workspace", "feedback", ["tenant_id", "workspace_id"])
+    op.create_index("ix_feedback_message_rating", "feedback", ["message_id", "rating"])
+
+    # 16. Connectors
+    op.create_table(
+        "connectors",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+        ),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("connector_type", sa.String(50), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("ACTIVE", "PAUSED", "ERROR", name="connectorstatus"),
+            server_default="ACTIVE",
+            nullable=False,
+        ),
+        sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False),
+        sa.Column("auth_credentials", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False),
+        sa.Column("sync_schedule", sa.String(100), nullable=True),
+        sa.Column("last_synced_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    )
+    op.create_index("ix_connectors_tenant_workspace", "connectors", ["tenant_id", "workspace_id"])
+    op.create_index("ix_connectors_type_status", "connectors", ["connector_type", "status"])
+
+    # 17. Connector Sync Logs
+    op.create_table(
+        "connector_sync_log",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "connector_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("connectors.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column(
+            "status",
+            sa.Enum("RUNNING", "SUCCESS", "FAILED", name="syncstatus"),
+            server_default="RUNNING",
+            nullable=False,
+        ),
+        sa.Column("documents_synced", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("documents_failed", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("error_summary", sa.Text(), nullable=True),
+        sa.Column("details", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+    )
+    op.create_index("ix_connector_sync_log_conn_status", "connector_sync_log", ["connector_id", "status"])
+
     # Enable Row-Level Security (RLS) on tenant-scoped tables
-    rls_tables = ["documents", "chunks", "chat_sessions", "api_keys", "acl_groups", "audit_log"]
+    rls_tables = [
+        "documents",
+        "chunks",
+        "chat_sessions",
+        "api_keys",
+        "acl_groups",
+        "audit_log",
+        "feedback",
+        "connectors",
+    ]
     for table in rls_tables:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
 
 
 def downgrade() -> None:
     tables = [
+        "connector_sync_log",
+        "connectors",
+        "feedback",
         "ingestion_tasks",
         "rag_settings",
         "audit_log",
@@ -442,6 +553,14 @@ def downgrade() -> None:
     for table in tables:
         op.drop_table(table)
 
-    enums = ["taskstatus", "messagerole", "outboxstatus", "documentstatus", "workspacerole"]
+    enums = [
+        "syncstatus",
+        "connectorstatus",
+        "taskstatus",
+        "messagerole",
+        "outboxstatus",
+        "documentstatus",
+        "workspacerole",
+    ]
     for enum_type in enums:
         op.execute(f"DROP TYPE IF EXISTS {enum_type};")

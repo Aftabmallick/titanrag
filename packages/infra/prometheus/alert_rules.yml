@@ -1,0 +1,47 @@
+groups:
+  - name: titanrag_alerts
+    rules:
+      - alert: CeleryQueueBacklogHigh
+        expr: sum(celery_queue_length) > 1000
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Celery task backlog exceeds 1000 tasks"
+          description: "Current queue backlog is {{ $value }} tasks across queues."
+
+      - alert: APIHighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[1m])) / sum(rate(http_requests_total[1m])) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "API 5xx error rate exceeds 5%"
+          description: "API is experiencing an elevated error rate of {{ $value | humanizePercentage }}."
+
+      - alert: APILatencyP99Exceeded
+        expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[1m])) by (le)) > 5.0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API P99 latency exceeds 5 seconds"
+          description: "P99 latency is currently {{ $value }}s."
+
+      - alert: QdrantDiskUsageHigh
+        expr: (node_filesystem_free_bytes{mountpoint="/qdrant/storage"} / node_filesystem_size_bytes{mountpoint="/qdrant/storage"}) < 0.20
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Qdrant storage volume disk usage exceeds 80%"
+          description: "Qdrant data volume has less than 20% remaining capacity."
+
+      - alert: LiteLLMProviderErrorRateHigh
+        expr: sum(rate(litellm_provider_errors_total[1m])) * 60 > 10
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "LiteLLM upstream provider errors exceed 10/min"
+          description: "Upstream AI model provider is failing frequently."

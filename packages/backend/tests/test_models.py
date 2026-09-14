@@ -26,3 +26,35 @@ def test_chunk_outbox_model_instantiation():
     assert outbox.event_type == "UPSERT"
     assert outbox.status == OutboxStatus.PENDING
     assert len(outbox.payload["vector_dense"]) == 1536
+
+
+def test_feedback_and_connector_model_instantiation():
+    from titan_backend.db.models.connectors import Connector, ConnectorStatus
+    from titan_backend.db.models.feedback import Feedback
+
+    t_id = uuid4()
+    w_id = uuid4()
+    s_id = uuid4()
+    m_id = uuid4()
+
+    fb = Feedback(
+        tenant_id=t_id,
+        workspace_id=w_id,
+        session_id=s_id,
+        message_id=m_id,
+        rating=1,
+        comment="Great answer!",
+    )
+    assert fb.rating == 1
+    assert fb.comment == "Great answer!"
+
+    conn = Connector(
+        tenant_id=t_id,
+        workspace_id=w_id,
+        name="Google Drive Prod",
+        connector_type="gdrive",
+        status=ConnectorStatus.ACTIVE,
+    )
+    assert conn.name == "Google Drive Prod"
+    assert conn.connector_type == "gdrive"
+    assert conn.status == ConnectorStatus.ACTIVE
