@@ -42,6 +42,27 @@ class CircuitBreaker:
         self.last_failure_time = 0.0
         self._lock = asyncio.Lock()
 
+    def can_execute(self) -> bool:
+        now = time.time()
+        if self.state == CircuitState.OPEN:
+            if now - self.last_failure_time >= self.recovery_timeout:
+                self.state = CircuitState.HALF_OPEN
+                return True
+            return False
+        return True
+
+    def record_success(self) -> None:
+        if self.state == CircuitState.HALF_OPEN:
+            self.state = CircuitState.CLOSED
+        self.failure_count = 0
+
+    def record_failure(self) -> None:
+        self.failure_count += 1
+        self.last_failure_time = time.time()
+        if self.failure_count >= self.failure_threshold or self.state == CircuitState.HALF_OPEN:
+            self.state = CircuitState.OPEN
+            logger.error("circuit_breaker_tripped_open", name=self.name)
+
     async def _update_state(self) -> None:
         now = time.time()
         if self.state == CircuitState.OPEN:

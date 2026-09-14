@@ -30,6 +30,10 @@ class CurrentUser:
     is_superuser: bool = False
     is_api_key: bool = False
 
+    @property
+    def user_id(self) -> UUID:
+        return self.id
+
 
 async def get_current_user(
     request: Request,
