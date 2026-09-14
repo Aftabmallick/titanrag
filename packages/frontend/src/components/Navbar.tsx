@@ -26,7 +26,7 @@ export function Navbar() {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const res = await fetch("/health/live");
+        const res = await fetch("/api/v1/health/live");
         if (res.ok) {
           setBackendStatus("online");
         } else {
