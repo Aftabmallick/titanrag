@@ -21,6 +21,9 @@ async def get_redis() -> aioredis.Redis:
     return aioredis.Redis(connection_pool=pool)
 
 
+get_redis_client = get_redis
+
+
 async def check_redis_health() -> bool:
     try:
         client = await get_redis()

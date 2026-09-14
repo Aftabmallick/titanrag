@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import DateTime, func
@@ -20,6 +21,11 @@ class UUIDPrimaryKeyMixin:
         primary_key=True,
         default=uuid4,
     )
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        if "id" not in kwargs:
+            kwargs["id"] = uuid4()
+        super().__init__(*args, **kwargs)
 
 
 class TimestampMixin:
