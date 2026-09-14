@@ -71,11 +71,15 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "titanrag-documents"
     MINIO_USE_SSL: bool = False
 
-    # LiteLLM
+    # LiteLLM & Models
     LITELLM_HOST: str = "localhost"
     LITELLM_PORT: int = 4000
     LITELLM_URL: str = "http://localhost:4000"
     LITELLM_MASTER_KEY: str = "sk-titanrag-litellm-master-key"
+    DEFAULT_CHAT_MODEL: str = "gpt-4o-mini"
+    DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    COHERE_API_KEY: str | None = None
+    RERANKER_TIMEOUT_MS: int = 400
 
     # OpenTelemetry
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"

@@ -14,6 +14,8 @@ celery_app = Celery(
     include=[
         "titan_workers.tasks.housekeeping",
         "titan_workers.tasks.ingestion",
+        "titan_workers.tasks.deep_research",
+        "titan_workers.tasks.nli_guardrail",
         "titan_workers.outbox.reconciler",
     ],
 )

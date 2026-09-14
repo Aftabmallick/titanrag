@@ -148,3 +148,18 @@ async def check_daily_query_quota(
     except Exception as e:
         logger.warning("daily_query_tracking_error", tenant_id=str(tenant_id), error=str(e))
         return 0
+
+
+async def preflight_chat_quota(tenant_id: UUID) -> None:
+    """Pre-flight check before initiating RAG search & generation."""
+    await check_daily_query_quota(tenant_id)
+    await consume_compute_units(tenant_id, operation="text_query", units=1)
+
+
+async def record_chat_token_usage(tenant_id: UUID, tokens: int) -> None:
+    """Post-generation accounting: records additional CUs based on LLM tokens consumed."""
+    if tokens <= 0:
+        return
+    # 1 CU per 1000 tokens
+    additional_cu = max(1, tokens // 1000)
+    await consume_compute_units(tenant_id, operation="text_query", units=additional_cu)
