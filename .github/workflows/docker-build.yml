@@ -15,17 +15,21 @@ jobs:
       matrix:
         include:
           - name: backend
-            context: ./titanrag/packages/backend
-            dockerfile: ./titanrag/packages/backend/Dockerfile
+            context: ./packages/backend
+            dockerfile: ./packages/backend/Dockerfile
             image: titan-backend
           - name: workers-core
-            context: ./titanrag/packages/workers
-            dockerfile: ./titanrag/packages/workers/Dockerfile.core
+            context: ./packages/workers
+            dockerfile: ./packages/workers/Dockerfile.core
             image: titan-workers-core
           - name: workers-heavy
-            context: ./titanrag/packages/workers
-            dockerfile: ./titanrag/packages/workers/Dockerfile.heavy
+            context: ./packages/workers
+            dockerfile: ./packages/workers/Dockerfile.heavy
             image: titan-workers-heavy
+          - name: frontend
+            context: ./packages/frontend
+            dockerfile: ./packages/frontend/Dockerfile
+            image: titan-frontend
 
     steps:
       - name: Checkout repository

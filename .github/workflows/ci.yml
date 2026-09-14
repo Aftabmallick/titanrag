@@ -25,20 +25,31 @@ jobs:
           enable-cache: true
 
       - name: Install dependencies
-        working-directory: ./titanrag
         run: |
           uv sync --all-packages
 
       - name: Ruff Lint & Format Check
-        working-directory: ./titanrag
         run: |
           uv run ruff check .
           uv run ruff format --check .
 
       - name: Mypy Static Type Checking
-        working-directory: ./titanrag
         run: |
-          uv run mypy packages/backend/src packages/workers/src
+          uv run mypy packages/backend/titan_backend packages/workers/titan_workers packages/sdk/titanrag
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: packages/frontend/package.json
+
+      - name: Frontend Lint & Build Check
+        working-directory: packages/frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run build
 
   integration-test:
     name: Integration & Migration Tests
@@ -87,12 +98,11 @@ jobs:
         uses: astral-sh/setup-uv@v3
 
       - name: Install dependencies
-        working-directory: ./titanrag
         run: |
           uv sync --all-packages
 
       - name: Run Alembic Migrations Up & Down
-        working-directory: ./titanrag/packages/backend
+        working-directory: packages/backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag
         run: |
@@ -101,7 +111,6 @@ jobs:
           uv run alembic upgrade head
 
       - name: Run Pytest Test Suite
-        working-directory: ./titanrag
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag
           REDIS_URL: redis://localhost:6379/0

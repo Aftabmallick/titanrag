@@ -8,6 +8,7 @@ from sqlalchemy import text
 from titan_backend.clients.qdrant_client import check_qdrant_health
 from titan_backend.clients.redis_client import check_redis_health
 from titan_backend.clients.s3_client import check_minio_health
+from titan_backend.core.config import settings
 from titan_backend.db.session import async_session_factory
 
 logger = structlog.get_logger("titanrag.health")
@@ -35,12 +36,17 @@ async def liveness() -> dict[str, str]:
 async def readiness(response: Response) -> HealthResponse:
     tasks = {
         "postgres": check_postgres_health(),
-        "redis": check_redis_health(),
         "qdrant": check_qdrant_health(),
-        "minio": check_minio_health(),
     }
-
     results: dict[str, DependencyStatus] = {}
+
+    if settings.QUICKSTART_MODE:
+        results["redis"] = DependencyStatus(status="skipped", latency_ms=0.0, error="Quickstart profile active")
+        results["minio"] = DependencyStatus(status="skipped", latency_ms=0.0, error="Quickstart profile active")
+    else:
+        tasks["redis"] = check_redis_health()
+        tasks["minio"] = check_minio_health()
+
     all_healthy = True
 
     for name, coro in tasks.items():
