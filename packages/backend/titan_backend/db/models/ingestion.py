@@ -1,7 +1,9 @@
 import enum
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Enum, Float, ForeignKey, Index, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -44,6 +46,9 @@ class IngestionTask(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin
     )
     stage: Mapped[str] = mapped_column(String(50), default="PARSING", nullable=False)
     progress_percent: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    total_chunks: Mapped[int] = mapped_column(default=0, nullable=False)
+    processed_chunks: Mapped[int] = mapped_column(default=0, nullable=False)
+    checkpoint_data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (Index("ix_ingestion_tasks_doc_status", "document_id", "status"),)
