@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "Multi-tenant, multimodal enterprise retrieval-augmented generation engine",
 };
 
+import { AuthProvider } from "@/lib/auth";
+
 export default function RootLayout({
   children,
 }: {
@@ -13,7 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-slate-950 text-slate-100">{children}</body>
+      <body className="antialiased bg-slate-950 text-slate-100">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

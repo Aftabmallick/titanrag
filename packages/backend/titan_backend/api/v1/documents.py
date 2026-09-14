@@ -34,6 +34,7 @@ from titan_backend.clients.s3_client import build_scoped_storage_path, get_minio
 from titan_backend.core.config import settings
 from titan_backend.core.dependencies import CurrentUser, get_current_user, require_permission
 from titan_backend.core.errors import AppException
+from titan_backend.core.file_validator import scan_file_safety, validate_file_signature
 from titan_backend.core.quotas import check_document_quota, check_storage_quota
 from titan_backend.core.rbac import Permission
 from titan_backend.db.models.chunks import Chunk
@@ -73,6 +74,23 @@ async def upload_document(
 
     file_bytes = await file.read()
     file_size = len(file_bytes)
+
+    # Magic byte signature and malicious payload security verification
+    is_valid_sig, sig_result = validate_file_signature(file_bytes, filename)
+    if not is_valid_sig:
+        raise AppException(
+            message=f"File validation failed: {sig_result}",
+            status_code=400,
+            error_code="INVALID_FILE_SIGNATURE",
+        )
+
+    is_safe, detected_threats = scan_file_safety(file_bytes, filename)
+    if not is_safe:
+        raise AppException(
+            message=f"Malicious content pattern detected: {', '.join(detected_threats)}",
+            status_code=400,
+            error_code="SECURITY_THREAT_DETECTED",
+        )
 
     # 1. FinOps Quotas Check
     await check_storage_quota(tenant_id, file_size)
@@ -213,6 +231,15 @@ async def bulk_upload_documents(
         filename = f.filename or "file.bin"
         file_bytes = await f.read()
         file_size = len(file_bytes)
+
+        is_valid_sig, sig_result = validate_file_signature(file_bytes, filename)
+        if not is_valid_sig:
+            logger.warning("bulk_file_skipped_invalid_signature", filename=filename, reason=sig_result)
+            continue
+        is_safe, detected_threats = scan_file_safety(file_bytes, filename)
+        if not is_safe:
+            logger.warning("bulk_file_skipped_security_threat", filename=filename, threats=detected_threats)
+            continue
 
         await check_storage_quota(tenant_id, file_size)
         await check_document_quota(tenant_id, db)

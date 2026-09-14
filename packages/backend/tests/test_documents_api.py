@@ -333,3 +333,52 @@ async def test_reindex_endpoints(async_client, mock_db_session, test_user, monke
     bulk_data = bulk_resp.json()
     assert len(bulk_data) == 1
     assert bulk_data[0]["document"]["id"] == str(doc_id)
+
+
+def test_file_signature_validation():
+    from titan_backend.core.file_validator import scan_file_safety, validate_file_signature
+
+    # Valid PDF
+    valid_pdf = b"%PDF-1.7\nSample content"
+    is_valid, mime = validate_file_signature(valid_pdf, "sample.pdf")
+    assert is_valid is True
+    assert mime == "application/pdf"
+
+    # Corrupt PDF missing header
+    corrupt_pdf = b"NOT_A_PDF_CONTENT"
+    is_valid, msg = validate_file_signature(corrupt_pdf, "sample.pdf")
+    assert is_valid is False
+    assert "Missing %PDF-" in msg
+
+    # Disguised Windows PE Executable
+    disguised_exe = b"MZ\x90\x00\x03\x00\x00\x00"
+    is_valid, msg = validate_file_signature(disguised_exe, "invoice.pdf")
+    assert is_valid is False
+    assert "MZ header detected" in msg
+
+    # Text containing null bytes
+    binary_in_text = b"Normal text\x00\x01\x02"
+    is_valid, msg = validate_file_signature(binary_in_text, "notes.txt")
+    assert is_valid is False
+    assert "Binary data detected" in msg
+
+    # Malicious script payload
+    safe, threats = scan_file_safety(b"powershell -enc aW52b2tl", "test.txt")
+    assert safe is False
+    assert len(threats) >= 1
+
+
+@pytest.mark.asyncio
+async def test_disguised_executable_upload_rejected(async_client, mock_db_session, test_user):
+    ws_id = uuid4()
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    # Disguised executable payload named invoice.pdf
+    files = {"file": ("invoice.pdf", b"MZ\x90\x00\x03\x00\x00\x00executable", "application/pdf")}
+    resp = await async_client.post(f"/api/v1/workspaces/{ws_id}/documents", files=files)
+    assert resp.status_code == 400
+    assert resp.json()["error"]["code"] == "INVALID_FILE_SIGNATURE"

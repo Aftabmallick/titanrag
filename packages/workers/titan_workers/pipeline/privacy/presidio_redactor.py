@@ -20,12 +20,25 @@ PATTERNS = {
 
 class PIIRedactor:
     """
-    Enterprise PII Redaction Engine supporting REPLACE, HASH, and MASK modes.
-    Incorporates Microsoft Presidio with zero-dependency regex fallback.
+    Enterprise PII Redaction Engine supporting REPLACE, HASH, MASK, and OFF modes.
+    Incorporates Microsoft Presidio integration with zero-dependency high-precision regex engine.
     """
 
     def __init__(self, default_mode: str = "REPLACE"):
         self.default_mode = default_mode.upper()
+        self._analyzer: Any = None
+        self._anonymizer: Any = None
+
+        # Attempt to load Microsoft Presidio if present in environment
+        try:
+            from presidio_analyzer import AnalyzerEngine  # type: ignore
+            from presidio_anonymizer import AnonymizerEngine  # type: ignore
+
+            self._analyzer = AnalyzerEngine()
+            self._anonymizer = AnonymizerEngine()
+            logger.info("presidio_analyzer_loaded")
+        except Exception:
+            logger.debug("presidio_not_available_using_regex_engine")
 
     def _mask_value(self, val: str, entity_type: str) -> str:
         if len(val) <= 4:
@@ -47,6 +60,28 @@ class PIIRedactor:
         redacted_text = text
         detected_entities: list[dict[str, Any]] = []
 
+        # If Presidio engines are loaded, use them
+        if self._analyzer and self._anonymizer and active_mode == "REPLACE":
+            try:
+                analyzer_results = self._analyzer.analyze(text=text, language="en")
+                if analyzer_results:
+                    anonymized_result = self._anonymizer.anonymize(
+                        text=text,
+                        analyzer_results=analyzer_results,
+                    )
+                    return anonymized_result.text, [
+                        {
+                            "type": r.entity_type,
+                            "mode": active_mode,
+                            "start": r.start,
+                            "end": r.end,
+                        }
+                        for r in analyzer_results
+                    ]
+            except Exception as e:
+                logger.warning("presidio_analysis_failed_fallback_to_regex", error=str(e))
+
+        # Precision regex engine
         for entity_type, pattern in PATTERNS.items():
             matches = list(pattern.finditer(redacted_text))
             for match in reversed(matches):

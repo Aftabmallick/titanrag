@@ -70,7 +70,7 @@ async def _execute_ingestion(
         engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
         session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
-        orchestrator = IngestionPipelineOrchestrator()
+        orchestrator = IngestionPipelineOrchestrator(minio_client=minio_client)
         async with session_factory() as session:
             result = await orchestrator.run_pipeline(
                 db=session,

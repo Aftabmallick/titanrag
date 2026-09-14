@@ -133,3 +133,15 @@ class TenantIngestionSemaphore:
                 await redis.decr(self.key)
             except Exception as e:
                 logger.warning("semaphore_release_error", error=str(e), tenant_id=self.tenant_id)
+
+
+def get_collection_for_tenant(tenant_plan: str = "free", tenant_id: str | None = None) -> str:
+    """
+    Tiered sharding routing:
+    - Enterprise tenants receive dedicated Qdrant collection to prevent noisy neighbor memory thrashing
+    - Free / Pro tenants use shared partitioned 'titan_chunks' collection
+    """
+    if tenant_plan.lower() == "enterprise" and tenant_id:
+        clean_id = str(tenant_id).replace("-", "_")
+        return f"titan_enterprise_{clean_id}"
+    return "titan_chunks"
