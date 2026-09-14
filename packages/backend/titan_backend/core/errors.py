@@ -29,12 +29,18 @@ class AppException(Exception):
         code: str = "INTERNAL_ERROR",
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         details: dict[str, Any] | None = None,
+        error_code: str | None = None,
+        headers: dict[str, str] | None = None,
     ):
         super().__init__(message)
         self.message = message
-        self.code = code
+        self.code = error_code or code
+        self.error_code = self.code
         self.status_code = status_code
         self.details = details or {}
+        self.headers = headers or {}
+        if "retry_after" in self.details and "Retry-After" not in self.headers:
+            self.headers["Retry-After"] = str(self.details["retry_after"])
 
 
 class NotFoundError(AppException):
@@ -74,6 +80,7 @@ async def app_exception_handler(request: Request, exc: AppException) -> JSONResp
                 request_id=request_id,
             )
         ).model_dump(),
+        headers=exc.headers or None,
     )
 
 

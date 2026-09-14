@@ -7,7 +7,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from titan_backend.api.router import api_router
+from titan_backend.api.router import root_router, v1_router
 from titan_backend.api.v1.metrics import REQUEST_COUNT, REQUEST_LATENCY
 from titan_backend.clients.qdrant_client import init_qdrant_collection
 from titan_backend.clients.redis_client import close_redis_pool
@@ -20,6 +20,7 @@ from titan_backend.core.errors import (
     validation_exception_handler,
 )
 from titan_backend.core.logging import logger, setup_logging
+from titan_backend.core.rate_limit import RateLimitMiddleware
 from titan_backend.core.security_headers import SecurityAndCorrelationMiddleware
 from titan_backend.core.telemetry import init_telemetry
 from titan_backend.db.session import engine
@@ -64,6 +65,9 @@ def create_app() -> FastAPI:
     # Security Headers and Request ID
     app.add_middleware(SecurityAndCorrelationMiddleware)
 
+    # Redis Sliding-Window Rate Limiting
+    app.add_middleware(RateLimitMiddleware)
+
     # CORS
     app.add_middleware(
         CORSMiddleware,
@@ -96,8 +100,8 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Router mounting
-    app.include_router(api_router)
-    app.include_router(api_router, prefix=settings.API_V1_STR)
+    app.include_router(root_router)
+    app.include_router(v1_router)
 
     return app
 
