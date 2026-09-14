@@ -217,4 +217,3 @@ async def require_admin(current_user: CurrentUser = Depends(get_current_user)) -
         status_code=403,
         error_code="ADMIN_REQUIRED",
     )
-

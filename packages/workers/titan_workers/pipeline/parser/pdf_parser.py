@@ -36,7 +36,9 @@ class PDFParser(DocumentParser):
                     is_heading = False
                     if len(cleaned) < 80 and (
                         cleaned.isupper()
-                        or cleaned.startswith(("Chapter", "Section", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "#"))
+                        or cleaned.startswith(
+                            ("Chapter", "Section", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9.", "#")
+                        )
                     ):
                         is_heading = True
                         current_section = [cleaned.lstrip("#").strip()]

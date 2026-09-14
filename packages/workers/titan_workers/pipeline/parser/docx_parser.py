@@ -12,7 +12,12 @@ class DOCXParser(DocumentParser):
     Structural DOCX and Office document parser preserving headings, lists, and tables.
     """
 
-    async def parse(self, file_bytes: bytes, filename: str, mime_type: str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document") -> ParsedDocument:
+    async def parse(
+        self,
+        file_bytes: bytes,
+        filename: str,
+        mime_type: str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ) -> ParsedDocument:
         elements: list[ParsedElement] = []
         raw_text_parts: list[str] = []
 

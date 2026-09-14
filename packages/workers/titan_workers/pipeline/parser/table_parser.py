@@ -42,8 +42,7 @@ class TableParser(DocumentParser):
             # Generate natural language semantic description for retrieval quality
             col_names = ", ".join([f"'{c.strip()}'" for c in header if c.strip()])
             nl_description = (
-                f"Table containing {len(data_rows)} rows and {len(header)} columns. "
-                f"Columns include: {col_names}."
+                f"Table containing {len(data_rows)} rows and {len(header)} columns. Columns include: {col_names}."
             )
 
             element = ParsedElement(

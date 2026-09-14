@@ -22,7 +22,6 @@ def test_user():
     )
 
 
-
 @pytest.mark.asyncio
 async def test_preview_endpoint(async_client, mock_db_session, test_user):
     ws_id = uuid4()

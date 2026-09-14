@@ -79,9 +79,7 @@ async def retry_failed_task(
     # Reset task status to QUEUED and document status to PROCESSING
     task.status = TaskStatus.QUEUED
     task.error_message = None
-    await db.execute(
-        update(Document).where(Document.id == task.document_id).values(status=DocumentStatus.PROCESSING)
-    )
+    await db.execute(update(Document).where(Document.id == task.document_id).values(status=DocumentStatus.PROCESSING))
     # Also retry any failed outbox items for this document
     await db.execute(
         update(ChunkOutbox)
@@ -95,13 +93,17 @@ async def retry_failed_task(
 
     # Re-dispatch Celery task for actual execution
     doc = (
-        await db.execute(
-            select(Document).where(
-                Document.id == task.document_id,
-                Document.tenant_id == current_user.tenant_id,
+        (
+            await db.execute(
+                select(Document).where(
+                    Document.id == task.document_id,
+                    Document.tenant_id == current_user.tenant_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
 
     if doc:
         try:
@@ -137,9 +139,7 @@ async def discard_failed_task(
         raise AppException(message="Task not found in DLQ.", status_code=404, error_code="DLQ_TASK_NOT_FOUND")
 
     # Mark document as ARCHIVED and task as discarded
-    await db.execute(
-        update(Document).where(Document.id == task.document_id).values(status=DocumentStatus.ARCHIVED)
-    )
+    await db.execute(update(Document).where(Document.id == task.document_id).values(status=DocumentStatus.ARCHIVED))
     await db.delete(task)
     await db.commit()
     logger.info("dlq_task_discarded", task_id=str(task_id))

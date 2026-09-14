@@ -28,7 +28,9 @@ def upgrade() -> None:
     # 2. Documents table updates
     op.add_column("documents", sa.Column("doc_type", sa.String(50), server_default="generic", nullable=False))
     op.add_column("documents", sa.Column("folder", sa.String(255), nullable=True))
-    op.add_column("documents", sa.Column("tags", postgresql.JSONB(astext_type=sa.Text()), server_default="[]", nullable=False))
+    op.add_column(
+        "documents", sa.Column("tags", postgresql.JSONB(astext_type=sa.Text()), server_default="[]", nullable=False)
+    )
     op.add_column("documents", sa.Column("is_stale", sa.Boolean(), server_default="false", nullable=False))
     op.add_column("documents", sa.Column("staleness_ttl_days", sa.Integer(), nullable=True))
     op.add_column("documents", sa.Column("is_shared", sa.Boolean(), server_default="false", nullable=False))
@@ -43,7 +45,10 @@ def upgrade() -> None:
     # 4. Ingestion tasks table updates
     op.add_column("ingestion_tasks", sa.Column("total_chunks", sa.Integer(), server_default="0", nullable=False))
     op.add_column("ingestion_tasks", sa.Column("processed_chunks", sa.Integer(), server_default="0", nullable=False))
-    op.add_column("ingestion_tasks", sa.Column("checkpoint_data", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False))
+    op.add_column(
+        "ingestion_tasks",
+        sa.Column("checkpoint_data", postgresql.JSONB(astext_type=sa.Text()), server_default="{}", nullable=False),
+    )
 
 
 def downgrade() -> None:

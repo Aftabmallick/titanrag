@@ -88,9 +88,7 @@ class IngestionPipelineOrchestrator:
             # Stage 1: Parsing
             # -------------------------------------------------------------
             await self._emit_progress(doc_str, "PARSING", 0.15)
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(status=DocumentStatus.PARSED)
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status=DocumentStatus.PARSED))
             await db.commit()
 
             parser = get_parser_for_file(filename, mime_type)
@@ -100,9 +98,7 @@ class IngestionPipelineOrchestrator:
             # Stage 2: PII Redaction
             # -------------------------------------------------------------
             await self._emit_progress(doc_str, "REDACTING", 0.30)
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(status=DocumentStatus.REDACTED)
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status=DocumentStatus.REDACTED))
             await db.commit()
 
             for elem in parsed_doc.elements:
@@ -112,9 +108,7 @@ class IngestionPipelineOrchestrator:
             # Stage 3: Hierarchical Chunking
             # -------------------------------------------------------------
             await self._emit_progress(doc_str, "CHUNKING", 0.45)
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(status=DocumentStatus.CHUNKED)
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status=DocumentStatus.CHUNKED))
             await db.commit()
 
             parent_chunks, child_chunks = self.chunker.chunk_document(parsed_doc, filename)
@@ -171,9 +165,7 @@ class IngestionPipelineOrchestrator:
             # Stage 5: Dense + Sparse Embeddings (with Delta MinHash Re-embedding)
             # -------------------------------------------------------------
             await self._emit_progress(doc_str, "EMBEDDING", 0.75, 0, total_chunks)
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(status=DocumentStatus.EMBEDDED)
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status=DocumentStatus.EMBEDDED))
             await db.commit()
 
             # Check for existing active chunks to perform delta re-embedding
@@ -222,12 +214,10 @@ class IngestionPipelineOrchestrator:
                 computed_sparse = [self.sparse_embedder.generate_sparse_vector(t) for t in chunk_texts_to_embed]
 
             dense_map: dict[int, list[float]] = {
-                orig_idx: computed_dense[embed_idx]
-                for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
+                orig_idx: computed_dense[embed_idx] for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
             }
             sparse_map: dict[int, dict[str, list[Any]]] = {
-                orig_idx: computed_sparse[embed_idx]
-                for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
+                orig_idx: computed_sparse[embed_idx] for embed_idx, orig_idx in enumerate(chunks_to_embed_indices)
             }
 
             dense_vectors: list[list[float]] = []
@@ -307,9 +297,7 @@ class IngestionPipelineOrchestrator:
                 db.add(outbox_entry)
 
             # 3. Transition document to READY
-            await db.execute(
-                update(Document).where(Document.id == document_id).values(status=DocumentStatus.READY)
-            )
+            await db.execute(update(Document).where(Document.id == document_id).values(status=DocumentStatus.READY))
             # Update IngestionTask to COMPLETED
             await db.execute(
                 update(IngestionTask)

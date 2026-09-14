@@ -564,26 +564,34 @@ async def share_document(
     tenant_id = current_user.tenant_id
     # Ensure source doc exists
     doc = (
-        await db.execute(
-            select(Document).where(
-                Document.id == document_id,
-                Document.tenant_id == tenant_id,
-                Document.workspace_id == workspace_id,
+        (
+            await db.execute(
+                select(Document).where(
+                    Document.id == document_id,
+                    Document.tenant_id == tenant_id,
+                    Document.workspace_id == workspace_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if not doc:
         raise AppException(message="Source document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
 
     # Ensure target workspace exists and belongs to SAME tenant (cross-tenant hard block)
     target_ws = (
-        await db.execute(
-            select(Workspace).where(
-                Workspace.id == payload.target_workspace_id,
-                Workspace.tenant_id == tenant_id,
+        (
+            await db.execute(
+                select(Workspace).where(
+                    Workspace.id == payload.target_workspace_id,
+                    Workspace.tenant_id == tenant_id,
+                )
             )
         )
-    ).scalars().first()
+        .scalars()
+        .first()
+    )
     if not target_ws:
         raise AppException(
             message="Target workspace not found or cross-tenant share attempted.",
@@ -636,7 +644,7 @@ async def preview_ingestion(
     parents, children = chunker.chunk_document(parsed_doc, payload.filename)
 
     sample_items: list[IngestionPreviewChunk] = []
-    for c in (parents[:2] + children[:3]):
+    for c in parents[:2] + children[:3]:
         sample_items.append(
             IngestionPreviewChunk(
                 index=c.chunk_index,
@@ -841,7 +849,9 @@ async def stream_document_status(
             while True:
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
                 if message:
-                    data_str = message["data"].decode("utf-8") if isinstance(message["data"], bytes) else message["data"]
+                    data_str = (
+                        message["data"].decode("utf-8") if isinstance(message["data"], bytes) else message["data"]
+                    )
                     yield f"data: {data_str}\n\n"
                     payload = json.loads(data_str)
                     if payload.get("stage") in ("READY", "FAILED"):
