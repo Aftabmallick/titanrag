@@ -377,10 +377,7 @@ async def _handle_list_groups(
             .where(ACLGroupMember.group_id == grp.id)
         )
         mem_res = await db.execute(mem_stmt)
-        scim_members = [
-            {"value": str(uid), "display": email, "type": "User"}
-            for uid, email in mem_res.all()
-        ]
+        scim_members = [{"value": str(uid), "display": email, "type": "User"} for uid, email in mem_res.all()]
         resources.append(
             {
                 "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
@@ -520,10 +517,7 @@ async def scim_get_group(
         .where(ACLGroupMember.group_id == grp.id)
     )
     mem_res = await db.execute(mem_stmt)
-    scim_members = [
-        {"value": str(uid), "display": email, "type": "User"}
-        for uid, email in mem_res.all()
-    ]
+    scim_members = [{"value": str(uid), "display": email, "type": "User"} for uid, email in mem_res.all()]
 
     return {
         "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],

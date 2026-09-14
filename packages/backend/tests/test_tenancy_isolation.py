@@ -206,4 +206,3 @@ async def test_workspace_member_removal_cleans_acl_memberships(async_client, moc
         )
         assert resp.status_code == 200
         mock_inval.assert_called_once_with(target_user_id)
-
