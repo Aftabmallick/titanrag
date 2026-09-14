@@ -9,6 +9,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from titan_backend.api.router import api_router
 from titan_backend.api.v1.metrics import REQUEST_COUNT, REQUEST_LATENCY
+from titan_backend.clients.qdrant_client import init_qdrant_collection
+from titan_backend.clients.redis_client import close_redis_pool
 from titan_backend.core.config import settings
 from titan_backend.core.errors import (
     AppException,
@@ -32,11 +34,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize OpenTelemetry
     init_telemetry(app, engine)
 
+    # Provision Qdrant collection and payload indexes
+    try:
+        await init_qdrant_collection()
+    except Exception as e:
+        logger.warning("qdrant_collection_init_deferred", error=str(e))
+
     logger.info("application_startup_complete")
     yield
 
     # Teardown
     logger.info("application_shutting_down")
+    await close_redis_pool()
     await engine.dispose()
     logger.info("application_shutdown_complete")
 

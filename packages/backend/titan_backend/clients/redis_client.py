@@ -27,3 +27,10 @@ async def check_redis_health() -> bool:
         return bool(await client.ping())
     except Exception:
         return False
+
+
+async def close_redis_pool() -> None:
+    global _redis_pool
+    if _redis_pool is not None:
+        await _redis_pool.disconnect()
+        _redis_pool = None

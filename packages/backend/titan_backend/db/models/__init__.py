@@ -4,7 +4,9 @@ from titan_backend.db.models.api_keys import APIKey
 from titan_backend.db.models.audit import AuditLog
 from titan_backend.db.models.chat import ChatMessage, ChatSession, MessageRole
 from titan_backend.db.models.chunks import Chunk
+from titan_backend.db.models.connectors import Connector, ConnectorStatus, ConnectorSyncLog, SyncStatus
 from titan_backend.db.models.documents import Document, DocumentStatus, DocumentVersion
+from titan_backend.db.models.feedback import Feedback
 from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
 from titan_backend.db.models.outbox import ChunkOutbox, OutboxStatus
 from titan_backend.db.models.settings import RAGSettings
@@ -36,4 +38,9 @@ __all__ = [
     "RAGSettings",
     "IngestionTask",
     "TaskStatus",
+    "Feedback",
+    "Connector",
+    "ConnectorStatus",
+    "ConnectorSyncLog",
+    "SyncStatus",
 ]

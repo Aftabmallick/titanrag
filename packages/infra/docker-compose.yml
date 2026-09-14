@@ -275,6 +275,25 @@ services:
     networks:
       - titan-net
 
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: titan-langfuse
+    restart: unless-stopped
+    profiles: ["full"]
+    ports:
+      - "3002:3000"
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_dev_password}@postgres:5432/${POSTGRES_DB:-titanrag}
+      NEXTAUTH_SECRET: ${SECRET_KEY:-titanrag-dev-secret-key-must-be-changed-in-production-min32chars!}
+      SALT: ${SECRET_KEY:-titanrag-dev-secret-key-must-be-changed-in-production-min32chars!}
+      NEXTAUTH_URL: http://localhost:3002
+      TELEMETRY_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - titan-net
+
   # ---------------------------------------------------------------------------
   # Observability Stack
   # ---------------------------------------------------------------------------
@@ -285,6 +304,7 @@ services:
     profiles: ["observability", "full"]
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
     ports:
       - "9090:9090"
     networks:

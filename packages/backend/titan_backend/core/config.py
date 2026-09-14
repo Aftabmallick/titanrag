@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # Core System
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
+    QUICKSTART_MODE: bool = False
     LOG_LEVEL: str = "INFO"
     APP_NAME: str = "TitanRAG"
     API_V1_STR: str = "/api/v1"

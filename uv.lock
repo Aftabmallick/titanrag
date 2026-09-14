@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "titan-backend",
     "titan-workers",
+    "titanrag",
     "titanrag-workspace",
 ]
 
@@ -2221,6 +2222,21 @@ requires-dist = [
     { name = "structlog", specifier = ">=24.4.0" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "titanrag"
+version = "0.1.0"
+source = { editable = "packages/sdk" }
+dependencies = [
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pydantic", specifier = ">=2.8.0" },
+]
 
 [[package]]
 name = "titanrag-workspace"
