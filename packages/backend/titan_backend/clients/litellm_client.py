@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
@@ -45,7 +45,9 @@ class LiteLLMClient:
     ) -> dict[str, Any]:
         """Execute a non-streaming chat completion."""
         if not litellm_circuit_breaker.can_execute():
-            raise LiteLLMClientError("LiteLLM circuit breaker open. Inference temporarily unavailable.", status_code=503)
+            raise LiteLLMClientError(
+                "LiteLLM circuit breaker open. Inference temporarily unavailable.", status_code=503
+            )
 
         target_model = model or settings.DEFAULT_CHAT_MODEL
         payload: dict[str, Any] = {
@@ -70,7 +72,7 @@ class LiteLLMClient:
                         status_code=response.status_code,
                     )
                 litellm_circuit_breaker.record_success()
-                return response.json()
+                return cast(dict[str, Any], response.json())
             except httpx.RequestError as e:
                 litellm_circuit_breaker.record_failure()
                 logger.error("litellm_request_failed", error=str(e))
@@ -106,7 +108,10 @@ class LiteLLMClient:
                     if response.is_error:
                         litellm_circuit_breaker.record_failure()
                         err_body = await response.aread()
-                        raise LiteLLMClientError(f"LiteLLM stream error ({response.status_code}): {err_body.decode()}", status_code=response.status_code)
+                        raise LiteLLMClientError(
+                            f"LiteLLM stream error ({response.status_code}): {err_body.decode()}",
+                            status_code=response.status_code,
+                        )
 
                     litellm_circuit_breaker.record_success()
                     async for line in response.aiter_lines():

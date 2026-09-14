@@ -22,11 +22,13 @@ def evaluate_citations_entailment(
         entailment_score = 0.92 if len(snippet) > 20 else 0.50
         total_entailment += entailment_score
 
-        verified_citations.append({
-            **cit,
-            "verified": entailment_score >= 0.70,
-            "entailment_score": entailment_score,
-        })
+        verified_citations.append(
+            {
+                **cit,
+                "verified": entailment_score >= 0.70,
+                "entailment_score": entailment_score,
+            }
+        )
 
     avg_score = round(total_entailment / max(1, len(citations)), 4) if citations else 1.0
 

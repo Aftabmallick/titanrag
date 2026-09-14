@@ -69,7 +69,9 @@ async def get_rag_settings(
         context_window_strategy=settings_obj.context_window_strategy,
         parent_context_enabled=getattr(settings_obj, "parent_context_enabled", False) or False,
         hyde_enabled=getattr(settings_obj, "hyde_enabled", False) or False,
-        semantic_cache_enabled=getattr(settings_obj, "semantic_cache_enabled", True) if getattr(settings_obj, "semantic_cache_enabled", None) is not None else True,
+        semantic_cache_enabled=getattr(settings_obj, "semantic_cache_enabled", True)
+        if getattr(settings_obj, "semantic_cache_enabled", None) is not None
+        else True,
         cache_cosine_threshold=getattr(settings_obj, "cache_cosine_threshold", 0.95) or 0.95,
         cache_ttl_seconds=getattr(settings_obj, "cache_ttl_seconds", 86400) or 86400,
         system_prompt_override=getattr(settings_obj, "system_prompt_override", None),
@@ -130,7 +132,9 @@ async def update_rag_settings(
         context_window_strategy=settings_obj.context_window_strategy,
         parent_context_enabled=getattr(settings_obj, "parent_context_enabled", False) or False,
         hyde_enabled=getattr(settings_obj, "hyde_enabled", False) or False,
-        semantic_cache_enabled=getattr(settings_obj, "semantic_cache_enabled", True) if getattr(settings_obj, "semantic_cache_enabled", None) is not None else True,
+        semantic_cache_enabled=getattr(settings_obj, "semantic_cache_enabled", True)
+        if getattr(settings_obj, "semantic_cache_enabled", None) is not None
+        else True,
         cache_cosine_threshold=getattr(settings_obj, "cache_cosine_threshold", 0.95) or 0.95,
         cache_ttl_seconds=getattr(settings_obj, "cache_ttl_seconds", 86400) or 86400,
         system_prompt_override=getattr(settings_obj, "system_prompt_override", None),

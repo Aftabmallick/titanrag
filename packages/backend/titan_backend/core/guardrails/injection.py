@@ -7,7 +7,9 @@ from titan_backend.core.logging import logger
 
 
 class PromptInjectionError(AppException):
-    def __init__(self, message: str = "Potential prompt injection or adversarial pattern detected.", details: dict | None = None):
+    def __init__(
+        self, message: str = "Potential prompt injection or adversarial pattern detected.", details: dict | None = None
+    ):
         super().__init__(
             status_code=400,
             error_code="PROMPT_INJECTION_DETECTED",
@@ -73,9 +75,7 @@ def sanitize_and_isolate_query(query: str) -> SanitizedQuery:
 
     # Delimiter boundary isolation
     isolated_prompt_block = (
-        f"===USER QUERY BEGIN (CANARY: {canary_token})===\n"
-        f"{clean_text}\n"
-        f"===USER QUERY END (CANARY: {canary_token})==="
+        f"===USER QUERY BEGIN (CANARY: {canary_token})===\n{clean_text}\n===USER QUERY END (CANARY: {canary_token})==="
     )
 
     return SanitizedQuery(

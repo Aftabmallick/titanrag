@@ -1,10 +1,8 @@
-import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from titan_backend.api.v1.schemas.chat import CitationPayload
 from titan_backend.core.guardrails.egress_scanner import StreamingEgressScanner
 from titan_backend.services.chat.stream_generator import phased_stream_generator
 from titan_backend.services.retrieval.context_packer import PackedSource
@@ -150,7 +148,9 @@ async def test_phased_stream_generator_emits_citation_verified() -> None:
         for t in tokens:
             yield t
 
-    with patch("titan_backend.services.chat.stream_generator.litellm_client.astream_completion", side_effect=mock_stream):
+    with patch(
+        "titan_backend.services.chat.stream_generator.litellm_client.astream_completion", side_effect=mock_stream
+    ):
         stream = phased_stream_generator.generate_stream(
             request=mock_request,
             messages=[{"role": "user", "content": "What was revenue?"}],
@@ -187,17 +187,11 @@ async def test_multi_hop_query_decomposition() -> None:
     """Verifies that multi_hop_decomposer decomposes comparative and multi-hop queries."""
     mock_response = {
         "choices": [
-            {
-                "message": {
-                    "content": '["What was Acme Corp revenue in 2023?", "What was Beta Inc revenue in 2023?"]'
-                }
-            }
+            {"message": {"content": '["What was Acme Corp revenue in 2023?", "What was Beta Inc revenue in 2023?"]'}}
         ]
     }
     with patch("titan_backend.services.retrieval.multi_hop.litellm_client.acompletion", return_value=mock_response):
-        sub_queries = await multi_hop_decomposer.decompose_query(
-            "Compare 2023 revenue between Acme Corp and Beta Inc"
-        )
+        sub_queries = await multi_hop_decomposer.decompose_query("Compare 2023 revenue between Acme Corp and Beta Inc")
         assert len(sub_queries) == 2
         assert "Acme Corp" in sub_queries[0]
         assert "Beta Inc" in sub_queries[1]

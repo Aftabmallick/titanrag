@@ -38,7 +38,10 @@ class SelfQueryEngine:
     async def extract_filters(self, query: str) -> SelfQueryFilter:
         # Fast heuristic check: if query has no year or doc-type keywords, return query as-is
         lower = query.lower()
-        has_keywords = any(kw in lower for kw in ["from 20", "in 20", "nda", "contract", "invoice", "folder", "policy", "report", "spec"])
+        has_keywords = any(
+            kw in lower
+            for kw in ["from 20", "in 20", "nda", "contract", "invoice", "folder", "policy", "report", "spec"]
+        )
         if not has_keywords:
             return SelfQueryFilter(cleaned_query=query)
 

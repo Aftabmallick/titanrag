@@ -36,10 +36,10 @@ class QueryRewriter:
             )
             choices = response.get("choices", [])
             if choices:
-                rewritten = choices[0]["message"]["content"].strip().strip('"')
+                rewritten = str(choices[0]["message"]["content"]).strip().strip('"')
                 if rewritten:
                     logger.info("query_rewritten", original=current_query, rewritten=rewritten)
-                    return rewritten
+                    return str(rewritten)
         except Exception as e:
             logger.warning("query_rewrite_failed_falling_back", error=str(e), original=current_query)
 

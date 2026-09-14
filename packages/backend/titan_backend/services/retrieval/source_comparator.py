@@ -1,4 +1,3 @@
-
 from titan_backend.services.retrieval.context_packer import PackedSource
 
 COMPARISON_SYSTEM_PROMPT = """You are TitanRAG operating in Source Comparison Mode.
@@ -13,7 +12,9 @@ Requirements:
 class SourceComparator:
     """Orchestrates structured document comparison and side-by-side synthesis."""
 
-    def format_comparison_prompt(self, sources_doc_a: list[PackedSource], sources_doc_b: list[PackedSource], topic: str) -> str:
+    def format_comparison_prompt(
+        self, sources_doc_a: list[PackedSource], sources_doc_b: list[PackedSource], topic: str
+    ) -> str:
         all_sources = sources_doc_a + sources_doc_b
         src_blocks = []
         for s in all_sources:

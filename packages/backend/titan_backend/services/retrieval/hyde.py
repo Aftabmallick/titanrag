@@ -23,9 +23,9 @@ class HyDEGenerator:
             )
             choices = response.get("choices", [])
             if choices:
-                hypo = choices[0]["message"]["content"].strip()
+                hypo = str(choices[0]["message"]["content"]).strip()
                 logger.info("hyde_passage_generated", query_length=len(query), hypo_length=len(hypo))
-                return hypo
+                return str(hypo)
         except Exception as e:
             logger.warning("hyde_generation_failed_falling_back", error=str(e))
 

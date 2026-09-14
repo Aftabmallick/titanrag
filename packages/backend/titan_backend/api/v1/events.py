@@ -28,7 +28,7 @@ async def broadcast_event(event_type: str, payload: dict[str, Any], tenant_id: s
     }
     msg_json = json.dumps(message)
     try:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         # 1. Publish to live pub/sub channel
         await redis.publish(SYSTEM_EVENTS_CHANNEL, msg_json)
 
@@ -54,7 +54,7 @@ async def subscribe_to_events(
     allowed_types = set(t.strip() for t in types.split(",")) if types else None
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         pubsub = redis.pubsub()
         await pubsub.subscribe(SYSTEM_EVENTS_CHANNEL)
 

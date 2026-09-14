@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -44,7 +45,11 @@ from titan_backend.services.retrieval.multi_hop import multi_hop_decomposer
 from titan_backend.services.retrieval.prompts import prompt_engine
 from titan_backend.services.retrieval.reranker import RerankedCandidate, reranker
 from titan_backend.services.retrieval.rewriter import query_rewriter
-from titan_backend.services.retrieval.search import hybrid_search_engine
+from titan_backend.services.retrieval.search import (
+    HybridSearchResults,
+    SearchCandidate,
+    hybrid_search_engine,
+)
 from titan_backend.services.retrieval.self_query import self_query_engine
 from titan_backend.services.retrieval.semantic_cache import semantic_cache
 from titan_backend.services.retrieval.source_comparator import source_comparator
@@ -101,16 +106,20 @@ async def chat_endpoint(
 
     # Handle Chit-chat
     if classification.intent == QueryIntent.CHITCHAT:
+
         async def chitchat_stream() -> AsyncGenerator[str, None]:
             yield format_sse("token", {"token": classification.chitchat_response or "Hello!"})
             yield format_sse("done", {"tokens_generated": 15, "intent": "CHITCHAT"})
+
         return StreamingResponse(chitchat_stream(), media_type="text/event-stream")
 
     # Handle Meta inquiries
     if classification.intent == QueryIntent.META:
+
         async def meta_stream() -> AsyncGenerator[str, None]:
             yield format_sse("token", {"token": classification.meta_response or "TitanRAG Knowledge Engine."})
             yield format_sse("done", {"tokens_generated": 25, "intent": "META"})
+
         return StreamingResponse(meta_stream(), media_type="text/event-stream")
 
     # 4. Resolve RAG Settings for Workspace
@@ -126,16 +135,21 @@ async def chat_endpoint(
             query=sanitized.clean_text,
         )
         if cached:
+
             async def cache_stream() -> AsyncGenerator[str, None]:
                 yield format_sse("retrieval_complete", {"sources": cached.sources, "cached": True})
                 yield format_sse("token", {"token": cached.content})
                 yield format_sse("citation", {"citations": cached.citations})
-                yield format_sse("done", {
-                    "cached": True,
-                    "tokens_generated": cached.tokens_used,
-                    "full_text": cached.content,
-                    "citations": cached.citations,
-                })
+                yield format_sse(
+                    "done",
+                    {
+                        "cached": True,
+                        "tokens_generated": cached.tokens_used,
+                        "full_text": cached.content,
+                        "citations": cached.citations,
+                    },
+                )
+
             return StreamingResponse(cache_stream(), media_type="text/event-stream")
 
     # 6. Resolve Session and Chat History
@@ -175,8 +189,8 @@ async def chat_endpoint(
         if len(decomposed) > 1:
             sub_queries = decomposed
 
-    all_dense_candidates = []
-    all_sparse_candidates = []
+    all_dense_candidates: list[SearchCandidate] = []
+    all_sparse_candidates: list[SearchCandidate] = []
 
     if len(sub_queries) > 1:
         search_tasks = [
@@ -195,7 +209,7 @@ async def chat_endpoint(
         ]
         multi_results = await asyncio.gather(*search_tasks, return_exceptions=True)
         for res in multi_results:
-            if not isinstance(res, Exception):
+            if isinstance(res, HybridSearchResults):
                 all_dense_candidates.extend(res.dense_candidates)
                 all_sparse_candidates.extend(res.sparse_candidates)
     else:
@@ -214,11 +228,11 @@ async def chat_endpoint(
         all_sparse_candidates = search_results.sparse_candidates
 
     # Deduplicate candidates across sub-queries preserving highest individual scores
-    unique_dense = {}
+    unique_dense: dict[UUID, SearchCandidate] = {}
     for c in all_dense_candidates:
         if c.chunk_id not in unique_dense or c.score > unique_dense[c.chunk_id].score:
             unique_dense[c.chunk_id] = c
-    unique_sparse = {}
+    unique_sparse: dict[UUID, SearchCandidate] = {}
     for c in all_sparse_candidates:
         if c.chunk_id not in unique_sparse or c.score > unique_sparse[c.chunk_id].score:
             unique_sparse[c.chunk_id] = c
@@ -227,9 +241,7 @@ async def chat_endpoint(
     sparse_candidates_list = list(unique_sparse.values())
 
     # 11. Zero-Trust PostgreSQL Candidate Barrier
-    all_candidate_ids = [c.chunk_id for c in dense_candidates_list] + [
-        c.chunk_id for c in sparse_candidates_list
-    ]
+    all_candidate_ids = [c.chunk_id for c in dense_candidates_list] + [c.chunk_id for c in sparse_candidates_list]
     validated_candidates_map = await candidate_validator.validate_candidates(
         db=db,
         candidate_ids=all_candidate_ids,
@@ -250,9 +262,7 @@ async def chat_endpoint(
     )
 
     fused_validated_objects = [
-        validated_candidates_map[fc.chunk_id]
-        for fc in fused_candidates
-        if fc.chunk_id in validated_candidates_map
+        validated_candidates_map[fc.chunk_id] for fc in fused_candidates if fc.chunk_id in validated_candidates_map
     ]
 
     # 13. Cross-Encoder Reranking with 400ms Circuit Breaker
@@ -265,10 +275,12 @@ async def chat_endpoint(
     # 14. CRAG Confidence Gate
     crag_decision = crag_gate.evaluate(reranked, threshold=rag_settings.score_threshold)
     if not crag_decision.passed:
+
         async def refusal_stream() -> AsyncGenerator[str, None]:
             refusal = crag_decision.refusal_message or "Insufficient context."
             yield format_sse("token", {"token": refusal})
             yield format_sse("done", {"tokens_generated": 20, "crag_passed": False, "full_text": refusal})
+
         return StreamingResponse(refusal_stream(), media_type="text/event-stream")
 
     # 15. Context Packing & Parent Context Injection
@@ -370,11 +382,15 @@ async def chat_endpoint(
                 )
 
             # Broadcast system event
-            await broadcast_event("query.completed", {
-                "workspace_id": str(workspace_id),
-                "tokens": tokens_count,
-                "citations_count": len(citations_list),
-            }, tenant_id=str(current_user.tenant_id))
+            await broadcast_event(
+                "query.completed",
+                {
+                    "workspace_id": str(workspace_id),
+                    "tokens": tokens_count,
+                    "citations_count": len(citations_list),
+                },
+                tenant_id=str(current_user.tenant_id),
+            )
 
         except Exception as e:
             logger.error("post_stream_persistence_error", error=str(e))

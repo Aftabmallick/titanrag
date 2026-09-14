@@ -1,5 +1,4 @@
 from typing import Any
-from uuid import UUID
 
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
@@ -19,7 +18,10 @@ def run_deep_research(
     research_themes = [
         ("Executive Overview", f"High-level synthesis and background regarding {topic}"),
         ("Comparative Evidence & Findings", f"Key empirical metrics, specifications, and evidence for {topic}"),
-        ("Risk Factors, Exceptions & Gaps", f"Identified discrepancies, contractual conditions, and operational risks concerning {topic}"),
+        (
+            "Risk Factors, Exceptions & Gaps",
+            f"Identified discrepancies, contractual conditions, and operational risks concerning {topic}",
+        ),
         ("Strategic Recommendations", f"Forward-looking conclusions and actionable recommendations based on {topic}"),
     ]
 
@@ -30,20 +32,19 @@ def run_deep_research(
     for title, description in research_themes:
         # In multi-turn retrieval loop, each theme gathers evidence chunks
         evidence_snippet = f"Documented findings on {topic}: verified against indexed workspace documentation."
-        sections.append({
-            "title": title,
-            "description": description,
-            "content": f"{evidence_snippet} Key insights for '{title}' establish clear alignment with tenant specifications.",
-            "sources": [f"Source-{i+1}" for i in range(3)],
-        })
+        sections.append(
+            {
+                "title": title,
+                "description": description,
+                "content": f"{evidence_snippet} Key insights for '{title}' establish clear alignment with tenant specifications.",
+                "sources": [f"Source-{i + 1}" for i in range(3)],
+            }
+        )
         total_evidence_count += 3
         analyzed_documents.update([f"Doc-{title.replace(' ', '_')}.pdf", "Corporate_Standard.pdf"])
 
     report_title = f"Deep Research Brief: {topic[:60]}"
-    bibliography = [
-        {"document_name": doc, "status": "ANALYZED"}
-        for doc in sorted(analyzed_documents)
-    ]
+    bibliography = [{"document_name": doc, "status": "ANALYZED"} for doc in sorted(analyzed_documents)]
 
     return {
         "status": "COMPLETED",

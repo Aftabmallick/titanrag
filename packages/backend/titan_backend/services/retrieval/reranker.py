@@ -38,8 +38,7 @@ class CrossEncoderReranker:
         # If only 1 candidate or circuit breaker open, fallback immediately
         if len(candidates) == 1 or not reranker_circuit_breaker.can_execute():
             return [
-                RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c)
-                for c in candidates[:top_n]
+                RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in candidates[:top_n]
             ]
 
         # Check if external Cohere or LiteLLM reranking is available
@@ -50,7 +49,9 @@ class CrossEncoderReranker:
             return results
         except (TimeoutError, Exception) as e:
             reranker_circuit_breaker.record_failure()
-            logger.warning("reranker_timed_out_or_failed_falling_back_to_rrf", error=str(e), timeout=self.timeout_seconds)
+            logger.warning(
+                "reranker_timed_out_or_failed_falling_back_to_rrf", error=str(e), timeout=self.timeout_seconds
+            )
             return self._fallback_rrf_order(candidates, top_n)
 
     async def _execute_remote_rerank(

@@ -39,21 +39,18 @@ class CandidateValidationBarrier:
                 Chunk.id,
                 Chunk.document_id,
                 Chunk.parent_chunk_id,
-                Chunk.section_heading,
                 Chunk.page_number,
-                Chunk.bbox,
-                Chunk.chunk_text,
-                Document.filename,
+                Chunk.content,
+                Chunk.meta,
+                Document.title,
             )
             .join(Document, Chunk.document_id == Document.id)
             .where(
                 Chunk.id.in_(candidate_ids),
                 Chunk.tenant_id == tenant_id,
                 Chunk.workspace_id == workspace_id,
-                Chunk.status == "READY",
                 Chunk.is_active.is_(True),
                 Document.status == DocumentStatus.READY,
-                Document.is_deleted.is_(False),
             )
         )
 
@@ -62,13 +59,17 @@ class CandidateValidationBarrier:
 
         validated: dict[UUID, ValidatedCandidate] = {}
         for row in rows:
-            c_id, doc_id, p_id, heading, page, bbox, text, filename = row
+            c_id, doc_id, p_id, page, text, meta, doc_title = row
+            meta_dict = meta if isinstance(meta, dict) else {}
+            heading = meta_dict.get("section_heading")
+            bbox = meta_dict.get("bbox")
+
             validated[c_id] = ValidatedCandidate(
                 chunk_id=c_id,
                 document_id=doc_id,
-                document_name=filename,
+                document_name=doc_title,
                 parent_chunk_id=p_id,
-                section_heading=heading,
+                section_heading=heading if isinstance(heading, str) else None,
                 page_number=page,
                 bbox=bbox if isinstance(bbox, dict) else None,
                 chunk_text=text,

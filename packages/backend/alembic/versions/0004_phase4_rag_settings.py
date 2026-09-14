@@ -18,10 +18,16 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("rag_settings", sa.Column("parent_context_enabled", sa.Boolean(), server_default="false", nullable=False))
+    op.add_column(
+        "rag_settings", sa.Column("parent_context_enabled", sa.Boolean(), server_default="false", nullable=False)
+    )
     op.add_column("rag_settings", sa.Column("hyde_enabled", sa.Boolean(), server_default="false", nullable=False))
-    op.add_column("rag_settings", sa.Column("semantic_cache_enabled", sa.Boolean(), server_default="true", nullable=False))
-    op.add_column("rag_settings", sa.Column("cache_cosine_threshold", sa.Float(), server_default="0.95", nullable=False))
+    op.add_column(
+        "rag_settings", sa.Column("semantic_cache_enabled", sa.Boolean(), server_default="true", nullable=False)
+    )
+    op.add_column(
+        "rag_settings", sa.Column("cache_cosine_threshold", sa.Float(), server_default="0.95", nullable=False)
+    )
     op.add_column("rag_settings", sa.Column("cache_ttl_seconds", sa.Integer(), server_default="86400", nullable=False))
     op.add_column("rag_settings", sa.Column("system_prompt_override", sa.Text(), nullable=True))
 

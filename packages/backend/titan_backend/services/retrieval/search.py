@@ -49,9 +49,7 @@ class HybridSearchEngine:
 
         # ACL group filtering (match any of the user's groups or 'all-members')
         effective_groups = list(set(user_acl_groups + ["all-members"]))
-        must_conditions.append(
-            qmodels.FieldCondition(key="acl_groups", match=qmodels.MatchAny(any=effective_groups))
-        )
+        must_conditions.append(qmodels.FieldCondition(key="acl_groups", match=qmodels.MatchAny(any=effective_groups)))
 
         if document_ids:
             must_conditions.append(
@@ -59,19 +57,13 @@ class HybridSearchEngine:
             )
 
         if folder:
-            must_conditions.append(
-                qmodels.FieldCondition(key="folder", match=qmodels.MatchValue(value=folder))
-            )
+            must_conditions.append(qmodels.FieldCondition(key="folder", match=qmodels.MatchValue(value=folder)))
 
         if doc_type:
-            must_conditions.append(
-                qmodels.FieldCondition(key="doc_type", match=qmodels.MatchValue(value=doc_type))
-            )
+            must_conditions.append(qmodels.FieldCondition(key="doc_type", match=qmodels.MatchValue(value=doc_type)))
 
         if tags:
-            must_conditions.append(
-                qmodels.FieldCondition(key="tags", match=qmodels.MatchAny(any=tags))
-            )
+            must_conditions.append(qmodels.FieldCondition(key="tags", match=qmodels.MatchAny(any=tags)))
 
         return qmodels.Filter(must=must_conditions)
 
@@ -169,15 +161,17 @@ class HybridSearchEngine:
                 asyncio.wait_for(sparse_query_task, timeout=0.25),
                 return_exceptions=True,
             )
-            if not isinstance(results[0], Exception):
-                dense_candidates, dense_latency = results[0]
+            res0 = results[0]
+            if isinstance(res0, tuple):
+                dense_candidates, dense_latency = res0
             else:
-                logger.warning("dense_search_degraded", error=str(results[0]))
+                logger.warning("dense_search_degraded", error=str(res0))
 
-            if not isinstance(results[1], Exception):
-                sparse_candidates, sparse_latency = results[1]
+            res1 = results[1]
+            if isinstance(res1, tuple):
+                sparse_candidates, sparse_latency = res1
             else:
-                logger.warning("sparse_search_degraded", error=str(results[1]))
+                logger.warning("sparse_search_degraded", error=str(res1))
         except Exception as e:
             logger.error("hybrid_search_gather_error", error=str(e))
 

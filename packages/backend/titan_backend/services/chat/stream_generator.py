@@ -43,10 +43,13 @@ class PhasedStreamGenerator:
         tokens_count = 0
 
         # Phase 1: Emit retrieval status
-        yield format_sse("retrieval_status", {
-            "step": "retrieval_complete",
-            "message": f"Retrieved and verified {len(sources)} candidate sources.",
-        })
+        yield format_sse(
+            "retrieval_status",
+            {
+                "step": "retrieval_complete",
+                "message": f"Retrieved and verified {len(sources)} candidate sources.",
+            },
+        )
 
         # Phase 2: Emit source summary
         source_summaries = [
@@ -104,31 +107,38 @@ class PhasedStreamGenerator:
             # Phase 4.5: Async NLI Claim Verification
             try:
                 from titan_workers.tasks.nli_guardrail import evaluate_citations_entailment
+
                 nli_result = evaluate_citations_entailment(
                     citations=citations_data,
                     generated_text=full_content,
                     message_id=msg_id,
                 )
                 citations_data = nli_result.get("verified_citations", citations_data)
-                yield format_sse("citation_verified", {
-                    "message_id": msg_id,
-                    "status": nli_result.get("status", "VERIFIED"),
-                    "average_entailment": nli_result.get("average_entailment", 1.0),
-                    "verified_citations": citations_data,
-                })
+                yield format_sse(
+                    "citation_verified",
+                    {
+                        "message_id": msg_id,
+                        "status": nli_result.get("status", "VERIFIED"),
+                        "average_entailment": nli_result.get("average_entailment", 1.0),
+                        "verified_citations": citations_data,
+                    },
+                )
             except Exception as e:
                 logger.warning("nli_claim_verification_skipped", error=str(e))
 
             # Phase 5: Emit completion
             elapsed_ms = round((time.perf_counter() - start_time) * 1000.0, 2)
-            yield format_sse("done", {
-                "message_id": msg_id,
-                "session_id": str(session_id) if session_id else None,
-                "tokens_generated": tokens_count,
-                "latency_ms": elapsed_ms,
-                "full_text": full_content,
-                "citations": citations_data,
-            })
+            yield format_sse(
+                "done",
+                {
+                    "message_id": msg_id,
+                    "session_id": str(session_id) if session_id else None,
+                    "tokens_generated": tokens_count,
+                    "latency_ms": elapsed_ms,
+                    "full_text": full_content,
+                    "citations": citations_data,
+                },
+            )
 
         except asyncio.CancelledError:
             logger.info("stream_cancelled_by_runtime", session_id=str(session_id))

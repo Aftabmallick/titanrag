@@ -66,6 +66,7 @@ class InProcessQueryClassifier:
     def _init_onnx_session(self, path: str) -> None:
         try:
             import onnxruntime as ort
+
             self._onnx_session = ort.InferenceSession(path)
             logger.info("onnx_classifier_loaded", model_path=path)
         except Exception as e:

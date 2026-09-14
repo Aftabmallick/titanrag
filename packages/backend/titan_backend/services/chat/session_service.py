@@ -184,7 +184,9 @@ class ChatSessionService:
         messages = res.scalars().all()
         result: list[ChatMessageResponse] = []
         for m in messages:
-            citations = [CitationPayload(**c) for c in m.citations] if isinstance(m.citations, list) else []
+            citations: list[CitationPayload] = (
+                [CitationPayload(**c) for c in m.citations] if isinstance(m.citations, list) else []
+            )
             result.append(
                 ChatMessageResponse(
                     id=m.id,
@@ -205,7 +207,10 @@ class ChatSessionService:
         try:
             # Fast title generation
             messages = [
-                {"role": "system", "content": "Generate a concise 3-5 word title summarizing the user query. Output ONLY the title."},
+                {
+                    "role": "system",
+                    "content": "Generate a concise 3-5 word title summarizing the user query. Output ONLY the title.",
+                },
                 {"role": "user", "content": first_query},
             ]
             res = await litellm_client.acompletion(messages=messages, temperature=0.3, max_tokens=20)

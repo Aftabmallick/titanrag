@@ -18,7 +18,10 @@ LEAK_PATTERNS = [
     ("AWS_ACCESS_KEY", re.compile(r"\b(AKIA|ABIA|ACCA|ASIA)[0-9A-Z]{16}\b")),
     ("PRIVATE_KEY", re.compile(r"-----BEGIN (RSA|EC|OPENSSH|DSA|PGP)?\s?PRIVATE KEY-----")),
     ("US_SSN", re.compile(r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b")),
-    ("CREDIT_CARD", re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b")),
+    (
+        "CREDIT_CARD",
+        re.compile(r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b"),
+    ),
 ]
 
 # Patterns for partial prefixes at chunk boundaries to prevent token split leakage
@@ -100,7 +103,6 @@ class StreamingEgressScanner:
         for name, pattern in LEAK_PATTERNS:
             match = pattern.search(remaining)
             while match:
-                matched_text = match.group(0)
                 redacted_placeholder = f"[REDACTED_{name}]"
                 remaining = remaining[: match.start()] + redacted_placeholder + remaining[match.end() :]
                 match = pattern.search(remaining)

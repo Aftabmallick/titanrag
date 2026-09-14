@@ -65,7 +65,7 @@ class ContextPacker:
         if parent_context_enabled and db is not None:
             parent_ids = [c.candidate.parent_chunk_id for c in reordered if c.candidate.parent_chunk_id]
             if parent_ids:
-                stmt = select(Chunk.id, Chunk.chunk_text).where(Chunk.id.in_(parent_ids))
+                stmt = select(Chunk.id, Chunk.content).where(Chunk.id.in_(parent_ids))
                 res = await db.execute(stmt)
                 for pid, ptext in res.all():
                     parent_texts[pid] = ptext

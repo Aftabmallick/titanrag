@@ -12,7 +12,7 @@ class PipelineMode(str, Enum):
 
 
 class GroundingMode(str, Enum):
-    STRICT = "strict"      # Refuses to answer if context lacks verification
+    STRICT = "strict"  # Refuses to answer if context lacks verification
     BALANCED = "balanced"  # Natural synthesis strictly citing provided chunks
     CREATIVE = "creative"  # Synthesizes broadly with best-effort citations
 
@@ -20,8 +20,12 @@ class GroundingMode(str, Enum):
 class ChatQueryRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=4000, description="User query text")
     session_id: UUID | None = Field(default=None, description="Chat session ID for multi-turn history")
-    pipeline_mode: PipelineMode = Field(default=PipelineMode.AUTO, description="Fast-Path (<1.8s) vs Deep-Path reasoning")
-    grounding_mode: GroundingMode = Field(default=GroundingMode.BALANCED, description="Hallucination guardrail strictness")
+    pipeline_mode: PipelineMode = Field(
+        default=PipelineMode.AUTO, description="Fast-Path (<1.8s) vs Deep-Path reasoning"
+    )
+    grounding_mode: GroundingMode = Field(
+        default=GroundingMode.BALANCED, description="Hallucination guardrail strictness"
+    )
     document_ids: list[UUID] | None = Field(default=None, max_length=50, description="Explicit document scope filter")
     folder: str | None = Field(default=None, max_length=255, description="Filter by workspace folder")
     tags: list[str] | None = Field(default=None, max_length=10, description="Filter by tags")
@@ -80,7 +84,9 @@ class ChatMessageResponse(BaseModel):
 
 
 class RegenerateRequest(BaseModel):
-    fresh_retrieval: bool = Field(default=False, description="Whether to re-execute search or reuse existing retrieved context")
+    fresh_retrieval: bool = Field(
+        default=False, description="Whether to re-execute search or reuse existing retrieved context"
+    )
 
 
 class ShareSessionResponse(BaseModel):
@@ -92,7 +98,9 @@ class ShareSessionResponse(BaseModel):
 class CompareDocumentsRequest(BaseModel):
     document_a_id: UUID
     document_b_id: UUID
-    topic: str = Field(..., min_length=1, max_length=1000, description="Topic or question to compare across both documents")
+    topic: str = Field(
+        ..., min_length=1, max_length=1000, description="Topic or question to compare across both documents"
+    )
     stream: bool = Field(default=True)
 
 

@@ -72,7 +72,7 @@ class SaltedSemanticCache:
         # 1. Check exact key match (sub-millisecond fast path)
         exact_key = self.compute_exact_key(tenant_id, workspace_id, user_acl_groups, normalized_q)
         try:
-            redis = await get_redis_client()
+            redis: Any = await get_redis_client()
             cached_exact = await redis.get(exact_key)
             if cached_exact:
                 logger.info("semantic_cache_exact_hit", query=normalized_q)
@@ -171,7 +171,7 @@ class SaltedSemanticCache:
         }
 
         try:
-            redis = await get_redis_client()
+            redis: Any = await get_redis_client()
 
             # 1. Set exact key
             exact_key = self.compute_exact_key(tenant_id, workspace_id, user_acl_groups, normalized_q)
@@ -204,7 +204,7 @@ class SaltedSemanticCache:
         """
         pattern = f"semcache:*:{tenant_id}:{workspace_id}:*"
         try:
-            redis = await get_redis_client()
+            redis: Any = await get_redis_client()
             cursor = 0
             deleted = 0
             while True:
@@ -214,7 +214,9 @@ class SaltedSemanticCache:
                     deleted += len(keys)
                 if cursor == 0:
                     break
-            logger.info("semantic_cache_invalidated", tenant_id=str(tenant_id), workspace_id=str(workspace_id), count=deleted)
+            logger.info(
+                "semantic_cache_invalidated", tenant_id=str(tenant_id), workspace_id=str(workspace_id), count=deleted
+            )
             return deleted
         except Exception as e:
             logger.warning("semantic_cache_invalidation_error", error=str(e))
