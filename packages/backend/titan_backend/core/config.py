@@ -1,7 +1,7 @@
 import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
 
 
 class Settings(BaseSettings):
@@ -99,12 +99,19 @@ class Settings(BaseSettings):
     ONNX_CLASSIFIER_PATH: str | None = Field(
         default_factory=lambda: (
             os.getenv("ONNX_CLASSIFIER_PATH")
-            or ("/app/models/fast_path_classifier.onnx" if os.path.exists("/app/models/fast_path_classifier.onnx") else None)
+            or (
+                "/app/models/fast_path_classifier.onnx"
+                if os.path.exists("/app/models/fast_path_classifier.onnx")
+                else None
+            )
             or ("models/fast_path_classifier.onnx" if os.path.exists("models/fast_path_classifier.onnx") else None)
-            or ("packages/backend/models/fast_path_classifier.onnx" if os.path.exists("packages/backend/models/fast_path_classifier.onnx") else None)
+            or (
+                "packages/backend/models/fast_path_classifier.onnx"
+                if os.path.exists("packages/backend/models/fast_path_classifier.onnx")
+                else None
+            )
         )
     )
-
 
     # CORS
     CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:3001"])

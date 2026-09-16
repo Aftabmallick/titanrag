@@ -3,7 +3,6 @@ Pre-warm and bundle the in-process ONNX Fast-Path classification model.
 Creates the model storage directory and outputs the ONNX weights file or export instructions.
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -20,13 +19,13 @@ def ensure_model_cache(output_dir: str = "models") -> Path:
     print(f"ℹ️ Pre-warming ONNX model cache in: {target_dir}")
     try:
         import onnx
-        from onnx import helper, TensorProto
+        from onnx import TensorProto, helper
 
         # Construct a minimal standard ONNX graph for text classification routing
         # Inputs: string tensor or float tensor
         # Outputs: 3-class probability distribution [RAG_QUERY, CHITCHAT, META]
-        X = helper.make_tensor_value_info("input_text", TensorProto.STRING, [1])
-        Y = helper.make_tensor_value_info("probabilities", TensorProto.FLOAT, [1, 3])
+        input_tensor_info = helper.make_tensor_value_info("input_text", TensorProto.STRING, [1])
+        output_tensor_info = helper.make_tensor_value_info("probabilities", TensorProto.FLOAT, [1, 3])
 
         # Default weights initialization for Fast-Path heuristic baseline
         weights_tensor = helper.make_tensor(
@@ -41,8 +40,8 @@ def ensure_model_cache(output_dir: str = "models") -> Path:
         graph_def = helper.make_graph(
             [identity_node],
             "TitanFastPathClassifier",
-            [X],
-            [Y],
+            [input_tensor_info],
+            [output_tensor_info],
             initializer=[weights_tensor],
         )
 
