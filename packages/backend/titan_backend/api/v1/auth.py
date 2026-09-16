@@ -259,6 +259,5 @@ async def complete_onboarding(
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
     if user:
-        user.onboarding_completed = True
         await db.commit()
     return {"status": "ok"}

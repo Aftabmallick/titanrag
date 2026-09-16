@@ -1,10 +1,12 @@
 import asyncio
 import json
 import time
+
 import httpx
 
 FRONTEND_URL = "http://localhost:3000"
 BACKEND_URL = "http://localhost:8000"
+
 
 async def run_all_user_journeys():
     print("=" * 80)
@@ -46,10 +48,10 @@ async def run_all_user_journeys():
         assert reg_resp.status_code == 201, f"Registration failed: {reg_resp.text}"
         reg_data = reg_resp.json()
         access_token = reg_data["access_token"]
-        refresh_token = reg_data["refresh_token"]
+        assert reg_data["refresh_token"], "Refresh token must be present in registration response"
         headers = {"Authorization": f"Bearer {access_token}"}
         print(f"  ✓ User Registered: {user_email}")
-        print(f"  ✓ Access Token & Refresh Token issued successfully")
+        print("  ✓ Access Token & Refresh Token issued successfully")
 
         # Verify User profile via /auth/me
         me_resp = await client.get(f"{BACKEND_URL}/api/v1/auth/me", headers=headers)
@@ -141,7 +143,9 @@ async def run_all_user_journeys():
         )
         assert settings_resp.status_code == 200
         cur_settings = settings_resp.json()
-        print(f"  ✓ Current Settings: Mode={cur_settings['retrieval_mode']}, DenseWeight={cur_settings['dense_weight']}, TopK={cur_settings['top_k']}")
+        print(
+            f"  ✓ Current Settings: Mode={cur_settings['retrieval_mode']}, DenseWeight={cur_settings['dense_weight']}, TopK={cur_settings['top_k']}"
+        )
 
         # Update RAG Settings
         update_payload = {
@@ -163,7 +167,9 @@ async def run_all_user_journeys():
         updated = put_settings.json()
         assert updated["dense_weight"] == 0.85
         assert updated["top_k"] == 30
-        print(f"  ✓ RAG Settings updated: Mode={updated['retrieval_mode']}, DenseWeight={updated['dense_weight']}, TopK={updated['top_k']}")
+        print(
+            f"  ✓ RAG Settings updated: Mode={updated['retrieval_mode']}, DenseWeight={updated['dense_weight']}, TopK={updated['top_k']}"
+        )
 
         # -------------------------------------------------------------------------
         # Journey 5: Grounded Retrieval & Streaming Generation (SSE)
@@ -258,12 +264,17 @@ async def run_all_user_journeys():
             f"{BACKEND_URL}/api/v1/workspaces/{workspace_id}/documents/{document_id}",
             headers=headers_b,
         )
-        assert cross_tenant_probe.status_code in [403, 404], f"Isolation breach! Status: {cross_tenant_probe.status_code}"
-        print(f"  ✓ Cross-Tenant Hard Isolation PROVEN: Foreign tenant probe blocked with {cross_tenant_probe.status_code}")
+        assert cross_tenant_probe.status_code in [403, 404], (
+            f"Isolation breach! Status: {cross_tenant_probe.status_code}"
+        )
+        print(
+            f"  ✓ Cross-Tenant Hard Isolation PROVEN: Foreign tenant probe blocked with {cross_tenant_probe.status_code}"
+        )
 
     print("\n" + "=" * 80)
     print("🎉 ALL USER JOURNEYS & ENDPOINTS VERIFIED AND PASSING WITH FLYING COLORS!")
     print("=" * 80)
+
 
 if __name__ == "__main__":
     asyncio.run(run_all_user_journeys())
