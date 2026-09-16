@@ -41,16 +41,17 @@ async def run_outbox_relay() -> None:
     session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     qdrant = AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 
-    # Import ChunkOutbox model dynamically or load table reflection
+    # Import ChunkOutbox and Tenant models dynamically or load table reflection
     from sqlalchemy import MetaData
+    from titan_backend.clients.qdrant_client import get_collection_for_tenant, init_qdrant_collection
 
     metadata = MetaData()
 
     async with engine.connect() as conn:
-        await conn.run_sync(metadata.reflect, only=["chunk_outbox"])
+        await conn.run_sync(metadata.reflect, only=["chunk_outbox", "tenants"])
     outbox_table = metadata.tables["chunk_outbox"]
-
-    collection_name = "titan_chunks"
+    tenants_table = metadata.tables.get("tenants")
+    known_collections: set[str] = {"titan_chunks"}
 
     while _running:
         try:
@@ -84,6 +85,25 @@ async def run_outbox_relay() -> None:
                         max_attempts = row["max_attempts"]
 
                         try:
+                            # Dynamic collection routing per tenant plan (enterprise vs shared)
+                            tenant_plan = "free"
+                            if tenants_table is not None:
+                                try:
+                                    plan_stmt = select(tenants_table.c.plan).where(
+                                        tenants_table.c.id == row["tenant_id"]
+                                    )
+                                    plan_res = await session.execute(plan_stmt)
+                                    found_plan = plan_res.scalar_one_or_none()
+                                    if found_plan:
+                                        tenant_plan = found_plan
+                                except Exception:
+                                    pass
+
+                            target_collection = get_collection_for_tenant(tenant_plan=tenant_plan, tenant_id=tenant_id)
+                            if target_collection not in known_collections:
+                                await init_qdrant_collection(collection_name=target_collection)
+                                known_collections.add(target_collection)
+
                             if event_type == "UPSERT":
                                 dense_vec = payload_data.get("vector_dense")
                                 sparse_data = payload_data.get("vector_sparse")
@@ -106,7 +126,7 @@ async def run_outbox_relay() -> None:
 
                                 if vector_to_upsert:
                                     await qdrant.upsert(
-                                        collection_name=collection_name,
+                                        collection_name=target_collection,
                                         points=[
                                             qmodels.PointStruct(
                                                 id=chunk_id,
@@ -115,10 +135,17 @@ async def run_outbox_relay() -> None:
                                             )
                                         ],
                                     )
+                                else:
+                                    # Metadata / ACL-only update on existing vector point
+                                    await qdrant.set_payload(
+                                        collection_name=target_collection,
+                                        payload=point_payload,
+                                        points=[chunk_id],
+                                    )
 
                             elif event_type == "DELETE":
                                 await qdrant.delete(
-                                    collection_name=collection_name,
+                                    collection_name=target_collection,
                                     points_selector=qmodels.PointIdsList(points=[chunk_id]),
                                 )
 

@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     OTEL_SERVICE_NAME: str = "titan-backend"
     OTEL_TRACES_SAMPLER: str = "always_on"
 
+    # Production Hardening & Security
+    STRICT_EMBEDDING_MODE: bool = False
+    FAIL_ON_STORAGE_ERROR: bool = False
+    CLAMAV_HOST: str | None = None
+    CLAMAV_PORT: int = 3310
+    ONNX_CLASSIFIER_PATH: str | None = None
+
     # CORS
     CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:3001"])
 

@@ -18,19 +18,27 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_backend.api.v1.schemas.documents import (
+    BulkDeleteRequest,
+    BulkDeleteResponse,
     DocumentListResponse,
     DocumentResponse,
     DocumentShareRequest,
     DocumentUpdateRequest,
     DocumentUploadResponse,
+    DocumentVersionResponse,
     IngestionPreviewChunk,
     IngestionPreviewRequest,
     IngestionPreviewResponse,
+    PresignedURLResponse,
     URLIngestionRequest,
 )
 from titan_backend.clients.qdrant_client import TenantIngestionSemaphore
 from titan_backend.clients.redis_client import get_redis_client
-from titan_backend.clients.s3_client import build_scoped_storage_path, get_minio_client
+from titan_backend.clients.s3_client import (
+    build_scoped_storage_path,
+    generate_presigned_get_url,
+    get_minio_client,
+)
 from titan_backend.core.config import settings
 from titan_backend.core.dependencies import CurrentUser, get_current_user, require_permission
 from titan_backend.core.errors import AppException
@@ -43,6 +51,7 @@ from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
 from titan_backend.db.models.outbox import ChunkOutbox, OutboxStatus
 from titan_backend.db.models.workspaces import Workspace
 from titan_backend.db.session import get_db
+from titan_backend.services.retrieval.semantic_cache import semantic_cache
 
 logger = structlog.get_logger("titanrag.api.documents")
 
@@ -138,6 +147,13 @@ async def upload_document(
             content_type=file.content_type or "application/octet-stream",
         )
     except Exception as e:
+        if settings.ENVIRONMENT == "production" or settings.FAIL_ON_STORAGE_ERROR:
+            logger.error("minio_upload_failed_production", error=str(e), path=storage_path)
+            raise AppException(
+                message=f"Failed to persist file in object storage: {e}",
+                status_code=502,
+                error_code="STORAGE_UNAVAILABLE",
+            ) from e
         logger.warning("minio_upload_skipped_in_dev", error=str(e))
 
     # Parse metadata tags and acl_groups
@@ -205,6 +221,17 @@ async def upload_document(
             mime_type=file.content_type or "application/octet-stream",
         )
     except Exception as e:
+        if settings.ENVIRONMENT == "production" or settings.FAIL_ON_STORAGE_ERROR:
+            logger.error("celery_dispatch_failed_production", error=str(e), doc_id=str(document_id))
+            new_doc.status = DocumentStatus.FAILED
+            ingestion_task.status = TaskStatus.FAILED
+            ingestion_task.error_message = f"Task queue dispatch error: {e}"
+            await db.commit()
+            raise AppException(
+                message="Failed to dispatch document processing task to worker queue",
+                status_code=503,
+                error_code="PIPELINE_UNAVAILABLE",
+            ) from e
         logger.warning("celery_dispatch_skipped_in_test", error=str(e))
 
     return DocumentUploadResponse(
@@ -531,10 +558,82 @@ async def update_document(
         doc.staleness_ttl_days = payload.staleness_ttl_days
     if payload.acl_groups is not None:
         doc.meta = {**doc.meta, "acl_groups": payload.acl_groups}
+        chunk_stmt = select(Chunk).where(Chunk.document_id == document_id)
+        chunks = (await db.execute(chunk_stmt)).scalars().all()
+        for chunk in chunks:
+            chunk.meta = {**chunk.meta, "acl_groups": payload.acl_groups}
+            db.add(
+                ChunkOutbox(
+                    id=uuid.uuid4(),
+                    tenant_id=current_user.tenant_id,
+                    workspace_id=workspace_id,
+                    chunk_id=chunk.id,
+                    event_type="UPSERT",
+                    payload={"metadata": chunk.meta},
+                    status=OutboxStatus.PENDING,
+                )
+            )
+        await semantic_cache.invalidate_workspace(current_user.tenant_id, workspace_id)
 
     await db.commit()
     await db.refresh(doc)
     return DocumentResponse.model_validate(doc)
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResponse)
+async def bulk_delete_documents(
+    workspace_id: UUID,
+    payload: BulkDeleteRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.DELETE)),
+) -> BulkDeleteResponse:
+    tenant_id = current_user.tenant_id
+    stmt = select(Document).where(
+        Document.id.in_(payload.document_ids),
+        Document.tenant_id == tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    docs = (await db.execute(stmt)).scalars().all()
+    if not docs:
+        return BulkDeleteResponse(deleted_count=0, document_ids=[])
+
+    deleted_ids = [d.id for d in docs]
+
+    for doc in docs:
+        doc.status = DocumentStatus.DELETING
+
+    chunk_stmt = select(Chunk.id).where(Chunk.document_id.in_(deleted_ids))
+    chunk_ids = (await db.execute(chunk_stmt)).scalars().all()
+
+    for cid in chunk_ids:
+        db.add(
+            ChunkOutbox(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                chunk_id=cid,
+                event_type="DELETE",
+                status=OutboxStatus.PENDING,
+            )
+        )
+
+    await db.execute(delete(Chunk).where(Chunk.document_id.in_(deleted_ids)))
+
+    minio_client = get_minio_client()
+    for doc in docs:
+        try:
+            await asyncio.to_thread(
+                minio_client.remove_object,
+                bucket_name=settings.MINIO_BUCKET,
+                object_name=doc.storage_path,
+            )
+        except Exception as e:
+            logger.warning("minio_bulk_delete_warning", path=doc.storage_path, error=str(e))
+        await db.delete(doc)
+
+    await db.commit()
+    await semantic_cache.invalidate_workspace(tenant_id, workspace_id)
+    return BulkDeleteResponse(deleted_count=len(deleted_ids), document_ids=deleted_ids)
 
 
 @router.delete("/{document_id}", status_code=204)
@@ -575,9 +674,253 @@ async def delete_document(
 
     # 3. Delete chunks from Postgres
     await db.execute(delete(Chunk).where(Chunk.document_id == document_id))
-    # 4. Remove document
+
+    # 4. Remove object from MinIO
+    try:
+        minio_client = get_minio_client()
+        await asyncio.to_thread(
+            minio_client.remove_object,
+            bucket_name=settings.MINIO_BUCKET,
+            object_name=doc.storage_path,
+        )
+    except Exception as e:
+        logger.warning("minio_delete_warning", path=doc.storage_path, error=str(e))
+
+    # 5. Remove document
     await db.delete(doc)
     await db.commit()
+    await semantic_cache.invalidate_workspace(tenant_id, workspace_id)
+
+
+@router.get("/{document_id}/download-url", response_model=PresignedURLResponse)
+async def get_document_download_url(
+    workspace_id: UUID,
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.DOWNLOAD)),
+) -> PresignedURLResponse:
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == current_user.tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    doc = (await db.execute(stmt)).scalars().first()
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    url = await generate_presigned_get_url(
+        tenant_id=current_user.tenant_id,
+        workspace_id=workspace_id,
+        document_id=document_id,
+        filename=doc.title,
+        user_role=current_user.role,
+        user_id=current_user.id,
+        action="download",
+        db=db,
+    )
+    return PresignedURLResponse(url=url, expires_in=900, action="download")
+
+
+@router.get("/{document_id}/view-url", response_model=PresignedURLResponse)
+async def get_document_view_url(
+    workspace_id: UUID,
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.VIEW)),
+) -> PresignedURLResponse:
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == current_user.tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    doc = (await db.execute(stmt)).scalars().first()
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    url = await generate_presigned_get_url(
+        tenant_id=current_user.tenant_id,
+        workspace_id=workspace_id,
+        document_id=document_id,
+        filename=doc.title,
+        user_role=current_user.role,
+        user_id=current_user.id,
+        action="view",
+        db=db,
+    )
+    return PresignedURLResponse(url=url, expires_in=900, action="view")
+
+
+@router.get("/{document_id}/versions", response_model=list[DocumentVersionResponse])
+async def list_document_versions(
+    workspace_id: UUID,
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.VIEW)),
+) -> list[DocumentVersionResponse]:
+    doc = (
+        (
+            await db.execute(
+                select(Document).where(
+                    Document.id == document_id,
+                    Document.tenant_id == current_user.tenant_id,
+                    Document.workspace_id == workspace_id,
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    stmt = (
+        select(DocumentVersion)
+        .where(DocumentVersion.document_id == document_id)
+        .order_by(DocumentVersion.version_number.asc())
+    )
+    versions = (await db.execute(stmt)).scalars().all()
+    return [DocumentVersionResponse.model_validate(v) for v in versions]
+
+
+@router.post("/{document_id}/versions", response_model=DocumentUploadResponse, status_code=201)
+async def create_document_version(
+    workspace_id: UUID,
+    document_id: UUID,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.UPLOAD)),
+) -> DocumentUploadResponse:
+    tenant_id = current_user.tenant_id
+    filename = file.filename or "upload.bin"
+
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    doc = (await db.execute(stmt)).scalars().first()
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    forbidden_exts = (".exe", ".sh", ".bat", ".bin", ".cmd", ".vbs")
+    if filename.lower().endswith(forbidden_exts):
+        raise AppException(
+            message=f"File extension not permitted for security reasons: {filename}",
+            status_code=400,
+            error_code="FORBIDDEN_FILE_TYPE",
+        )
+
+    file_bytes = await file.read()
+    file_size = len(file_bytes)
+
+    is_valid_sig, sig_result = validate_file_signature(file_bytes, filename)
+    if not is_valid_sig:
+        raise AppException(
+            message=f"File validation failed: {sig_result}",
+            status_code=400,
+            error_code="INVALID_FILE_SIGNATURE",
+        )
+
+    is_safe, detected_threats = scan_file_safety(file_bytes, filename)
+    if not is_safe:
+        raise AppException(
+            message=f"Malicious content pattern detected: {', '.join(detected_threats)}",
+            status_code=400,
+            error_code="SECURITY_THREAT_DETECTED",
+        )
+
+    await check_storage_quota(tenant_id, file_size)
+
+    content_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    v_stmt = select(func.coalesce(func.max(DocumentVersion.version_number), 1)).where(
+        DocumentVersion.document_id == document_id
+    )
+    current_max_v = (await db.execute(v_stmt)).scalar() or 1
+    next_version = current_max_v + 1
+
+    version_filename = f"v{next_version}_{filename}"
+    storage_path = build_scoped_storage_path(tenant_id, workspace_id, document_id, version_filename)
+    minio_client = get_minio_client()
+
+    try:
+        await asyncio.to_thread(
+            minio_client.put_object,
+            bucket_name=settings.MINIO_BUCKET,
+            object_name=storage_path,
+            data=BytesIO(file_bytes),
+            length=file_size,
+            content_type=file.content_type or "application/octet-stream",
+        )
+    except Exception as e:
+        logger.warning("minio_version_upload_skipped_in_dev", error=str(e))
+
+    doc_ver = DocumentVersion(
+        id=uuid.uuid4(),
+        document_id=document_id,
+        version_number=next_version,
+        storage_path=storage_path,
+        content_hash=content_hash,
+    )
+    db.add(doc_ver)
+
+    chunk_stmt = select(Chunk.id).where(Chunk.document_id == document_id, Chunk.is_active.is_(True))
+    old_chunk_ids = (await db.execute(chunk_stmt)).scalars().all()
+    for cid in old_chunk_ids:
+        db.add(
+            ChunkOutbox(
+                id=uuid.uuid4(),
+                tenant_id=tenant_id,
+                workspace_id=workspace_id,
+                chunk_id=cid,
+                event_type="DELETE",
+                status=OutboxStatus.PENDING,
+            )
+        )
+    await db.execute(update(Chunk).where(Chunk.document_id == document_id).values(is_active=False))
+
+    doc.storage_path = storage_path
+    doc.content_hash = content_hash
+    doc.file_size_bytes = file_size
+    doc.status = DocumentStatus.PENDING
+    now = datetime.datetime.now(datetime.UTC)
+    doc.updated_at = now
+
+    task_id = uuid.uuid4()
+    db.add(
+        IngestionTask(
+            id=task_id,
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            document_id=document_id,
+            status=TaskStatus.QUEUED,
+            stage="QUEUED",
+            progress_percent=0.0,
+        )
+    )
+    await db.commit()
+    await db.refresh(doc)
+    await semantic_cache.invalidate_workspace(tenant_id, workspace_id)
+
+    try:
+        from titan_workers.tasks.ingestion import process_document_pipeline
+
+        process_document_pipeline.delay(
+            tenant_id=str(tenant_id),
+            workspace_id=str(workspace_id),
+            document_id=str(document_id),
+            storage_path=storage_path,
+            filename=filename,
+            mime_type=file.content_type or "application/octet-stream",
+        )
+    except Exception as e:
+        logger.warning("celery_dispatch_skipped_in_test", error=str(e))
+
+    return DocumentUploadResponse(
+        document=DocumentResponse.model_validate(doc),
+        task_id=task_id,
+        is_duplicate=False,
+    )
 
 
 @router.post("/{document_id}/share", response_model=DocumentResponse)

@@ -92,3 +92,29 @@ class IngestionStatusResponse(BaseModel):
     chunks_processed: int
     total_chunks: int
     error_message: str | None = None
+
+
+class PresignedURLResponse(BaseModel):
+    url: str
+    expires_in: int = 900
+    action: str
+
+
+class DocumentVersionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    document_id: UUID
+    version_number: int
+    storage_path: str
+    content_hash: str
+    created_at: datetime
+
+
+class BulkDeleteRequest(BaseModel):
+    document_ids: list[UUID] = Field(..., min_length=1, max_length=100)
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted_count: int
+    document_ids: list[UUID]

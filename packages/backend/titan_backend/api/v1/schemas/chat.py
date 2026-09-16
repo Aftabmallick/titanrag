@@ -109,3 +109,8 @@ class DeepResearchRequest(BaseModel):
     session_id: UUID | None = None
     max_sources: int = Field(default=50, ge=5, le=100)
     system_prompt_override: str | None = None
+
+
+class SharedSessionDetailResponse(BaseModel):
+    session: ChatSessionResponse
+    messages: list[ChatMessageResponse]
