@@ -27,6 +27,7 @@ class CurrentUser:
     email: str
     role: str = "MEMBER"
     scopes: list[str] = field(default_factory=list)
+    acl_groups: list[str] = field(default_factory=list)
     is_superuser: bool = False
     is_api_key: bool = False
 

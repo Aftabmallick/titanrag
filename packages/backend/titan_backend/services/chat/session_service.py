@@ -247,5 +247,12 @@ class ChatSessionService:
         await redis.setex(f"shared_chat:{token}", 30 * 86400, str(session_id))
         return token
 
+    async def get_shared_session_id(self, token: str) -> UUID | None:
+        redis = await get_redis_client()
+        session_id_str = await redis.get(f"shared_chat:{token}")
+        if session_id_str:
+            return UUID(session_id_str)
+        return None
+
 
 session_service = ChatSessionService()

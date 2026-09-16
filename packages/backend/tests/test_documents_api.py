@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -7,6 +8,7 @@ from titan_backend.core.circuit_breaker import CircuitBreaker, CircuitState
 from titan_backend.core.dependencies import CurrentUser, get_current_user
 from titan_backend.core.errors import AppException
 from titan_backend.core.rate_limiter import ProviderTokenBucketLimiter
+from titan_backend.db.models.documents import Document, DocumentStatus, DocumentVersion
 from titan_backend.db.models.workspaces import Workspace, WorkspaceMember, WorkspaceRole
 from titan_backend.main import app
 from titan_workers.pipeline.orchestrator import IngestionPipelineOrchestrator
@@ -382,3 +384,260 @@ async def test_disguised_executable_upload_rejected(async_client, mock_db_sessio
     resp = await async_client.post(f"/api/v1/workspaces/{ws_id}/documents", files=files)
     assert resp.status_code == 400
     assert resp.json()["error"]["code"] == "INVALID_FILE_SIGNATURE"
+
+
+@pytest.mark.asyncio
+async def test_document_presigned_download_and_view_urls(async_client, mock_db_session, test_user):
+    from unittest.mock import patch
+
+    ws_id = uuid4()
+    doc_id = uuid4()
+    now = datetime.datetime.now(datetime.UTC)
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+    mock_doc = Document(
+        id=doc_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="contract.pdf",
+        source_type="file",
+        storage_path=f"{test_user.tenant_id}/{ws_id}/{doc_id}/contract.pdf",
+        content_hash="hash",
+        mime_type="application/pdf",
+        file_size_bytes=2048,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        folder=None,
+        tags=[],
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    with patch(
+        "titan_backend.api.v1.documents.generate_presigned_get_url",
+        return_value="https://minio.test/presigned-url?signature=abc",
+    ):
+        # 1. Download URL
+        mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+        mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+        dl_resp = await async_client.get(f"/api/v1/workspaces/{ws_id}/documents/{doc_id}/download-url")
+        assert dl_resp.status_code == 200
+        dl_data = dl_resp.json()
+        assert dl_data["action"] == "download"
+        assert dl_data["expires_in"] == 900
+        assert "minio.test" in dl_data["url"]
+
+        # 2. View URL
+        mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+        mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+        v_resp = await async_client.get(f"/api/v1/workspaces/{ws_id}/documents/{doc_id}/view-url")
+        assert v_resp.status_code == 200
+        v_data = v_resp.json()
+        assert v_data["action"] == "view"
+        assert v_data["expires_in"] == 900
+
+
+@pytest.mark.asyncio
+async def test_document_versions_list_and_create(async_client, mock_db_session, test_user):
+    from unittest.mock import patch
+
+    ws_id = uuid4()
+    doc_id = uuid4()
+    now = datetime.datetime.now(datetime.UTC)
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+    mock_doc = Document(
+        id=doc_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="contract.pdf",
+        source_type="file",
+        storage_path=f"{test_user.tenant_id}/{ws_id}/{doc_id}/contract.pdf",
+        content_hash="hash",
+        mime_type="application/pdf",
+        file_size_bytes=2048,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        folder=None,
+        tags=[],
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
+    )
+    mock_ver = DocumentVersion(
+        id=uuid4(),
+        document_id=doc_id,
+        version_number=1,
+        storage_path=mock_doc.storage_path,
+        content_hash=mock_doc.content_hash,
+        created_at=now,
+        updated_at=now,
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    # 1. GET versions
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+    mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+    mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_ver]
+
+    list_resp = await async_client.get(f"/api/v1/workspaces/{ws_id}/documents/{doc_id}/versions")
+    assert list_resp.status_code == 200
+    versions_data = list_resp.json()
+    assert len(versions_data) == 1
+    assert versions_data[0]["version_number"] == 1
+    assert versions_data[0]["document_id"] == str(doc_id)
+
+    # 2. POST new version
+    with (
+        patch("titan_backend.api.v1.documents.get_minio_client"),
+        patch("titan_backend.api.v1.documents.semantic_cache.invalidate_workspace", new_callable=AsyncMock),
+    ):
+        mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+        mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+        mock_db_session.execute.return_value.scalar.return_value = 1
+        mock_db_session.execute.return_value.scalars.return_value.all.return_value = [uuid4()]
+
+        new_v_file = {"file": ("contract_v2.pdf", b"%PDF-1.7\nUpdated version content", "application/pdf")}
+        post_resp = await async_client.post(
+            f"/api/v1/workspaces/{ws_id}/documents/{doc_id}/versions",
+            files=new_v_file,
+        )
+        assert post_resp.status_code == 201
+        post_data = post_resp.json()
+        assert post_data["document"]["id"] == str(doc_id)
+        assert "task_id" in post_data
+
+
+@pytest.mark.asyncio
+async def test_bulk_delete_documents(async_client, mock_db_session, test_user):
+    from unittest.mock import patch
+
+    ws_id = uuid4()
+    doc_id1 = uuid4()
+    doc_id2 = uuid4()
+    now = datetime.datetime.now(datetime.UTC)
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+
+    mock_doc1 = Document(
+        id=doc_id1,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="doc1.pdf",
+        source_type="file",
+        storage_path="path1",
+        content_hash="h1",
+        mime_type="application/pdf",
+        file_size_bytes=100,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        tags=[],
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
+    )
+    mock_doc2 = Document(
+        id=doc_id2,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="doc2.pdf",
+        source_type="file",
+        storage_path="path2",
+        content_hash="h2",
+        mime_type="application/pdf",
+        file_size_bytes=200,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        tags=[],
+        is_stale=False,
+        is_shared=False,
+        created_at=now,
+        updated_at=now,
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    with (
+        patch("titan_backend.api.v1.documents.get_minio_client"),
+        patch("titan_backend.api.v1.documents.semantic_cache.invalidate_workspace", new_callable=AsyncMock),
+    ):
+        mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+        mock_db_session.execute.return_value.scalars.return_value.all.side_effect = [
+            [mock_doc1, mock_doc2],  # documents found
+            [uuid4(), uuid4()],  # chunk ids
+        ]
+
+        resp = await async_client.post(
+            f"/api/v1/workspaces/{ws_id}/documents/bulk-delete",
+            json={"document_ids": [str(doc_id1), str(doc_id2)]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["deleted_count"] == 2
+        assert str(doc_id1) in data["document_ids"]
+        assert str(doc_id2) in data["document_ids"]
+
+
+@pytest.mark.asyncio
+async def test_update_document_acl_groups_propagates(async_client, mock_db_session, test_user):
+    from unittest.mock import patch
+
+    from titan_backend.db.models.chunks import Chunk
+
+    ws_id = uuid4()
+    doc_id = uuid4()
+    chunk_id = uuid4()
+    now = datetime.datetime.now(datetime.UTC)
+    mock_ws = Workspace(id=ws_id, tenant_id=test_user.tenant_id, name="Test WS", settings={})
+    mock_member = WorkspaceMember(workspace_id=ws_id, user_id=test_user.id, role=WorkspaceRole.OWNER)
+
+    mock_doc = Document(
+        id=doc_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        title="classified.pdf",
+        source_type="file",
+        storage_path="p",
+        content_hash="h",
+        mime_type="application/pdf",
+        file_size_bytes=500,
+        status=DocumentStatus.READY,
+        doc_type="pdf",
+        tags=[],
+        is_stale=False,
+        is_shared=False,
+        meta={"acl_groups": ["general"]},
+        created_at=now,
+        updated_at=now,
+    )
+    mock_chunk = Chunk(
+        id=chunk_id,
+        tenant_id=test_user.tenant_id,
+        workspace_id=ws_id,
+        document_id=doc_id,
+        chunk_index=0,
+        content="classified text",
+        meta={"acl_groups": ["general"]},
+    )
+
+    app.dependency_overrides[get_current_user] = lambda: test_user
+
+    mock_db_session.execute.return_value.scalar_one_or_none.side_effect = [mock_ws, mock_member]
+    mock_db_session.execute.return_value.scalars.return_value.first.return_value = mock_doc
+    mock_db_session.execute.return_value.scalars.return_value.all.return_value = [mock_chunk]
+
+    with patch("titan_backend.api.v1.documents.semantic_cache.invalidate_workspace", new_callable=AsyncMock):
+        resp = await async_client.patch(
+            f"/api/v1/workspaces/{ws_id}/documents/{doc_id}",
+            json={"acl_groups": ["executives", "security-lead"]},
+        )
+        assert resp.status_code == 200
+        # Verify chunk meta was updated to new ACL groups
+        assert mock_chunk.meta["acl_groups"] == ["executives", "security-lead"]

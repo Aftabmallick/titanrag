@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import structlog
 from fastapi import Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
@@ -112,14 +113,21 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     request_id = get_request_id(request)
-    logger.warning("validation_error", errors=exc.errors(), request_id=request_id)
+    sanitized_errors = []
+    for err in exc.errors():
+        err_dict = dict(err)
+        if isinstance(err_dict.get("input"), (bytes, bytearray)):
+            err_dict["input"] = f"<binary data: {len(err_dict['input'])} bytes>"
+        sanitized_errors.append(err_dict)
+
+    logger.warning("validation_error", errors=sanitized_errors, request_id=request_id)
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content=ErrorResponse(
             error=ErrorDetail(
                 code="VALIDATION_ERROR",
                 message="Request validation failed",
-                details={"errors": exc.errors()},
+                details={"errors": jsonable_encoder(sanitized_errors)},
                 request_id=request_id,
             )
         ).model_dump(),

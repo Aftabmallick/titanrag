@@ -4,6 +4,7 @@ from enum import Enum
 from typing import NamedTuple
 
 from titan_backend.api.v1.schemas.chat import PipelineMode
+from titan_backend.core.config import settings
 from titan_backend.core.logging import logger
 
 
@@ -73,6 +74,28 @@ class InProcessQueryClassifier:
             logger.debug("onnx_classifier_init_fallback", reason=str(e))
             self._onnx_session = None
 
+    def _classify_with_onnx(self, normalized: str) -> QueryIntent | None:
+        if self._onnx_session is None:
+            return None
+        try:
+            import numpy as np
+
+            inputs = self._onnx_session.get_inputs()
+            if not inputs:
+                return None
+            input_name = inputs[0].name
+            feed = {input_name: np.array([normalized], dtype=object)}
+            outputs = self._onnx_session.run(None, feed)
+            if outputs:
+                probs = outputs[0][0]
+                idx = int(np.argmax(probs))
+                mapping = [QueryIntent.RAG_QUERY, QueryIntent.CHITCHAT, QueryIntent.META]
+                if idx < len(mapping):
+                    return mapping[idx]
+        except Exception as e:
+            logger.debug("onnx_inference_fallback", reason=str(e))
+        return None
+
     def normalize(self, query: str) -> str:
         # Collapse multiple spaces and trim
         q = re.sub(r"\s+", " ", query).strip()
@@ -81,6 +104,27 @@ class InProcessQueryClassifier:
     def classify(self, query: str, user_selected_mode: PipelineMode = PipelineMode.AUTO) -> ClassificationResult:
         start = time.perf_counter()
         normalized = self.normalize(query)
+
+        # 0. ONNX execution when session is available
+        onnx_intent = self._classify_with_onnx(normalized)
+        if onnx_intent == QueryIntent.CHITCHAT:
+            latency = (time.perf_counter() - start) * 1000.0
+            return ClassificationResult(
+                intent=QueryIntent.CHITCHAT,
+                normalized_query=normalized,
+                recommended_mode=PipelineMode.FAST,
+                classification_latency_ms=round(latency, 2),
+                chitchat_response="Hello! I am TitanRAG, your enterprise AI knowledge assistant. Ask me anything about your uploaded documents or workspace knowledge base.",
+            )
+        elif onnx_intent == QueryIntent.META:
+            latency = (time.perf_counter() - start) * 1000.0
+            return ClassificationResult(
+                intent=QueryIntent.META,
+                normalized_query=normalized,
+                recommended_mode=PipelineMode.FAST,
+                classification_latency_ms=round(latency, 2),
+                meta_response="I am TitanRAG. I index your documents using hybrid dense-sparse search and cited grounded generation. You can query policies, contracts, technical specifications, and tabular reports with verifiable citations.",
+            )
 
         # 1. Chit-chat check
         for pattern in CHITCHAT_PATTERNS:
@@ -124,4 +168,4 @@ class InProcessQueryClassifier:
         )
 
 
-classifier = InProcessQueryClassifier()
+classifier = InProcessQueryClassifier(onnx_model_path=settings.ONNX_CLASSIFIER_PATH)

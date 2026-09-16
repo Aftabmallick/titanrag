@@ -1,7 +1,7 @@
 import asyncio
 import json
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from titan_workers.tasks.deep_research import execute_deep_research
 
+from titan_backend.api.v1.acl_groups import resolve_user_acl_groups
 from titan_backend.api.v1.events import broadcast_event
 from titan_backend.api.v1.schemas.chat import (
     ChatMessageResponse,
@@ -21,8 +22,10 @@ from titan_backend.api.v1.schemas.chat import (
     DeepResearchRequest,
     PipelineMode,
     RegenerateRequest,
+    SharedSessionDetailResponse,
     ShareSessionResponse,
 )
+from titan_backend.core.audit import record_audit_event
 from titan_backend.core.dependencies import CurrentUser, get_current_user, require_permission
 from titan_backend.core.errors import AppException
 from titan_backend.core.guardrails.injection import sanitize_and_isolate_query
@@ -125,8 +128,12 @@ async def chat_endpoint(
     # 4. Resolve RAG Settings for Workspace
     rag_settings = await get_or_create_workspace_settings(db, current_user.tenant_id, workspace_id)
 
-    # 5. Check ACL-Salted Semantic Cache
-    user_groups = getattr(current_user, "acl_groups", []) or ["all-members"]
+    # 5. Resolve user effective ACL groups with Redis cache & compaction
+    user_groups = await resolve_user_acl_groups(
+        user_id=current_user.id,
+        workspace_id=workspace_id,
+        db=db,
+    )
     if rag_settings.semantic_cache_enabled:
         cached = await semantic_cache.get(
             tenant_id=current_user.tenant_id,
@@ -381,6 +388,36 @@ async def chat_endpoint(
                     ttl_seconds=rag_settings.cache_ttl_seconds,
                 )
 
+            # Audit log document search and cited sources
+            await record_audit_event(
+                session=db,
+                tenant_id=current_user.tenant_id,
+                user_id=current_user.id,
+                action="DOCUMENT_SEARCH",
+                resource_type="workspace",
+                resource_id=str(workspace_id),
+                details={
+                    "query": sanitized.clean_text,
+                    "matched_chunks": [str(s.chunk_id) for s in packed_sources],
+                    "matched_count": len(packed_sources),
+                },
+                ip_address=request.client.host if request.client else None,
+            )
+            if citations_list:
+                await record_audit_event(
+                    session=db,
+                    tenant_id=current_user.tenant_id,
+                    user_id=current_user.id,
+                    action="DOCUMENT_CITED",
+                    resource_type="chat_session",
+                    resource_id=str(session.id) if session else None,
+                    details={
+                        "citations": citations_list,
+                        "citation_count": len(citations_list),
+                    },
+                    ip_address=request.client.host if request.client else None,
+                )
+
             # Broadcast system event
             await broadcast_event(
                 "query.completed",
@@ -509,12 +546,28 @@ async def delete_chat_session(
 async def export_chat_session(
     workspace_id: UUID,
     session_id: UUID,
+    format: str = Query("markdown", pattern="^(markdown|json)$"),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
     _: None = Depends(require_permission(Permission.SEARCH)),
 ) -> Response:
-    """Export conversation session as formatted Markdown."""
+    """Export conversation session as formatted Markdown or structured JSON."""
     session = await session_service.get_session(db, session_id, current_user.tenant_id, workspace_id)
+    if format == "json":
+        messages = await session_service.get_messages(db, session.id)
+        export_data = {
+            "session_id": str(session.id),
+            "title": session.title,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+            "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+            "messages": [m.model_dump() for m in messages],
+        }
+        return Response(
+            content=json.dumps(export_data, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="chat_{session.title[:30]}.json"'},
+        )
+
     md_content = await session_service.export_markdown(db, session)
     return Response(
         content=md_content,
@@ -538,6 +591,30 @@ async def share_chat_session(
         session_id=session.id,
         share_token=token,
         share_url=f"/shared/chat/{token}",
+    )
+
+
+@router.get("/chat-sessions/shared/{share_token}", response_model=SharedSessionDetailResponse)
+async def get_shared_chat_session(
+    workspace_id: UUID,
+    share_token: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+    _: None = Depends(require_permission(Permission.SEARCH)),
+) -> SharedSessionDetailResponse:
+    """Retrieve a shared chat session and its message history using a share token."""
+    session_id = await session_service.get_shared_session_id(share_token)
+    if not session_id:
+        raise AppException(
+            message="Shared chat link is invalid or has expired",
+            status_code=404,
+            error_code="SHARE_LINK_NOT_FOUND",
+        )
+    session = await session_service.get_session(db, session_id, current_user.tenant_id, workspace_id)
+    messages = await session_service.get_messages(db, session.id)
+    return SharedSessionDetailResponse(
+        session=ChatSessionResponse.model_validate(session),
+        messages=messages,
     )
 
 
@@ -602,7 +679,11 @@ async def compare_documents(
     _: None = Depends(require_permission(Permission.SEARCH)),
 ) -> StreamingResponse:
     """Compares two documents on a specific topic with side-by-side citations."""
-    user_groups = getattr(current_user, "acl_groups", []) or ["all-members"]
+    user_groups = await resolve_user_acl_groups(
+        user_id=current_user.id,
+        workspace_id=workspace_id,
+        db=db,
+    )
 
     # Retrieve from Doc A
     res_a = await hybrid_search_engine.search(
@@ -623,18 +704,22 @@ async def compare_documents(
         top_k=10,
     )
 
-    all_ids = [c.chunk_id for c in res_a.dense_candidates + res_b.dense_candidates]
+    # Calibrated fusion across dense + sparse candidates per document
+    fused_a = fusion_engine.fuse(res_a.dense_candidates, res_a.sparse_candidates, alpha=0.7, top_k=10)
+    fused_b = fusion_engine.fuse(res_b.dense_candidates, res_b.sparse_candidates, alpha=0.7, top_k=10)
+
+    all_ids = [c.chunk_id for c in fused_a + fused_b]
     validated = await candidate_validator.validate_candidates(db, all_ids, current_user.tenant_id, workspace_id)
 
-    cands_a = [validated[c.chunk_id] for c in res_a.dense_candidates if c.chunk_id in validated]
-    cands_b = [validated[c.chunk_id] for c in res_b.dense_candidates if c.chunk_id in validated]
+    cands_a = [validated[c.chunk_id] for c in fused_a if c.chunk_id in validated]
+    cands_b = [validated[c.chunk_id] for c in fused_b if c.chunk_id in validated]
 
     packed_a = await context_packer.pack_context(
-        [RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in cands_a[:3]],
+        [RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in cands_a[:5]],
         db=db,
     )
     packed_b = await context_packer.pack_context(
-        [RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in cands_b[:3]],
+        [RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in cands_b[:5]],
         db=db,
     )
 
@@ -670,4 +755,49 @@ async def dispatch_deep_research(
         "status": "DISPATCHED",
         "topic": payload.topic,
         "message": "Deep research background task started.",
+    }
+
+
+@router.get("/deep-research/{task_id}")
+async def get_deep_research_status(
+    workspace_id: UUID,
+    task_id: str,
+    current_user: CurrentUser = Depends(get_current_user),
+    _: None = Depends(require_permission(Permission.SEARCH)),
+) -> dict[str, Any]:
+    """Poll status and retrieve results of an asynchronous deep research task."""
+    from celery.result import AsyncResult
+    from titan_workers.celery_app import celery_app
+
+    from titan_backend.clients.redis_client import get_redis_client
+
+    # 1. Check Redis cache first
+    try:
+        redis = await get_redis_client()
+        cached = await redis.get(f"deep_research:{task_id}")
+        if cached:
+            return cast(dict[str, Any], json.loads(cached))
+    except Exception:
+        pass
+
+    # 2. Inspect Celery AsyncResult
+    result = AsyncResult(task_id, app=celery_app)
+    if result.ready():
+        if result.successful():
+            report = result.result
+            if isinstance(report, dict):
+                try:
+                    redis = await get_redis_client()
+                    await redis.setex(f"deep_research:{task_id}", 7 * 86400, json.dumps(report))
+                except Exception:
+                    pass
+                return report
+            return {"status": "COMPLETED", "result": report}
+        else:
+            return {"status": "FAILED", "task_id": task_id, "error": str(result.result)}
+
+    return {
+        "status": "PROCESSING" if result.state == "PENDING" else result.state,
+        "task_id": task_id,
+        "message": "Deep research analysis in progress across workspace documentation.",
     }

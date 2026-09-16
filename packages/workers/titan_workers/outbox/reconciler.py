@@ -4,7 +4,7 @@ from uuid import UUID
 
 import structlog
 from qdrant_client import QdrantClient
-from sqlalchemy import MetaData, Table, create_engine, select
+from sqlalchemy import create_engine
 
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
@@ -39,42 +39,50 @@ def reconcile_vector_storage() -> dict[str, Any]:
     try:
         # 1. Connect to PostgreSQL and fetch active chunk IDs
         engine = create_engine(SYNC_DATABASE_URL, pool_pre_ping=True)
-        metadata = MetaData()
-        chunks_table = Table("chunks", metadata, autoload_with=engine)
+        from sqlalchemy import text
 
         with engine.connect() as conn:
-            stmt = select(chunks_table.c.id)
-            result = conn.execute(stmt)
+            result = conn.execute(text("SELECT id FROM chunks WHERE is_active = true"))
             pg_chunk_ids = {UUID(str(row[0])) for row in result.fetchall()}
             pg_chunks_count = len(pg_chunk_ids)
 
         # 2. Connect to Qdrant and inspect points
         qclient = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY, timeout=10)
-        collection_name = "titan_chunks"
 
         collections = qclient.get_collections().collections
-        if any(c.name == collection_name for c in collections):
-            # Scroll points to check consistency
-            scroll_result, _ = qclient.scroll(
-                collection_name=collection_name,
-                limit=1000,
-                with_payload=False,
-                with_vectors=False,
-            )
-            qdrant_points_count = len(scroll_result)
+        target_collections = [
+            c.name for c in collections if c.name == "titan_chunks" or c.name.startswith("titan_enterprise_")
+        ]
+        if not target_collections and any(c.name == "titan_chunks" for c in collections):
+            target_collections = ["titan_chunks"]
 
-            for point in scroll_result:
-                try:
-                    point_uuid = UUID(str(point.id))
-                    if point_uuid not in pg_chunk_ids:
+        for coll in target_collections:
+            next_offset = None
+            while True:
+                scroll_result, next_offset = qclient.scroll(
+                    collection_name=coll,
+                    limit=1000,
+                    offset=next_offset,
+                    with_payload=False,
+                    with_vectors=False,
+                )
+                qdrant_points_count += len(scroll_result)
+
+                for point in scroll_result:
+                    try:
+                        point_uuid = UUID(str(point.id))
+                        if point_uuid not in pg_chunk_ids:
+                            orphans_detected += 1
+                            logger.warning(
+                                "orphan_vector_detected",
+                                point_id=str(point.id),
+                                collection=coll,
+                            )
+                    except (ValueError, TypeError):
                         orphans_detected += 1
-                        logger.warning(
-                            "orphan_vector_detected",
-                            point_id=str(point.id),
-                            collection=collection_name,
-                        )
-                except (ValueError, TypeError):
-                    orphans_detected += 1
+
+                if next_offset is None:
+                    break
 
         logger.info(
             "vector_reconciliation_audit_completed",

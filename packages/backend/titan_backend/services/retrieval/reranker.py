@@ -15,6 +15,7 @@ class RerankedCandidate(NamedTuple):
     chunk_id: UUID
     relevance_score: float
     candidate: ValidatedCandidate
+    is_reranked: bool = True
 
 
 class CrossEncoderReranker:
@@ -38,7 +39,8 @@ class CrossEncoderReranker:
         # If only 1 candidate or circuit breaker open, fallback immediately
         if len(candidates) == 1 or not reranker_circuit_breaker.can_execute():
             return [
-                RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c) for c in candidates[:top_n]
+                RerankedCandidate(chunk_id=c.chunk_id, relevance_score=0.85, candidate=c, is_reranked=False)
+                for c in candidates[:top_n]
             ]
 
         # Check if external Cohere or LiteLLM reranking is available
@@ -129,7 +131,9 @@ class CrossEncoderReranker:
         results: list[RerankedCandidate] = []
         for i, c in enumerate(candidates[:top_n]):
             score = max(0.45, round(0.90 - (i * 0.08), 3))
-            results.append(RerankedCandidate(chunk_id=c.chunk_id, relevance_score=score, candidate=c))
+            results.append(
+                RerankedCandidate(chunk_id=c.chunk_id, relevance_score=score, candidate=c, is_reranked=False)
+            )
         return results
 
 
