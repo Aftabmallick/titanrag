@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "chat": "Estación de Chat",
+    "documents": "Documentos de Conocimiento",
+    "connectors": "Conectores SaaS",
+    "analytics": "Analítica y FinOps",
+    "admin": "Administración de Plataforma",
+    "settings": "Configuración RAG",
+    "newChat": "Nueva Sesión"
+  },
+  "chat": {
+    "headerTitle": "Sesión de Investigación Fundamentada",
+    "inputPlaceholder": "Pregunte cualquier cosa sobre sus documentos empresariales verificados...",
+    "send": "Enviar Consulta",
+    "stop": "Detener Generación",
+    "auto": "Orquestación Automática",
+    "fast": "Ruta Rápida (<1.8s)",
+    "deep": "Razonamiento Profundo",
+    "strict": "Fundamentación Estricta",
+    "balanced": "Equilibrado",
+    "creative": "Exploración Creativa",
+    "verified": "Verificado por NLI",
+    "sources": "Fuentes Verificadas",
+    "export": "Exportar Sesión",
+    "regenerate": "Regenerar",
+    "retryRetrieval": "Reintentar con Nueva Búsqueda",
+    "copy": "Copiar Respuesta"
+  },
+  "documents": {
+    "title": "Documentos de Conocimiento",
+    "subtitle": "Ingesta, procesamiento y monitoreo de proyecciones vectoriales empresariales.",
+    "uploadTitle": "Arrastre y Suelte Archivos Aquí",
+    "uploadSubtitle": "Soporta PDF, DOCX, CSV, PPTX y Markdown hasta 100MB",
+    "folders": "Carpetas",
+    "allFolders": "Todos los Documentos",
+    "newFolder": "Nueva Carpeta",
+    "reindex": "Reindexar",
+    "delete": "Eliminar",
+    "bulkSelected": "documentos seleccionados"
+  },
+  "settings": {
+    "title": "Configuración del Pipeline RAG",
+    "subtitle": "Ajuste fino de búsqueda híbrida, umbrales de reclasificación y parámetros LLM.",
+    "searchTab": "Búsqueda y Reclasificación",
+    "generationTab": "Generación",
+    "guardrailsTab": "Privacidad y Salvaguardas",
+    "cacheTab": "Caché y Rendimiento",
+    "autoSaved": "Cambios guardados automáticamente (500ms debounce)"
+  },
+  "common": {
+    "close": "Cerrar",
+    "cancel": "Cancelar",
+    "save": "Guardar Cambios",
+    "loading": "Cargando...",
+    "error": "Ocurrió un error",
+    "success": "Operación exitosa"
+  }
+}

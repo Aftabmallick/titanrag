@@ -11,7 +11,7 @@ from titan_backend.api.v1.events import router as events_router
 from titan_backend.api.v1.health import router as health_router
 from titan_backend.api.v1.metrics import router as metrics_router
 from titan_backend.api.v1.oauth import router as oauth_router
-from titan_backend.api.v1.rag_settings import router as rag_settings_router
+from titan_backend.api.v1.rag_settings import alt_router as rag_settings_alt_router, router as rag_settings_router
 from titan_backend.api.v1.scim import router as scim_router
 from titan_backend.api.v1.workspaces import router as workspaces_router
 
@@ -31,6 +31,7 @@ v1_router.include_router(workspaces_router)
 v1_router.include_router(documents_router)
 v1_router.include_router(chat_router)
 v1_router.include_router(rag_settings_router)
+v1_router.include_router(rag_settings_alt_router)
 v1_router.include_router(events_router)
 v1_router.include_router(acl_groups_router)
 v1_router.include_router(audit_router)

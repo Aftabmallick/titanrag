@@ -13,9 +13,11 @@ from titan_backend.db.session import get_db
 from titan_backend.services.retrieval.semantic_cache import semantic_cache
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/settings", tags=["RAG Settings"])
+alt_router = APIRouter(prefix="/workspaces/{workspace_id}/rag-settings", tags=["RAG Settings"])
 
 
 @router.get("", response_model=RAGSettingsResponse)
+@alt_router.get("", response_model=RAGSettingsResponse)
 async def get_rag_settings(
     workspace_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -81,6 +83,9 @@ async def get_rag_settings(
 
 
 @router.put("", response_model=RAGSettingsResponse, status_code=status.HTTP_200_OK)
+@router.patch("", response_model=RAGSettingsResponse, status_code=status.HTTP_200_OK)
+@alt_router.put("", response_model=RAGSettingsResponse, status_code=status.HTTP_200_OK)
+@alt_router.patch("", response_model=RAGSettingsResponse, status_code=status.HTTP_200_OK)
 async def update_rag_settings(
     workspace_id: UUID,
     payload: RAGSettingsUpdate,

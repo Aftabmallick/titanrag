@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "chat": "Chat Workstation",
+    "documents": "Knowledge Documents",
+    "connectors": "SaaS Connectors",
+    "analytics": "Analytics & FinOps",
+    "admin": "Platform Administration",
+    "settings": "RAG Settings",
+    "newChat": "New Session"
+  },
+  "chat": {
+    "headerTitle": "Grounded Research Session",
+    "inputPlaceholder": "Ask anything across your verified enterprise documents... (Press Enter to submit)",
+    "send": "Send Query",
+    "stop": "Stop Generating",
+    "auto": "Auto Orchestrated",
+    "fast": "Fast Path (<1.8s)",
+    "deep": "Deep Reasoning",
+    "strict": "Strict Grounding",
+    "balanced": "Balanced",
+    "creative": "Creative Exploration",
+    "verified": "NLI Verified",
+    "sources": "Verified Sources",
+    "export": "Export Session",
+    "regenerate": "Regenerate",
+    "retryRetrieval": "Retry with Fresh Retrieval",
+    "copy": "Copy Response"
+  },
+  "documents": {
+    "title": "Knowledge Documents",
+    "subtitle": "Ingest, parse, and monitor vector projections across enterprise data sources.",
+    "uploadTitle": "Drag & Drop Files Here",
+    "uploadSubtitle": "Supports PDF, DOCX, CSV, PPTX, and Markdown up to 100MB",
+    "folders": "Folders",
+    "allFolders": "All Documents",
+    "newFolder": "New Folder",
+    "reindex": "Re-index",
+    "delete": "Delete",
+    "bulkSelected": "documents selected"
+  },
+  "settings": {
+    "title": "RAG Pipeline Configuration",
+    "subtitle": "Fine-tune hybrid search, reranking thresholds, and LLM reasoning parameters with auto-save.",
+    "searchTab": "Search & Rerank",
+    "generationTab": "Generation",
+    "guardrailsTab": "Guardrails & Privacy",
+    "cacheTab": "Cache & Performance",
+    "autoSaved": "Changes saved automatically (500ms debounce)"
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save Changes",
+    "loading": "Loading...",
+    "error": "An error occurred",
+    "success": "Operation successful"
+  }
+}

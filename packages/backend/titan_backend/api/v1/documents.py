@@ -11,7 +11,7 @@ from uuid import UUID
 import httpx
 import structlog
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, Body, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from redis.asyncio import Redis
 from sqlalchemy import delete, func, select, update
@@ -693,6 +693,7 @@ async def delete_document(
 
 
 @router.get("/{document_id}/download-url", response_model=PresignedURLResponse)
+@router.get("/{document_id}/download", response_model=PresignedURLResponse)
 async def get_document_download_url(
     workspace_id: UUID,
     document_id: UUID,
@@ -996,22 +997,50 @@ async def share_document(
 
 @router.post("/preview", response_model=IngestionPreviewResponse)
 async def preview_ingestion(
+    request: Request,
     workspace_id: UUID,
-    payload: IngestionPreviewRequest = Body(...),
     current_user: CurrentUser = Depends(require_permission(Permission.UPLOAD)),
 ) -> IngestionPreviewResponse:
     """
     Ingestion preview endpoint: parses and chunks content without writing to Qdrant or DB.
+    Supports both multipart form-data (file upload from UI) and JSON body (programmatic API).
     """
     from titan_workers.pipeline.chunker.hierarchical import HierarchicalChunker
     from titan_workers.pipeline.parser import get_parser_for_file
 
-    content_bytes = (payload.file_content or "Sample document text for preview.").encode("utf-8")
-    parser = get_parser_for_file(payload.filename, payload.mime_type)
-    parsed_doc = await parser.parse(content_bytes, payload.filename, payload.mime_type)
+    content_type = request.headers.get("content-type", "")
+    filename = "preview.txt"
+    mime_type = "text/plain"
+    content_bytes = b""
+
+    if "multipart/form-data" in content_type:
+        form = await request.form()
+        uploaded_file = form.get("file")
+        if uploaded_file and hasattr(uploaded_file, "read"):
+            content_bytes = await uploaded_file.read()
+            filename = getattr(uploaded_file, "filename", "preview.txt") or "preview.txt"
+            mime_type = getattr(uploaded_file, "content_type", "text/plain") or "text/plain"
+        elif isinstance(uploaded_file, (str, bytes)):
+            content_bytes = uploaded_file.encode("utf-8") if isinstance(uploaded_file, str) else uploaded_file
+            filename = str(form.get("filename") or "preview.txt")
+    else:
+        try:
+            body_data = await request.json()
+            payload = IngestionPreviewRequest(**body_data)
+            content_bytes = (payload.file_content or "Sample document text for preview.").encode("utf-8")
+            filename = payload.filename
+            mime_type = payload.mime_type
+        except Exception:
+            content_bytes = b"Sample document text for preview."
+
+    if not content_bytes:
+        content_bytes = b"Sample document text for preview."
+
+    parser = get_parser_for_file(filename, mime_type)
+    parsed_doc = await parser.parse(content_bytes, filename, mime_type)
 
     chunker = HierarchicalChunker()
-    parents, children = chunker.chunk_document(parsed_doc, payload.filename)
+    parents, children = chunker.chunk_document(parsed_doc, filename)
 
     sample_items: list[IngestionPreviewChunk] = []
     for c in parents[:2] + children[:3]:
@@ -1021,16 +1050,20 @@ async def preview_ingestion(
                 content=c.content[:200] + ("..." if len(c.content) > 200 else ""),
                 token_count=c.token_count,
                 is_parent=c.is_parent,
+                chunk_type="PARENT" if c.is_parent else "CHILD",
+                section_heading=c.meta.get("section_heading") or c.meta.get("heading"),
                 context_prefix=c.meta.get("context_prefix"),
                 meta=c.meta,
             )
         )
 
     return IngestionPreviewResponse(
-        filename=payload.filename,
+        filename=filename,
         total_chunks=len(parents) + len(children),
         parent_chunks=len(parents),
         child_chunks=len(children),
+        total_parent_chunks=len(parents),
+        total_child_chunks=len(children),
         sample_chunks=sample_items,
     )
 

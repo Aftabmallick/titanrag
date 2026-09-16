@@ -248,3 +248,17 @@ async def get_my_profile(
             error_code="NOT_FOUND",
         )
     return UserProfileResponse.model_validate(user)
+
+
+@router.post("/onboarding/complete")
+async def complete_onboarding(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    stmt = select(User).where(User.id == current_user.id)
+    res = await db.execute(stmt)
+    user = res.scalar_one_or_none()
+    if user:
+        user.onboarding_completed = True
+        await db.commit()
+    return {"status": "ok"}

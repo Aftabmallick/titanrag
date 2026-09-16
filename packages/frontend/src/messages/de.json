@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "chat": "Chat-Arbeitsbereich",
+    "documents": "Wissensdokumente",
+    "connectors": "SaaS-Konnektoren",
+    "analytics": "Analytik & FinOps",
+    "admin": "Plattform-Administration",
+    "settings": "RAG-Einstellungen",
+    "newChat": "Neue Sitzung"
+  },
+  "chat": {
+    "headerTitle": "Fundierte Forschungssitzung",
+    "inputPlaceholder": "Fragen Sie alles über Ihre verifizierten Unternehmensdokumente...",
+    "send": "Anfrage Senden",
+    "stop": "Generierung Stoppen",
+    "auto": "Automatisch Orchestriert",
+    "fast": "Schnellpfad (<1.8s)",
+    "deep": "Tiefes Denken",
+    "strict": "Strenge Erdung",
+    "balanced": "Ausgewogen",
+    "creative": "Kreative Erkundung",
+    "verified": "NLI-Verifiziert",
+    "sources": "Verifizierte Quellen",
+    "export": "Sitzung Exportieren",
+    "regenerate": "Neu Generieren",
+    "retryRetrieval": "Mit Frischer Abfrage Wiederholen",
+    "copy": "Antwort Kopieren"
+  },
+  "documents": {
+    "title": "Wissensdokumente",
+    "subtitle": "Erfassung, Analyse und Überwachung von Vektorprojektionen über Unternehmensdaten.",
+    "uploadTitle": "Dateien Hierher Ziehen & Ablegen",
+    "uploadSubtitle": "Unterstützt PDF, DOCX, CSV, PPTX und Markdown bis 100MB",
+    "folders": "Ordner",
+    "allFolders": "Alle Dokumente",
+    "newFolder": "Neuer Ordner",
+    "reindex": "Neu Indizieren",
+    "delete": "Löschen",
+    "bulkSelected": "Dokumente ausgewählt"
+  },
+  "settings": {
+    "title": "RAG-Pipeline-Konfiguration",
+    "subtitle": "Feinabstimmung von Hybridsuche, Reranking-Schwellenwerten und LLM-Parametern.",
+    "searchTab": "Suche & Rerank",
+    "generationTab": "Generierung",
+    "guardrailsTab": "Leitplanken & Datenschutz",
+    "cacheTab": "Cache & Leistung",
+    "autoSaved": "Änderungen automatisch gespeichert (500ms Debounce)"
+  },
+  "common": {
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "save": "Änderungen Speichern",
+    "loading": "Wird geladen...",
+    "error": "Ein Fehler ist aufgetreten",
+    "success": "Vorgang erfolgreich"
+  }
+}

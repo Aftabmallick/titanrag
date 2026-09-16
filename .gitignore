@@ -59,3 +59,5 @@ redis-data/
 qdrant-data/
 minio-data/
 grafana-data/
+*.tsbuildinfo
+ui_screenshots/

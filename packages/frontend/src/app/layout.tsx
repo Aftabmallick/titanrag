@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/lib/auth";
+import { ThemeProvider } from "@/lib/theme";
+import { ToastProvider } from "@/components/ui/Toast";
+import { I18nProvider } from "@/lib/i18n";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "TitanRAG — Enterprise RAG Platform",
-  description: "Multi-tenant, multimodal enterprise retrieval-augmented generation engine",
+  title: "TitanRAG — Enterprise Multi-Modal RAG Platform",
+  description: "Enterprise-grade, multi-tenant RAG platform with grounded streaming and PDF bounding-box verification",
 };
-
-import { AuthProvider } from "@/lib/auth";
 
 export default function RootLayout({
   children,
@@ -14,9 +23,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="antialiased bg-slate-950 text-slate-100">
-        <AuthProvider>{children}</AuthProvider>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <body className="antialiased min-h-screen font-sans">
+        <ThemeProvider>
+          <I18nProvider>
+            <AuthProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </AuthProvider>
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
