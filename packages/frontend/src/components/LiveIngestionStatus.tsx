@@ -14,6 +14,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+import { api } from "@/lib/api";
+
 interface LiveIngestionStatusProps {
   workspaceId: string;
   documentId: string;
@@ -23,10 +25,9 @@ interface LiveIngestionStatusProps {
 
 const STAGES = [
   { key: "PARSING", label: "Parse & Extract", icon: FileSearch, pct: 15 },
-  { key: "REDACTING", label: "PII Redaction", icon: ShieldCheck, pct: 30 },
-  { key: "CHUNKING", label: "Hierarchical Chunking", icon: Layers, pct: 45 },
-  { key: "CONTEXTUALIZING", label: "Context Prepending", icon: Sparkles, pct: 60 },
-  { key: "EMBEDDING", label: "Dense & BM25 Vectors", icon: Binary, pct: 75 },
+  { key: "CHUNKING", label: "Hierarchical Chunking", icon: Layers, pct: 35 },
+  { key: "REDACTING", label: "PII & Secret Redaction", icon: ShieldCheck, pct: 55 },
+  { key: "EMBEDDING", label: "Dual Vector Embedding", icon: Sparkles, pct: 75 },
   { key: "COMMITTING", label: "Transactional Outbox", icon: Database, pct: 90 },
   { key: "READY", label: "Index Ready", icon: CheckCircle2, pct: 100 },
 ];
@@ -48,7 +49,9 @@ export function LiveIngestionStatus({
     let fallbackTimer: NodeJS.Timeout | null = null;
 
     try {
-      const url = `/api/v1/workspaces/${workspaceId}/documents/${documentId}/status`;
+      const token = typeof window !== "undefined" ? api.getToken() : null;
+      const queryParams = token ? `?token=${encodeURIComponent(token)}` : "";
+      const url = `/api/v1/workspaces/${workspaceId}/documents/${documentId}/status${queryParams}`;
       eventSource = new EventSource(url);
 
       eventSource.onmessage = (event) => {

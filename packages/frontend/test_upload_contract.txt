@@ -1,0 +1,10 @@
+# TitanRAG Enterprise Security & Defense Agreement
+
+## 1. Zero-Trust Access Control
+All vector payload lookups require explicit tenant_id scoping and workspace access lists. Cross-tenant leakage is strictly prevented at the query execution boundary.
+
+## 2. Ingestion Pipeline & Docling Parsing
+Every ingested PDF, DOCX, and Markdown asset undergoes structural AST decomposition, PII entity redaction, and hierarchical chunking.
+
+## 3. Post-Generation Verification
+Generated synthetic outputs are cross-checked via natural language inference (NLI) claim verification against cited source chunks before returning to the user.

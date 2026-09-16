@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
-from fastapi import Depends, Header, Path, Request
+from fastapi import Depends, Header, Path, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,15 +40,21 @@ async def get_current_user(
     request: Request,
     auth_creds: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     x_api_key: str | None = Header(None, alias="X-API-Key"),
+    token_query: str | None = Query(None, alias="token"),
     db: AsyncSession = Depends(get_db),
 ) -> CurrentUser:
     """
-    Extracts and validates credentials from Bearer JWT or X-API-Key header.
+    Extracts and validates credentials from Bearer JWT (header or ?token= query parameter) or X-API-Key header.
     Enforces immediate session revocation and sets RLS session state.
     """
-    # 1. Try Bearer JWT
+    # 1. Try Bearer JWT (via Authorization header or ?token= query parameter for EventSource/SSE)
+    token = None
     if auth_creds and auth_creds.scheme.lower() == "bearer":
         token = auth_creds.credentials
+    elif token_query:
+        token = token_query
+
+    if token:
         payload = decode_token(token)
 
         # Check blacklist

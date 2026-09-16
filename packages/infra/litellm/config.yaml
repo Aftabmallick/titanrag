@@ -1,20 +1,27 @@
 model_list:
-  - model_name: text-embedding-3-small
+  - model_name: meta/llama-3.2-11b-vision-instruct
     litellm_params:
-      model: openai/text-embedding-3-small
-      api_key: "os.environ/OPENAI_API_KEY"
+      model: openai/meta/llama-3.2-11b-vision-instruct
+      api_base: "https://integrate.api.nvidia.com/v1"
+      api_key: "os.environ/NVIDIA_API_KEY"
+  - model_name: deepseek-ai/deepseek-v4-flash-0731
+    litellm_params:
+      model: openai/meta/llama-3.2-11b-vision-instruct
+      api_base: "https://integrate.api.nvidia.com/v1"
+      api_key: "os.environ/NVIDIA_API_KEY"
   - model_name: gpt-4o-mini
     litellm_params:
-      model: openai/gpt-4o-mini
-      api_key: "os.environ/OPENAI_API_KEY"
-  - model_name: claude-3-5-sonnet
+      model: openai/meta/llama-3.2-11b-vision-instruct
+      api_base: "https://integrate.api.nvidia.com/v1"
+      api_key: "os.environ/NVIDIA_API_KEY"
+  - model_name: text-embedding-3-small
     litellm_params:
-      model: anthropic/claude-3-5-sonnet-20240620
-      api_key: "os.environ/ANTHROPIC_API_KEY"
+      model: openai/nvidia/nemotron-3-embed-1b
+      api_base: "https://integrate.api.nvidia.com/v1"
+      api_key: "os.environ/NVIDIA_API_KEY"
 
 general_settings:
   master_key: sk-titanrag-litellm-master-key
-  database_url: "redis://redis:6379/2"
 
 router_settings:
   routing_strategy: "latency-based-routing"

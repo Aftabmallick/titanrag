@@ -76,9 +76,12 @@ class Settings(BaseSettings):
     LITELLM_PORT: int = 4000
     LITELLM_URL: str = "http://localhost:4000"
     LITELLM_MASTER_KEY: str = "sk-titanrag-litellm-master-key"
-    DEFAULT_CHAT_MODEL: str = "gpt-4o-mini"
+    DEFAULT_CHAT_MODEL: str = "deepseek-ai/deepseek-v4-flash-0731"
     DEFAULT_EMBEDDING_MODEL: str = "text-embedding-3-small"
     COHERE_API_KEY: str | None = None
+    NVIDIA_API_KEY: str | None = None
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
+    NVIDIA_MODEL: str = "deepseek-ai/deepseek-v4-flash-0731"
     RERANKER_TIMEOUT_MS: int = 400
 
     # OpenTelemetry

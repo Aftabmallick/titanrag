@@ -12,7 +12,7 @@ from titan_workers.pipeline.chunker.hierarchical import ChunkOutput
 logger = structlog.get_logger("titanrag.chunker.contextual")
 
 LITELLM_URL = os.getenv("LITELLM_URL", "http://localhost:4000")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "titanrag")
+MINIO_BUCKET = os.getenv("MINIO_BUCKET", "titanrag-documents")
 
 
 class ContextualPrefixEnricher:

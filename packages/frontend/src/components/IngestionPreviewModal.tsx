@@ -9,6 +9,8 @@ interface IngestionPreviewModalProps {
   onClose: () => void;
   previewData: IngestionPreviewResponse | null;
   loading?: boolean;
+  onApprove?: () => void;
+  onDiscard?: () => void;
 }
 
 export function IngestionPreviewModal({
@@ -16,6 +18,8 @@ export function IngestionPreviewModal({
   onClose,
   previewData,
   loading = false,
+  onApprove,
+  onDiscard,
 }: IngestionPreviewModalProps) {
   const [activeTab, setActiveTab] = useState<"all" | "parents" | "children">("all");
 
@@ -197,12 +201,36 @@ export function IngestionPreviewModal({
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
             <span>Ready for Transactional Outbox projection to Qdrant</span>
           </div>
-          <button
-            onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
-          >
-            Close Preview
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                if (onDiscard) onDiscard();
+                onClose();
+              }}
+              className="px-3.5 py-1.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+            >
+              Discard
+            </button>
+            {onApprove && (
+              <button
+                onClick={() => {
+                  onApprove();
+                  onClose();
+                }}
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white text-xs font-bold shadow-md shadow-sky-500/20 transition-all cursor-pointer"
+              >
+                Approve & Embed Chunks
+              </button>
+            )}
+            {!onApprove && (
+              <button
+                onClick={onClose}
+                className="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
+              >
+                Close Preview
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

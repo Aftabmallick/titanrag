@@ -73,6 +73,8 @@ class IngestionPreviewChunk(BaseModel):
     content: str
     token_count: int
     is_parent: bool = False
+    chunk_type: str = "CHILD"
+    section_heading: str | None = None
     context_prefix: str | None = None
     meta: dict[str, Any] = Field(default_factory=dict)
 
@@ -82,6 +84,8 @@ class IngestionPreviewResponse(BaseModel):
     total_chunks: int
     parent_chunks: int
     child_chunks: int
+    total_parent_chunks: int = 0
+    total_child_chunks: int = 0
     sample_chunks: list[IngestionPreviewChunk]
 
 
