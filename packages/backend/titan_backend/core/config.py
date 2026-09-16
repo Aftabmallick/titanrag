@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -94,7 +96,22 @@ class Settings(BaseSettings):
     FAIL_ON_STORAGE_ERROR: bool = False
     CLAMAV_HOST: str | None = None
     CLAMAV_PORT: int = 3310
-    ONNX_CLASSIFIER_PATH: str | None = None
+    ONNX_CLASSIFIER_PATH: str | None = Field(
+        default_factory=lambda: (
+            os.getenv("ONNX_CLASSIFIER_PATH")
+            or (
+                "/app/models/fast_path_classifier.onnx"
+                if os.path.exists("/app/models/fast_path_classifier.onnx")
+                else None
+            )
+            or ("models/fast_path_classifier.onnx" if os.path.exists("models/fast_path_classifier.onnx") else None)
+            or (
+                "packages/backend/models/fast_path_classifier.onnx"
+                if os.path.exists("packages/backend/models/fast_path_classifier.onnx")
+                else None
+            )
+        )
+    )
 
     # CORS
     CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:3001"])
