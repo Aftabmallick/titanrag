@@ -127,8 +127,9 @@ class AwsSecretsManagerProvider:
         if self._client:
             try:
                 resp = self._client.get_secret_value(SecretId=key)
-                val = resp.get("SecretString")
-                if val is not None:
+                val_raw = resp.get("SecretString")
+                if val_raw is not None:
+                    val = str(val_raw)
                     self._cache[key] = (val, now + self.ttl)
                     return val
             except Exception as e:

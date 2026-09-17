@@ -108,7 +108,7 @@ class WorkspaceMinHashLSHIndex:
     def query_near_duplicates(self, text: str) -> list[str]:
         """Returns IDs of all chunks having Jaccard similarity >= threshold with query text."""
         m = self.create_minhash(text)
-        return self.lsh.query(m)
+        return [str(x) for x in self.lsh.query(m)]
 
     def find_cross_document_duplicates(
         self,

@@ -7,8 +7,8 @@ Validates that:
 3. No undocumented breaking route removals occur.
 """
 
-import json
 import sys
+
 from titan_backend.main import app
 
 REQUIRED_ROUTES = [
@@ -39,7 +39,7 @@ def main():
     print(f"OpenAPI Version: {schema.get('openapi')}")
 
     if missing:
-        print(f"\n❌ ERROR: Missing required OpenAPI routes:\n" + "\n".join(f"  - {m}" for m in missing))
+        print("\n❌ ERROR: Missing required OpenAPI routes:\n" + "\n".join(f"  - {m}" for m in missing))
         sys.exit(1)
 
     print("\n✅ OpenAPI schema contract validated successfully: All critical routes present.")

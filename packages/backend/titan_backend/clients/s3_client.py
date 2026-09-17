@@ -83,7 +83,7 @@ async def generate_presigned_get_url(
     object_name = build_scoped_storage_path(tenant_id, workspace_id, document_id, filename)
     client = get_minio_client()
 
-    extra_query_params: dict[str, str] = {}
+    extra_query_params: dict[str, str | list[str] | tuple[str]] = {}
     if action.lower() == "view":
         extra_query_params["response-content-disposition"] = "inline"
 

@@ -57,7 +57,7 @@ class HyDEGenerator:
             q_vec = embeddings[0]
             h_vec = embeddings[1]
 
-            blended = [alpha * q + (1.0 - alpha) * h for q, h in zip(q_vec, h_vec)]
+            blended = [alpha * q + (1.0 - alpha) * h for q, h in zip(q_vec, h_vec, strict=True)]
             return _normalize(blended)
         except Exception as e:
             logger.warning("hyde_blended_embedding_failed", error=str(e))

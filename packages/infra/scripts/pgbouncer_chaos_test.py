@@ -59,7 +59,7 @@ async def run_worker(worker_id: int, num_queries: int = 10) -> tuple[int, int, f
 
 
 async def main():
-    print(f"=== Starting PgBouncer Concurrency & Chaos Test ===")
+    print("=== Starting PgBouncer Concurrency & Chaos Test ===")
     print(f"Target: {PG_USER}@{PG_HOST}:{PG_PORT}/{PG_DATABASE}")
 
     concurrency = 50
@@ -82,7 +82,7 @@ async def main():
         else:
             total_errors += queries_per_worker
 
-    print(f"\n--- Results ---")
+    print("\n--- Results ---")
     print(f"Total Queries: {total_expected}")
     print(f"Successful:    {total_success}")
     print(f"Failed:        {total_errors}")

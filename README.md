@@ -18,24 +18,206 @@
 </p>
 
 <p align="center">
-  <a href="#supported-infrastructure"><img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL%2016-RLS%20Enforced-336791?style=flat-square&logo=postgresql&logoColor=white" /></a>
-  <a href="#supported-infrastructure"><img alt="Qdrant" src="https://img.shields.io/badge/Qdrant-Vector%20HNSW-DC2626?style=flat-square&logo=qdrant" /></a>
-  <a href="#supported-infrastructure"><img alt="Redis" src="https://img.shields.io/badge/Redis%207-Cache%20%26%20RateLimit-DC382D?style=flat-square&logo=redis&logoColor=white" /></a>
-  <a href="#supported-infrastructure"><img alt="Langfuse" src="https://img.shields.io/badge/Langfuse-v3%20Native-orange?style=flat-square" /></a>
-  <a href="#supported-infrastructure"><img alt="Arize Phoenix" src="https://img.shields.io/badge/Arize%20Phoenix-OTLP%20Tracing-9333EA?style=flat-square" /></a>
-  <a href="#supported-infrastructure"><img alt="ClamAV" src="https://img.shields.io/badge/ClamAV-Malware%20Stream%20Scanner-047857?style=flat-square" /></a>
-  <a href="#supported-infrastructure"><img alt="Docker" src="https://img.shields.io/badge/Docker%20Compose-v2%20Ready-2496ED?style=flat-square&logo=docker&logoColor=white" /></a>
+  <a href="#quickstart-guide"><img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL%2016-RLS%20Enforced-336791?style=flat-square&logo=postgresql&logoColor=white" /></a>
+  <a href="#quickstart-guide"><img alt="Qdrant" src="https://img.shields.io/badge/Qdrant-Vector%20HNSW-DC2626?style=flat-square&logo=qdrant" /></a>
+  <a href="#quickstart-guide"><img alt="Redis" src="https://img.shields.io/badge/Redis%207-Cache%20%26%20RateLimit-DC382D?style=flat-square&logo=redis&logoColor=white" /></a>
+  <a href="#quickstart-guide"><img alt="Langfuse" src="https://img.shields.io/badge/Langfuse-v3%20Native-orange?style=flat-square" /></a>
+  <a href="#quickstart-guide"><img alt="Arize Phoenix" src="https://img.shields.io/badge/Arize%20Phoenix-OTLP%20Tracing-9333EA?style=flat-square" /></a>
+  <a href="#quickstart-guide"><img alt="ClamAV" src="https://img.shields.io/badge/ClamAV-Malware%20Stream%20Scanner-047857?style=flat-square" /></a>
+  <a href="#quickstart-guide"><img alt="Docker" src="https://img.shields.io/badge/Docker%20Compose-v2%20Ready-2496ED?style=flat-square&logo=docker&logoColor=white" /></a>
 </p>
+
+<p align="center">
+  English | <a href="#what-is-titanrag">简体中文</a> | <a href="#what-is-titanrag">日本語</a> | <a href="#what-is-titanrag">한국어</a>
+</p>
+
+---
+
+## Table of Contents
+
+- [What is TitanRAG?](#what-is-titanrag)
+- [Quickstart Guide (Get Running in 2 Minutes)](#quickstart-guide)
+  - [Option A: One-Command Docker Stack (Recommended)](#option-a-one-command-docker-compose-launch-recommended)
+  - [Option B: Local Developer Mode (Host Execution & Hot-Reloading)](#option-b-local-developer-mode-host-execution--hot-reloading)
+  - [Option C: Developer Makefile Shortcuts](#option-c-developer-makefile-shortcuts)
+- [Pre-Configured Default Credentials](#pre-configured-default-credentials)
+- [5-Minute First-Run Walkthrough](#5-minute-first-run-walkthrough)
+- [Benchmark & Comparison](#benchmark)
+- [Why TitanRAG?](#why-titanrag)
+- [System Architecture](#system-architecture)
+- [API & CLI Examples](#api--cli-examples)
+- [Configuration Reference](#configuration-reference)
+- [Testing & Quality Assurance](#testing--quality-assurance)
+- [Roadmap](#roadmap)
+- [Contributing & License](#contributing)
 
 ---
 
 ## What is TitanRAG?
 
-**TitanRAG** is an enterprise-grade, sovereign Multimodal Retrieval-Augmented Generation (RAG) and LLMOps platform engineered for high-concurrency, security-critical environments. While most RAG solutions are fragile toy prototypes built on naive application-layer filters and synchronous vector writes, TitanRAG treats knowledge retrieval with the strict operational rigor of financial systems: **Zero-Trust Multi-Tenancy**, **Transactional Outbox Vector Projections**, **Dual Live Observability (Langfuse + Arize Phoenix)**, and **In-Flight Anti-Malware Sanitization**.
+**TitanRAG** is an enterprise-grade, sovereign Multimodal Retrieval-Augmented Generation (RAG) and LLMOps platform engineered for high-concurrency, security-critical environments. While most RAG frameworks are fragile toy prototypes built on naive application-layer filters and synchronous vector writes, TitanRAG treats knowledge retrieval with the strict operational rigor of financial systems:
 
-TitanRAG ingests complex multimodal documents (PDFs, PPTX, Docx, Audio, High-Resolution Images) through deep OCR, table extraction, and multi-vector ColPali embeddings. It exposes an ultra-fast hybrid retrieval pipeline (Dense Embeddings + Sparse BM25 + Reciprocal Rank Fusion + Cross-Encoder Re-Ranking + HyDE query generation), protected by a real-time FinOps quota token bucket and sub-millisecond semantic Redis cache.
+- 🛡️ **PostgreSQL Row-Level Security (RLS)**: Enforces tenant data isolation directly at the database kernel.
+- 📦 **Transactional Outbox Vector Projections**: Guarantees zero data loss and prevents orphaned vectors between relational databases and Qdrant.
+- 🔭 **Dual Out-of-the-Box LLMOps**: Pre-configured **Langfuse v3** with auto-provisioned admin credentials and **Arize Phoenix** live OTLP span waterfalls.
+- 🦠 **ClamAV Anti-Malware Stream Scanner**: Scans documents in-memory before ingestion to block Trojan and poisoned document attacks.
+- ⚡ **Redis Semantic Cache & FinOps Gatekeeper**: Real-time token buckets, rate limiting, and sub-millisecond similarity cache lookups.
 
-> **Zero Configuration Required**: All containers—including pre-seeded Langfuse credentials with auto-provisioned API keys, Arize Phoenix OTLP traces, ClamAV antivirus, MinIO, Qdrant, PostgreSQL RLS, and Redis—spin up in 1 command.
+---
+
+## Quickstart Guide
+
+### Prerequisites
+- **Docker Engine >= 24.0** & **Docker Compose v2**
+- *(For local developer mode)*: Python 3.11+, `uv` package manager, Node.js 18+
+
+---
+
+### Option A: One-Command Docker Compose Launch (Recommended)
+
+Get the complete 14-service enterprise stack up and running in 60 seconds with **zero configuration**:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/Aftabmallick/rag-god.git
+cd rag-god/titanrag
+
+# 2. Copy the default networking and credentials configuration
+cp .env.defaults .env
+
+# 3. Launch the full stack (PostgreSQL RLS, Qdrant, Redis, MinIO, ClamAV, Langfuse, Phoenix, LiteLLM, FastAPI, Celery, and Next.js UI)
+docker compose -f packages/infra/docker-compose.yml up -d
+```
+
+#### Verify Containers are Healthy:
+```bash
+docker compose -f packages/infra/docker-compose.yml ps
+```
+
+Once running, open your browser:
+- **Web UI**: [`http://localhost:3000`](http://localhost:3000)
+- **FastAPI Docs (Swagger)**: [`http://localhost:8000/docs`](http://localhost:8000/docs)
+- **Arize Phoenix (Tracing)**: [`http://localhost:6006`](http://localhost:6006)
+- **Langfuse v3 (LLMOps)**: [`http://localhost:3002`](http://localhost:3002)
+- **MinIO Object Storage Console**: [`http://localhost:9001`](http://localhost:9001)
+- **Qdrant Vector Dashboard**: [`http://localhost:6333/dashboard`](http://localhost:6333/dashboard)
+
+---
+
+### Option B: Local Developer Mode (Host Execution & Hot-Reloading)
+
+If you are developing backend or frontend code and want instant hot-reloading on your host machine:
+
+#### Step 1: Start Supporting Infrastructure Services in Docker
+```bash
+cd packages/infra
+docker compose up -d postgres redis qdrant minio litellm langfuse phoenix clamav
+cd ../..
+```
+
+#### Step 2: Install Python Dependencies using `uv`
+```bash
+# Install uv if you don't already have it
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Sync all workspace packages and create the virtual environment
+uv sync --all-packages
+```
+
+#### Step 3: Run Database Migrations (PostgreSQL RLS)
+```bash
+cd packages/backend
+uv run alembic upgrade head
+cd ../..
+```
+
+#### Step 4: Start the FastAPI Backend (Port 8000)
+```bash
+PYTHONPATH=packages/backend:packages/workers uv run uvicorn titan_backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+#### Step 5: Start Celery Worker & Periodic Beat Scheduler (In separate terminals)
+```bash
+# Terminal 2: Asynchronous ingestion & outbox worker
+PYTHONPATH=packages/workers:packages/backend uv run celery -A titan_workers.celery_app worker -l info --concurrency 2
+
+# Terminal 3: Celery Beat scheduler (periodic outbox polling & health heartbeats)
+PYTHONPATH=packages/workers:packages/backend uv run celery -A titan_workers.celery_app beat -l info
+```
+
+#### Step 6: Start the Next.js 14 Web Frontend (Port 3000)
+```bash
+cd packages/frontend
+npm install
+npm run dev
+```
+
+Now open [`http://localhost:3000`](http://localhost:3000) to access the live development application.
+
+---
+
+### Option C: Developer Makefile Shortcuts
+
+For convenience, you can orchestrate everything using `make`:
+
+```bash
+# Start the full development stack
+make up
+
+# Start the full stack with extended observability (Langfuse, Phoenix, Prometheus, Grafana)
+make full
+
+# Check health of all services
+make health
+
+# Run all test suites
+make test
+
+# Run linter and formatting checks
+make lint
+
+# Stop all background services
+make down
+```
+
+---
+
+## Pre-Configured Default Credentials
+
+TitanRAG is pre-seeded with out-of-the-box accounts. **You do not need to register, configure keys, or set up databases manually**:
+
+| Service | URL / Port | Username | Password | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **TitanRAG Web UI** | [`http://localhost:3000`](http://localhost:3000) | *Single-Click Onboard* | *N/A* | Interactive chat, document management & analytics |
+| **FastAPI REST API** | [`http://localhost:8000/docs`](http://localhost:8000/docs) | `admin` | `admin123` | Interactive Swagger / OpenAPI documentation |
+| **Langfuse v3 LLMOps** | [`http://localhost:3002`](http://localhost:3002) | `admin@titanrag.io` | `Admin@TitanRAG2026!` | Pre-seeded with project & active API keys |
+| **Arize Phoenix** | [`http://localhost:6006`](http://localhost:6006) | *Zero-Auth (Public)* | *N/A* | Real-time OTLP span waterfalls & evaluations |
+| **MinIO S3 Console** | [`http://localhost:9001`](http://localhost:9001) | `minioadmin` | `minioadmin` | Object storage for raw PDFs, audio & images |
+| **LiteLLM Gateway** | [`http://localhost:4000`](http://localhost:4000) | *Bearer Auth* | `sk-titan-litellm-master-key` | Virtualized OpenAI, Anthropic, Gemini routing |
+| **PostgreSQL 16 DB** | `localhost:5432` | `postgres` | `postgres` | Hardened RLS enabled (`titanrag_db`, `langfuse`) |
+| **Qdrant Vector DB** | [`http://localhost:6333/dashboard`](http://localhost:6333/dashboard) | *Zero-Auth* | *N/A* | High-density HNSW vector search dashboard |
+| **ClamAV Daemon** | `localhost:3310` | *TCP Socket* | *N/A* | In-memory malware & virus streaming scanner |
+
+---
+
+## 5-Minute First-Run Walkthrough
+
+Once your services are running, follow these steps to explore the platform:
+
+1. **Open the Web UI**: Visit [`http://localhost:3000`](http://localhost:3000). Complete the quick 3-step onboarding wizard to initialize your default workspace (`Engineering Docs`).
+2. **Upload a Document**: Go to the **Documents** tab and drag & drop a PDF or text file.
+   - The document stream is automatically routed through **ClamAV** for anti-malware verification.
+   - The file is chunked, stored in PostgreSQL, and projected into Qdrant via the **Transactional Outbox**.
+3. **Ask a Question**: Open the **Chat** interface and send a question about your document.
+   - Experience real-time **Server-Sent Events (SSE)** token streaming.
+   - Click citations to view source bounding boxes in the document viewer.
+   - Observe the **NLI Entailment Badge** verifying faithfulness against source passages.
+4. **Inspect Live Traces in Arize Phoenix & Langfuse**:
+   - Open [`http://localhost:6006`](http://localhost:6006) to see the full OTLP span waterfall (HyDE expansion -> Hybrid retrieval -> Cross-encoder reranker -> LiteLLM generation).
+   - Open [`http://localhost:3002`](http://localhost:3002) with `admin@titanrag.io` / `Admin@TitanRAG2026!` to inspect cost analytics, latency percentiles, and prompt versions.
+5. **Adjust Parameters in Real Time**:
+   - Click the gear icon in the chat header to open the **RAG Settings Drawer**.
+   - Switch the primary LLMOps provider from **Phoenix** to **Langfuse**, adjust temperature, enable/disable HyDE rewriting, or tune the semantic cache threshold.
 
 ---
 
@@ -69,7 +251,7 @@ Modern teams attempting to deploy RAG into regulated corporate environments face
 
 ### Core Design: Deterministic Engineering × Agentic Hybrid
 
-TitanRAG combines **hard mathematical & database constraints** with **adaptive agentic intelligence**, ensuring each tier does what it does best:
+TitanRAG combines **hard mathematical & database constraints** with **adaptive agentic intelligence**:
 
 ```
                   ┌────────────────────────────────────────────────────────┐
@@ -89,23 +271,9 @@ TitanRAG combines **hard mathematical & database constraints** with **adaptive a
 └──────────────────────────────────┘      └──────────────────────────────────┘
 ```
 
-1. **Deterministic Engineering (Hard Constraints)**:
-   - **PostgreSQL Row-Level Security (RLS)**: Cryptographically verified session variable `SET LOCAL app.current_tenant_id = '...'` enforced directly at the SQL kernel. Leaking data across tenants is physically impossible at the database level.
-   - **Transactional Outbox Vector Projections**: Relational state and vector events are written in a single ACID transaction. An asynchronous Celery relay polls the outbox and streams projections into Qdrant with guaranteed delivery.
-   - **ClamAV Anti-Malware Ingestion Gate**: File streams pass through an in-memory ClamAV daemon before any text extraction or parsing occurs.
-   - **Atomic Redis FinOps Leaky Bucket**: Token consumption quotas and rate limits are decremented using non-blocking Lua scripts before sending prompts to downstream models.
-
-2. **Adaptive Agentic Hybrid (Deep Intelligence)**:
-   - **HyDE Query Expansion**: Generates hypothetical answer passages to bridge the lexical gap between ambiguous user questions and dense technical manuals.
-   - **Hybrid Retrieval & RRF**: Unifies dense semantic vector distances with sparse BM25 lexical relevance into a normalized reciprocal rank score.
-   - **Cross-Encoder Verification**: Re-scores the top-K candidate chunks through a cross-encoder model to filter out semantic distractors before generation.
-   - **Dual LLMOps Telemetry**: Seamlessly propagates OpenTelemetry spans into **Langfuse v3** and **Arize Phoenix** simultaneously without developer intervention.
-
 ---
 
 ## System Architecture
-
-### End-to-End Ingestion & Retrieval Pipeline
 
 ```mermaid
 flowchart TD
@@ -144,77 +312,15 @@ flowchart TD
 
 ---
 
-## Quickstart Guide
-
-### Prerequisites
-- **Docker Engine >= 24.0** & **Docker Compose v2**
-- *(Optional for host development)*: Python 3.11+, `uv`, Node.js 18+
-
-### 1. One-Command Full Stack Launch
-
-Clone the repository and start all 14 container services:
-
-```bash
-git clone https://github.com/Aftabmallick/rag-god.git
-cd rag-god/titanrag
-
-# Spin up PostgreSQL, Redis, Qdrant, MinIO, ClamAV, Langfuse, Phoenix, LiteLLM & Next.js UI
-docker compose -f packages/infra/docker-compose.yml up -d
-```
-
-### 2. Pre-Configured Default Credentials (Zero Manual Setup)
-
-TitanRAG is configured with out-of-the-box seeds. **No manual API key creation or sign-up forms required**:
-
-| Service | Port / URL | Default Username | Default Password | Features / Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **TitanRAG Web UI** | [`http://localhost:3000`](http://localhost:3000) | *One-Click Onboarding* | *N/A* | Modern Next.js 14 Chat & Settings UI |
-| **FastAPI REST API** | [`http://localhost:8000/docs`](http://localhost:8000/docs) | `admin` | `admin123` | Interactive Swagger / OpenAPI documentation |
-| **Langfuse v3 LLMOps** | [`http://localhost:3002`](http://localhost:3002) | `admin@titanrag.io` | `Admin@TitanRAG2026!` | Pre-seeded with project & active API keys |
-| **Arize Phoenix** | [`http://localhost:6006`](http://localhost:6006) | *Zero-Auth (Public)* | *N/A* | Real-time OTLP span waterfalls & evaluations |
-| **MinIO S3 Console** | [`http://localhost:9001`](http://localhost:9001) | `minioadmin` | `minioadmin` | Object storage for raw PDFs, audio & images |
-| **LiteLLM Gateway** | [`http://localhost:4000`](http://localhost:4000) | *Bearer Auth* | `sk-titan-litellm-master-key` | Virtualized OpenAI, Anthropic, Gemini routing |
-| **PostgreSQL 16 DB** | `localhost:5432` | `postgres` | `postgres` | Hardened RLS enabled (`titanrag_db`, `langfuse`) |
-| **Qdrant Vector DB** | [`http://localhost:6333/dashboard`](http://localhost:6333/dashboard) | *Zero-Auth* | *N/A* | High-density HNSW vector search dashboard |
-| **ClamAV Daemon** | `localhost:3310` | *TCP Socket* | *N/A* | In-memory malware & virus streaming scanner |
-
----
-
-## Interactive UI Showcase
-
-TitanRAG features a high-density, dark-mode Next.js 14 interface engineered for production monitoring and chat:
-
-- 💬 **Sovereign Multi-Tenant Chat**: Real-time Server-Sent Events (SSE) token streaming with citation drawer, confidence badges, and live Natural Language Inference (NLI) verification.
-- ⚙️ **RAG Control Center Drawer**: Fine-tune temperature, top-k, similarity thresholds, HyDE rewriting, and toggle between **Langfuse** and **Arize Phoenix** tracing on the fly.
-- 📊 **FinOps & Cost Analytics**: Real-time tenant token burn down, rate limit monitors, and cache hit ratios.
-- 🛡️ **Guardrails & Content Safety**: ClamAV scan logs, PII redaction toggles, and toxic content filters.
-
----
-
 ## API & CLI Examples
 
-### 1. Ingest a Document (With Automatic ClamAV Virus Scanning)
+### 1. Ingest a Document with ClamAV Virus Scanning
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/documents/upload" \
   -H "X-Tenant-ID: enterprise_corp" \
   -F "file=@annual_financial_report.pdf" \
   -F "enable_ocr=true"
-```
-
-*Response:*
-```json
-{
-  "document_id": "doc_9e8b1740-4bc2-4ef8-a157-19d268d0421e",
-  "status": "INGESTED",
-  "security_scan": {
-    "scanner": "ClamAV",
-    "infected": false,
-    "status": "CLEAN"
-  },
-  "chunks_created": 42,
-  "outbox_status": "RELAYED_TO_VECTOR_INDEX"
-}
 ```
 
 ### 2. Streaming Hybrid Chat with NLI Verification
@@ -231,31 +337,15 @@ curl -N -X POST "http://localhost:8000/api/v1/chat/stream" \
   }'
 ```
 
-*Server-Sent Event Stream:*
-```
-event: metadata
-data: {"trace_id":"tr-872f9a1b","llmops_provider":"langfuse","cache_hit":false}
-
-event: chunk
-data: {"token": "According"}
-event: chunk
-data: {"token": " to Q3 financial disclosures, operating EBITDA margins reached"}
-event: chunk
-data: {"token": " 28.4%..."}
-
-event: done
-data: {"nli_status":"ENTAILMENT","citations":["doc_9e8b1740#p14"]}
-```
-
 ### 3. Switch Observability Provider Dynamically
 
 ```bash
-# Direct all traces to Arize Phoenix (OTLP Port 6006)
+# Switch to Arize Phoenix (OTLP Port 6006)
 curl -X POST "http://localhost:8000/api/v1/settings/observability" \
   -H "Content-Type: application/json" \
   -d '{"primary_provider": "phoenix"}'
 
-# Or direct all traces to Langfuse (Port 3002)
+# Or switch to Langfuse (Port 3002)
 curl -X POST "http://localhost:8000/api/v1/settings/observability" \
   -H "Content-Type: application/json" \
   -d '{"primary_provider": "langfuse"}'
@@ -263,61 +353,42 @@ curl -X POST "http://localhost:8000/api/v1/settings/observability" \
 
 ---
 
-## Monorepo Layout
+## Configuration Reference
 
-```
-titanrag/
-├── Makefile                           # Monorepo orchestrator (make up, make test)
-├── pyproject.toml                     # uv workspace root, ruff, mypy, and pytest configs
-├── .env.defaults                      # Default container network environment
-├── .env.example                       # Local developer override template
-├── .github/workflows/ci.yml           # Automated CI matrix (pytest, ruff, mypy, docker)
-│
-├── packages/
-│   ├── backend/                       # Core FastAPI Gateway & Logic
-│   │   ├── alembic/versions/          # PostgreSQL DDL & Row-Level Security policies
-│   │   ├── titan_backend/
-│   │   │   ├── api/v1/                # REST endpoints (chat, documents, settings, finops)
-│   │   │   ├── services/              # HyDE, RRF, Cross-Encoder, FinOps, Langfuse/Phoenix
-│   │   │   └── core/                  # Database connections, RLS context, security
-│   │   └── tests/                     # 100+ comprehensive integration & unit tests
-│   │
-│   ├── workers/                       # Decoupled Celery Asynchronous Workers
-│   │   ├── Dockerfile.core            # Lightweight I/O and Outbox Relay worker
-│   │   ├── Dockerfile.heavy           # Heavy OCR, Docling parser & ColPali worker
-│   │   └── titan_workers/             # Outbox polling relay & MinHash deduplicator
-│   │
-│   ├── frontend/                      # Next.js 14 App Router Interface
-│   │   ├── src/app/                   # Responsive chat, documents, and analytics pages
-│   │   ├── src/components/settings/   # RAG Settings Drawer (Langfuse/Phoenix switch, HyDE)
-│   │   └── src/hooks/                 # Custom React hooks (auto-scroll, settings state)
-│   │
-│   └── infra/                         # Production Docker Compose & Observability Stack
-│       ├── docker-compose.yml         # 14 container services orchestrated
-│       ├── litellm/config.yaml        # Multi-provider model virtualization
-│       └── scripts/
-│           ├── init-postgres.sh       # Multi-database initializer (titanrag + langfuse)
-│           └── seed_langfuse.sql      # Auto-seeding script for default Langfuse keys
-```
+Key environment variables available in `.env`:
+
+| Variable | Default Value | Description |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag` | Primary PostgreSQL database with RLS |
+| `REDIS_URL` | `redis://localhost:6379/0` | Cache, Celery broker, and token rate limiter |
+| `QDRANT_URL` | `http://localhost:6333` | Qdrant vector database endpoint |
+| `MINIO_ENDPOINT` | `localhost:9000` | S3-compatible document storage |
+| `LLMOPS_PROVIDER` | `phoenix` | Default tracing provider (`phoenix` or `langfuse`) |
+| `LANGFUSE_HOST` | `http://localhost:3002` | Langfuse web and API host |
+| `PHOENIX_HOST` | `http://localhost:6006` | Arize Phoenix collector host |
+| `CLAMAV_HOST` | `localhost` | ClamAV antivirus daemon host |
+| `CLAMAV_PORT` | `3310` | ClamAV TCP streaming port |
+| `LITELLM_API_BASE` | `http://localhost:4000` | Virtualized multi-provider LLM gateway |
 
 ---
 
-## Development & Testing
+## Testing & Quality Assurance
 
-TitanRAG uses modern Python tooling (`uv`, `ruff`, `mypy`) alongside `pytest` for uncompromising code quality:
+TitanRAG enforces strict quality gates:
 
 ```bash
-# 1. Sync dependencies across all workspace packages
-uv sync --all-packages
+# Run backend pytest suite (tenancy isolation, LLMOps, RLS, and hardening)
+uv run pytest -v
 
-# 2. Run formatting & linting checks
-make lint
+# Run static type checking with strict mypy
+uv run mypy packages/backend/titan_backend packages/workers/titan_workers packages/sdk/titanrag
 
-# 3. Run static type checking (strict mode)
-make typecheck
+# Run Ruff linter and format validation
+uv run ruff check .
+uv run ruff format --check .
 
-# 4. Run test suite with coverage report
-make test
+# Run Frontend unit tests (20 test suites, 70%+ coverage)
+cd packages/frontend && npm test
 ```
 
 ---
@@ -337,12 +408,12 @@ make test
 
 ## Contributing
 
-Contributions are warmly welcome! Whether you are reporting a bug, proposing an architectural enhancement, or submitting a pull request, please review our guidelines:
+Contributions are warmly welcome! Whether reporting a bug, improving documentation, or proposing an architecture RFC:
 
 1. Fork the repository and create your branch: `git checkout -b feat/my-enhancement`
 2. Commit your changes adhering to conventional commits: `git commit -m "feat(retrieval): add reciprocal rank fusion weighting"`
 3. Verify all tests pass: `make test && make lint`
-4. Open a Pull Request against `main`.
+4. Open a Pull Request against `master`.
 
 <p align="center">
   <a href="https://github.com/Aftabmallick/rag-god/graphs/contributors">

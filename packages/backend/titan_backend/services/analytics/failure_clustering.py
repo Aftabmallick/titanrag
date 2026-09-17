@@ -1,5 +1,5 @@
-from collections import defaultdict
 import math
+from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
@@ -17,7 +17,7 @@ def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
     """Calculates cosine similarity between two dense embedding vectors."""
     if not vec_a or not vec_b or len(vec_a) != len(vec_b):
         return 0.0
-    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot = sum(a * b for a, b in zip(vec_a, vec_b, strict=True))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
     norm_b = math.sqrt(sum(b * b for b in vec_b))
     if norm_a == 0.0 or norm_b == 0.0:
@@ -111,11 +111,27 @@ class FailureClusteringService:
 
             def _tokenize(text: str) -> set[str]:
                 stopwords = {
-                    "the", "a", "an", "is", "in", "of", "to", "for",
-                    "and", "or", "on", "with", "this", "that", "was", "it", "here",
+                    "the",
+                    "a",
+                    "an",
+                    "is",
+                    "in",
+                    "of",
+                    "to",
+                    "for",
+                    "and",
+                    "or",
+                    "on",
+                    "with",
+                    "this",
+                    "that",
+                    "was",
+                    "it",
+                    "here",
                 }
                 return {
-                    w for w in text.lower().replace(".", " ").replace(",", " ").split()
+                    w
+                    for w in text.lower().replace(".", " ").replace(",", " ").split()
                     if len(w) > 2 and w not in stopwords
                 }
 

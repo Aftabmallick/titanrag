@@ -45,6 +45,7 @@ from titan_backend.services.chat.stream_generator import format_sse, phased_stre
 from titan_backend.services.chat.suggestions import suggestions_generator
 from titan_backend.services.finops.gatekeeper import FinOpsGatekeeper
 from titan_backend.services.finops.ledger import FinOpsLedgerService
+from titan_backend.services.observability.langfuse_client import LLMOpsSpan, LLMOpsTrace, llmops_tracer
 from titan_backend.services.promptops.engine import PromptOpsEngine
 from titan_backend.services.retrieval.candidate_validator import candidate_validator
 from titan_backend.services.retrieval.classifier import QueryIntent, classifier
@@ -64,7 +65,6 @@ from titan_backend.services.retrieval.search import (
 from titan_backend.services.retrieval.self_query import self_query_engine
 from titan_backend.services.retrieval.semantic_cache import semantic_cache
 from titan_backend.services.retrieval.source_comparator import source_comparator
-from titan_backend.services.observability.langfuse_client import LLMOpsSpan, LLMOpsTrace, llmops_tracer
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["Chat & Retrieval"])
 
@@ -368,7 +368,7 @@ async def chat_endpoint(
             "top_k": rag_settings.top_k,
             "rerank_top_k": rag_settings.rerank_top_k,
             "sources_count": len(packed_sources),
-            "reranked_top_score": float(reranked[0].rerank_score) if reranked else 0.0,
+            "reranked_top_score": float(reranked[0].relevance_score) if reranked else 0.0,
         },
     )
     trace.spans.append(retrieval_span)

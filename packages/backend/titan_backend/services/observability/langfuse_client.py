@@ -13,7 +13,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any, Protocol
+from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
@@ -161,7 +161,9 @@ class LangfuseProvider(LLMOpsProvider):
     def initialize(self) -> None:
         secret_key = os.getenv("LANGFUSE_SECRET_KEY")
         public_key = os.getenv("LANGFUSE_PUBLIC_KEY")
-        host = os.getenv("LANGFUSE_HOST", "http://localhost:3002" if not os.path.exists("/.dockerenv") else "http://langfuse:3000")
+        host = os.getenv(
+            "LANGFUSE_HOST", "http://localhost:3002" if not os.path.exists("/.dockerenv") else "http://langfuse:3000"
+        )
 
         if not secret_key or not public_key:
             logger.info("langfuse_disabled_no_keys", hint="Set LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY to enable")
@@ -276,7 +278,9 @@ class PhoenixProvider(LLMOpsProvider):
         self._enabled = False
 
     def initialize(self) -> None:
-        phoenix_host = os.getenv("PHOENIX_HOST", "http://localhost:6006" if not os.path.exists("/.dockerenv") else "http://phoenix:6006")
+        phoenix_host = os.getenv(
+            "PHOENIX_HOST", "http://localhost:6006" if not os.path.exists("/.dockerenv") else "http://phoenix:6006"
+        )
         phoenix_api_key = os.getenv("PHOENIX_API_KEY")
 
         try:
@@ -414,6 +418,7 @@ class StructlogFallbackProvider(LLMOpsProvider):
 def _create_provider() -> LLMOpsProvider:
     """Factory that selects the provider based on LLMOPS_PROVIDER env var."""
     provider_name = os.getenv("LLMOPS_PROVIDER", "phoenix").lower().strip()
+    provider: LLMOpsProvider
 
     if provider_name == "phoenix":
         provider = PhoenixProvider()

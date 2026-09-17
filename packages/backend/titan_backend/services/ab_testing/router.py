@@ -22,12 +22,7 @@ def murmurhash3_32(key: str, seed: int = 0) -> int:
     c2 = 0x1B873593
 
     for i in range(nblocks):
-        k1 = (
-            data[4 * i]
-            | (data[4 * i + 1] << 8)
-            | (data[4 * i + 2] << 16)
-            | (data[4 * i + 3] << 24)
-        )
+        k1 = data[4 * i] | (data[4 * i + 1] << 8) | (data[4 * i + 2] << 16) | (data[4 * i + 3] << 24)
         k1 = (k1 * c1) & 0xFFFFFFFF
         k1 = ((k1 << 15) | (k1 >> 17)) & 0xFFFFFFFF
         k1 = (k1 * c2) & 0xFFFFFFFF

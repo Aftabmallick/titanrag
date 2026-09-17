@@ -1,5 +1,9 @@
-from fastapi import HTTPException, status
+from collections.abc import Awaitable
+from typing import cast
+
 import structlog
+from fastapi import HTTPException, status
+
 from titan_backend.clients.redis_client import get_redis_client
 
 logger = structlog.get_logger("titanrag.backpressure")
@@ -39,7 +43,7 @@ class BackpressureController:
             redis = await get_redis_client()
             total = 0
             for q in MONITORED_QUEUES:
-                depth = await redis.llen(q)
+                depth = await cast(Awaitable[int], redis.llen(q))
                 total += depth
             return total
         except Exception as e:

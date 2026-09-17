@@ -348,6 +348,7 @@ async def test_list_evaluation_runs_endpoint(async_client, mock_db_session):
 
     app.dependency_overrides.pop(get_current_user, None)
 
+
 def test_welch_t_test_continuous_metrics():
     from titan_backend.services.ab_testing.statistics import calculate_welch_t_test
 
@@ -392,7 +393,6 @@ def test_murmurhash3_deterministic_bucketing():
 
     exp_id = uuid4()
     u1 = uuid4()
-    u2 = uuid4()
 
     # Deterministic output for same inputs
     bucket1 = ABExperimentRouter.get_variant_bucket(exp_id, u1)
@@ -409,6 +409,7 @@ def test_murmurhash3_deterministic_bucketing():
 @pytest.mark.asyncio
 async def test_prompt_promotion_regression_gates(mock_db_session):
     from unittest.mock import MagicMock
+
     from titan_backend.db.models.promptops import PromptEnvironment, PromptTemplate, PromptVersion
     from titan_backend.services.promptops.engine import PromptOpsEngine
 
@@ -467,4 +468,3 @@ async def test_prompt_promotion_regression_gates(mock_db_session):
     )
     assert promoted.environment == PromptEnvironment.PROD
     assert promoted.is_active is True
-

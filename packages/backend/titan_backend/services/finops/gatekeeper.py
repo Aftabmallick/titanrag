@@ -1,4 +1,6 @@
+from collections.abc import Awaitable
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import UUID
 
 import structlog
@@ -97,13 +99,16 @@ class FinOpsGatekeeper:
             key = cls._month_key(tenant_id)
 
             # Execute atomic Lua script: check + reserve in one roundtrip
-            result = await redis.eval(
-                _QUOTA_CHECK_AND_RESERVE_LUA,
-                1,  # number of KEYS
-                key,
-                str(estimated_cu),
-                str(max_monthly_cu),
-                str(_QUOTA_TTL_SECONDS),
+            result = await cast(
+                Awaitable[Any],
+                redis.eval(
+                    _QUOTA_CHECK_AND_RESERVE_LUA,
+                    1,  # number of KEYS
+                    key,
+                    str(estimated_cu),
+                    str(max_monthly_cu),
+                    str(_QUOTA_TTL_SECONDS),
+                ),
             )
 
             allowed = int(result[0])

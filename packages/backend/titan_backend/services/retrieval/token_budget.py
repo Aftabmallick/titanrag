@@ -139,11 +139,13 @@ class TokenBudgetManager:
                     fitted.append(
                         PackedSource(
                             source_index=s.source_index,
+                            chunk_id=s.chunk_id,
                             document_id=s.document_id,
                             document_name=s.document_name,
                             page_number=s.page_number,
-                            score=s.score,
+                            bbox=s.bbox,
                             text=truncated_text + "... [truncated to fit token budget]",
+                            relevance_score=s.relevance_score,
                         )
                     )
                 break

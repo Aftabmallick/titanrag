@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 import structlog
 from titan_backend.clients.litellm_client import litellm_client
@@ -53,18 +53,12 @@ class SourceComparator:
         all_sources = sources_doc_a + sources_doc_b
         src_blocks = []
         for s in all_sources:
-            src_blocks.append(
-                f"[Source {s.source_index}] (Doc: {s.document_name}, Page: {s.page_number}):\n{s.text}\n"
-            )
+            src_blocks.append(f"[Source {s.source_index}] (Doc: {s.document_name}, Page: {s.page_number}):\n{s.text}\n")
 
         joined_sources = "\n".join(src_blocks)
         sys_prompt = COMPARISON_SYSTEM_PROMPT.format(doc_a_name=doc_a_name, doc_b_name=doc_b_name)
 
-        return (
-            f"{sys_prompt}\n\n"
-            f"=== TOPIC TO COMPARE ===\n{topic}\n\n"
-            f"=== EXTRACTED SOURCES ===\n{joined_sources}\n"
-        )
+        return f"{sys_prompt}\n\n=== TOPIC TO COMPARE ===\n{topic}\n\n=== EXTRACTED SOURCES ===\n{joined_sources}\n"
 
     def detect_simple_conflicts(
         self,
@@ -121,7 +115,8 @@ class SourceComparator:
             match = re.search(r"\{.*\}", raw_text, re.DOTALL)
             if match:
                 data = json.loads(match.group(0))
-                return data
+                if isinstance(data, dict):
+                    return cast(dict[str, Any], data)
         except Exception as e:
             logger.warning("structured_comparison_llm_failed", error=str(e))
 

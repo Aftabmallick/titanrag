@@ -246,9 +246,7 @@ async def test_viewer_cannot_request_download_action():
 async def test_cross_tenant_chat_history_leak_prevented(async_client):
     tenant_attacker = uuid4()
     user_attacker = uuid4()
-    token_attacker, _ = create_access_token(
-        user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com"
-    )
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
 
     foreign_session_id = uuid4()
     resp = await async_client.get(
@@ -262,9 +260,7 @@ async def test_cross_tenant_chat_history_leak_prevented(async_client):
 async def test_cross_tenant_prompt_tampering_prevented(async_client):
     tenant_attacker = uuid4()
     user_attacker = uuid4()
-    token_attacker, _ = create_access_token(
-        user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com"
-    )
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
 
     foreign_ws = uuid4()
     resp = await async_client.post(
@@ -279,9 +275,7 @@ async def test_cross_tenant_prompt_tampering_prevented(async_client):
 async def test_cross_tenant_rag_settings_tampering_prevented(async_client):
     tenant_attacker = uuid4()
     user_attacker = uuid4()
-    token_attacker, _ = create_access_token(
-        user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com"
-    )
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
 
     foreign_ws = uuid4()
     resp = await async_client.patch(
@@ -296,9 +290,7 @@ async def test_cross_tenant_rag_settings_tampering_prevented(async_client):
 async def test_cross_tenant_document_deletion_blocked(async_client):
     tenant_attacker = uuid4()
     user_attacker = uuid4()
-    token_attacker, _ = create_access_token(
-        user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com"
-    )
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
 
     foreign_doc_id = uuid4()
     resp = await async_client.delete(
