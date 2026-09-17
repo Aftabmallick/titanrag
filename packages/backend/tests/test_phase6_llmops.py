@@ -348,7 +348,6 @@ async def test_list_evaluation_runs_endpoint(async_client, mock_db_session):
 
     app.dependency_overrides.pop(get_current_user, None)
 
-
 def test_welch_t_test_continuous_metrics():
     from titan_backend.services.ab_testing.statistics import calculate_welch_t_test
 
@@ -468,3 +467,4 @@ async def test_prompt_promotion_regression_gates(mock_db_session):
     )
     assert promoted.environment == PromptEnvironment.PROD
     assert promoted.is_active is True
+
