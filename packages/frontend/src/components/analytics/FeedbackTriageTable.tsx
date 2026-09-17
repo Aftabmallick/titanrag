@@ -30,32 +30,8 @@ export function FeedbackTriageTable({ workspaceId }: { workspaceId: string | und
       setItems(res.items || []);
       setStats(res.statistics || null);
     } catch {
-      // Fallback mock for demo if backend is offline
-      setItems([
-        {
-          id: "fb-1",
-          rating: -1,
-          comment: "Citation [^1] states 2023 revenue instead of Q3 2024 revenue numbers.",
-          corrected_answer: "Q3 2024 revenue was $14.2M, an increase of 18% YoY.",
-          citation_issues: [{ citation_id: "[^1]", issue_type: "outdated_page", comment: "Wrong fiscal year" }],
-          triage_status: "NEW",
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "fb-2",
-          rating: 1,
-          comment: "Extremely fast and accurate summary of the termination clause.",
-          citation_issues: [],
-          triage_status: "TRIAGED",
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-        },
-      ]);
-      setStats({
-        total: 2,
-        positive_count: 1,
-        negative_count: 1,
-        satisfaction_rate_percent: 50.0,
-      });
+      setItems([]);
+      setStats(null);
     } finally {
       setLoading(false);
     }

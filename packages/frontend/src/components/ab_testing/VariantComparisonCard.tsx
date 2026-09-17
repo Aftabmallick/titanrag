@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
 export function VariantComparisonCard({ workspaceId }: { workspaceId: string | undefined }) {
@@ -28,24 +29,9 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
     try {
       const res = await api.listExperiments(workspaceId);
       setExperiments(res.experiments || []);
-    } catch {
-      setExperiments([
-        {
-          id: "exp-1",
-          name: "Deep Reasoning Alpha 0.85 vs Baseline 0.70",
-          description: "Evaluating higher dense semantic weight on complex legal and compliance inquiries.",
-          status: "RUNNING",
-          traffic_split: 50,
-          sample_size_control: 248,
-          sample_size_treatment: 254,
-          primary_metric: "SATISFACTION_RATE",
-          p_value: 0.024,
-          statistical_significance: true,
-          winning_variant: null,
-          control_config: { alpha: 0.7, top_k: 40, top_n: 5 },
-          treatment_config: { alpha: 0.85, top_k: 50, top_n: 7 },
-        },
-      ]);
+    } catch (err: any) {
+      console.warn("Failed fetching experiments:", err?.message || err);
+      setExperiments([]);
     } finally {
       setLoading(false);
     }
@@ -71,6 +57,16 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
     }
   };
 
+  if (!loading && experiments.length === 0) {
+    return (
+      <EmptyState
+        icon={<Split className="w-6 h-6" />}
+        title="No Active A/B Experiments"
+        description="Launch a retrieval experiment to benchmark dense vs sparse hybrid weights and re-ranking algorithms against live queries."
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {experiments.map((exp) => (
@@ -83,7 +79,9 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-white text-base">{exp.name}</span>
-                <Badge variant={exp.status === "RUNNING" ? "primary" : "outline"}>{exp.status}</Badge>
+                <Badge variant={exp.status === "RUNNING" ? "primary" : exp.status === "COMPLETED" ? "success" : "outline"}>
+                  {exp.status}
+                </Badge>
                 {exp.statistical_significance && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
                     <CheckCircle2 className="w-3 h-3" />
@@ -95,25 +93,34 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
             </div>
 
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleConclude(exp.id, "CONTROL")}
-                disabled={actionLoading || exp.status !== "RUNNING"}
-                className="text-xs"
-              >
-                Keep Control
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => handleConclude(exp.id, "TREATMENT")}
-                disabled={actionLoading || exp.status !== "RUNNING"}
-                className="text-xs flex items-center gap-1.5"
-              >
-                <Trophy className="w-3.5 h-3.5 text-amber-300" />
-                <span>Promote Treatment (Winner)</span>
-              </Button>
+              {exp.winning_variant ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span>Concluded: Winner is {exp.winning_variant}</span>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleConclude(exp.id, "CONTROL")}
+                    disabled={actionLoading || exp.status !== "RUNNING"}
+                    className="text-xs"
+                  >
+                    Keep Control
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleConclude(exp.id, "TREATMENT")}
+                    disabled={actionLoading || exp.status !== "RUNNING"}
+                    className="text-xs flex items-center gap-1.5"
+                  >
+                    <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Promote Treatment</span>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -123,12 +130,18 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
             <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-slate-300">Variant A (Control)</span>
-                <span className="text-[11px] font-mono text-slate-400">N = {exp.sample_size_control}</span>
+                <span className="text-[11px] font-mono text-slate-400">N = {exp.sample_size_control ?? 0}</span>
               </div>
               <div className="space-y-1.5 text-xs text-slate-400 font-mono">
-                <div>Alpha: 0.70 (Balanced)</div>
-                <div>Top K: 40 | Top N: 5</div>
-                <div>Satisfaction: 84.2%</div>
+                <div>Alpha: {exp.control_config?.alpha ?? "0.70 (Balanced)"}</div>
+                <div>Top K: {exp.control_config?.top_k ?? 40}</div>
+                {exp.control_config?.rerank_model && <div>Reranker: {exp.control_config.rerank_model}</div>}
+                {exp.winning_variant === "CONTROL" && (
+                  <div className="text-emerald-400 font-bold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Active Production Baseline</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -136,15 +149,23 @@ export function VariantComparisonCard({ workspaceId }: { workspaceId: string | u
             <div className="p-4 rounded-xl bg-sky-950/20 border border-sky-500/30 space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-mono text-xs font-bold text-sky-300">Variant B (Treatment)</span>
-                <span className="text-[11px] font-mono text-sky-400">N = {exp.sample_size_treatment}</span>
+                <span className="text-[11px] font-mono text-sky-400">N = {exp.sample_size_treatment ?? 0}</span>
               </div>
               <div className="space-y-1.5 text-xs text-slate-300 font-mono">
-                <div>Alpha: 0.85 (High Semantic)</div>
-                <div>Top K: 50 | Top N: 7</div>
-                <div className="text-emerald-400 font-bold flex items-center gap-1">
-                  <TrendingUp className="w-3.5 h-3.5" />
-                  <span>Satisfaction: 91.8% (+7.6% lift)</span>
-                </div>
+                <div>Alpha: {exp.treatment_config?.alpha ?? "0.50"}</div>
+                <div>Top K: {exp.treatment_config?.top_k ?? 40}</div>
+                {exp.treatment_config?.rerank_model && <div>Reranker: {exp.treatment_config.rerank_model}</div>}
+                {exp.winning_variant === "TREATMENT" ? (
+                  <div className="text-emerald-400 font-bold flex items-center gap-1">
+                    <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                    <span>Winning Variant (Promoted to Prod)</span>
+                  </div>
+                ) : exp.statistical_significance ? (
+                  <div className="text-emerald-400 font-bold flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5" />
+                    <span>Statistically Significant (p = {exp.p_value})</span>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

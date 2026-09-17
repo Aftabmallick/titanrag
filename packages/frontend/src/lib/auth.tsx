@@ -22,19 +22,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const DEMO_USER: User = {
-  id: "usr_demo_admin",
+  id: "ac885e2e-d938-428c-b1bf-43408554aca8",
   email: "admin@titanrag.io",
   full_name: "Titan Administrator",
   role: "OWNER",
-  tenant_id: "tenant_enterprise_default",
+  tenant_id: "4284c9db-eada-44ba-a415-0d71617fe4f1",
   onboarding_completed: true,
 };
 
 export const DEMO_WORKSPACE: Workspace = {
-  id: "ws_enterprise_default",
-  tenant_id: "tenant_enterprise_default",
-  name: "Enterprise Defense Knowledge Base",
-  description: "Production legal, compliance, and architectural documentation",
+  id: "4a2f48a2-6615-4b05-ad60-6616cc11f01a",
+  tenant_id: "4284c9db-eada-44ba-a415-0d71617fe4f1",
+  name: "Default Workspace",
+  description: "Enterprise Defense Knowledge Base",
   is_archived: false,
   created_at: new Date().toISOString(),
 };

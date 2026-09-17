@@ -225,6 +225,41 @@ async def trigger_evaluation_run(
     }
 
 
+@router.get("/evaluations/runs")
+async def list_evaluation_runs(
+    workspace_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """List recent evaluation runs for the workspace."""
+    workspace = await session.get(Workspace, workspace_id)
+    if not workspace or workspace.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+
+    stmt = (
+        select(EvaluationRun)
+        .where(EvaluationRun.workspace_id == workspace_id)
+        .order_by(EvaluationRun.created_at.desc())
+        .limit(20)
+    )
+    runs = (await session.execute(stmt)).scalars().all()
+    return {
+        "runs": [
+            {
+                "run_id": str(r.id),
+                "dataset_id": str(r.dataset_id),
+                "status": r.status.value,
+                "aggregate_scores": r.aggregate_scores,
+                "latency_stats": r.latency_stats,
+                "total_compute_units": r.total_compute_units,
+                "total_dollar_cost": r.total_dollar_cost,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in runs
+        ]
+    }
+
+
 @router.get("/evaluations/runs/{run_id}")
 async def get_evaluation_run(
     workspace_id: UUID,

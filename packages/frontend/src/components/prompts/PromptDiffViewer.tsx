@@ -14,38 +14,57 @@ export interface PromptDiffViewerProps {
 export function PromptDiffViewer({
   workspaceId,
   slug = "system_chat",
-  versions = [],
+  versions: propVersions = [],
 }: PromptDiffViewerProps) {
+  const [availableVersions, setAvailableVersions] = useState<any[]>(propVersions);
   const [v1, setV1] = useState<number>(1);
   const [v2, setV2] = useState<number>(2);
   const [diffData, setDiffData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (propVersions.length > 0) {
+      setAvailableVersions(propVersions);
+    } else if (workspaceId) {
+      api
+        .listPromptVersions(workspaceId, slug)
+        .then((res) => {
+          if (res.versions && res.versions.length > 0) {
+            setAvailableVersions(res.versions);
+          }
+        })
+        .catch((err) => console.warn("Failed fetching prompt versions for diff:", err));
+    }
+  }, [propVersions, workspaceId, slug]);
+
+  useEffect(() => {
+    if (availableVersions.length >= 2) {
+      // Find lowest and highest versions or standard v1 / v2
+      const sorted = [...availableVersions].sort((a, b) => a.version_number - b.version_number);
+      setV1(sorted[0].version_number);
+      setV2(sorted[sorted.length - 1].version_number);
+    } else if (availableVersions.length === 1) {
+      setV1(availableVersions[0].version_number);
+      setV2(availableVersions[0].version_number);
+    }
+  }, [availableVersions]);
+
   const fetchDiff = useCallback(async () => {
-    if (!workspaceId || v1 === v2) return;
+    if (!workspaceId || v1 === v2) {
+      setDiffData(null);
+      return;
+    }
     setLoading(true);
     try {
       const res = await api.diffPromptVersions(workspaceId, slug, v1, v2);
       setDiffData(res);
-    } catch {
-      // Graceful fallback for preview
-      setDiffData({
-        old_token_count: 32,
-        new_token_count: 48,
-        token_delta: 16,
-        diff_unified: `--- Previous Version v${v1}\n+++ New Version v${v2}\n@@ -1,4 +1,6 @@\n You are TitanRAG, a verified enterprise intelligence assistant.\n-Answer using the context below.\n+Answer strictly and exclusively using the verified context below.\n+Cite every factual assertion with [^N] citations.\n \n Context:\n {{ context }}`,
-      });
+    } catch (err: any) {
+      console.warn("Could not compute prompt diff:", err?.message || err);
+      setDiffData(null);
     } finally {
       setLoading(false);
     }
   }, [workspaceId, slug, v1, v2]);
-
-  useEffect(() => {
-    if (versions.length >= 2) {
-      setV1(versions[versions.length - 1]?.version_number || 1);
-      setV2(versions[0]?.version_number || 2);
-    }
-  }, [versions]);
 
   useEffect(() => {
     fetchDiff();
@@ -73,7 +92,7 @@ export function PromptDiffViewer({
               onChange={(e) => setV1(Number(e.target.value))}
               className="bg-slate-900 text-white rounded-lg px-2 py-1 font-mono text-xs border-0 focus:ring-1 focus:ring-sky-500"
             >
-              {versions.map((ver) => (
+              {availableVersions.map((ver) => (
                 <option key={ver.version_number} value={ver.version_number}>
                   v{ver.version_number} ({ver.environment || "DEV"})
                 </option>
@@ -85,7 +104,7 @@ export function PromptDiffViewer({
               onChange={(e) => setV2(Number(e.target.value))}
               className="bg-slate-900 text-white rounded-lg px-2 py-1 font-mono text-xs border-0 focus:ring-1 focus:ring-sky-500"
             >
-              {versions.map((ver) => (
+              {availableVersions.map((ver) => (
                 <option key={ver.version_number} value={ver.version_number}>
                   v{ver.version_number} ({ver.environment || "DEV"})
                 </option>

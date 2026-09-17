@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from titan_backend.db.models.chat import ChatMessage, ChatSession, MessageRole
 from titan_backend.db.models.feedback import Feedback
@@ -35,8 +35,8 @@ class AnalyticsEngine:
 
         # 2. Feedback satisfaction rate
         fb_stmt = select(
-            func.coalesce(func.sum(func.case((Feedback.rating > 0, 1), else_=0)), 0).label("pos"),
-            func.coalesce(func.sum(func.case((Feedback.rating < 0, 1), else_=0)), 0).label("neg"),
+            func.coalesce(func.sum(case((Feedback.rating > 0, 1), else_=0)), 0).label("pos"),
+            func.coalesce(func.sum(case((Feedback.rating < 0, 1), else_=0)), 0).label("neg"),
             func.count(Feedback.id).label("total"),
         ).where(Feedback.workspace_id == workspace_id, Feedback.created_at >= since)
         fb_res = (await session.execute(fb_stmt)).one()

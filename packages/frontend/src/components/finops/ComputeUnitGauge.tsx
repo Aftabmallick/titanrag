@@ -20,13 +20,9 @@ export function ComputeUnitGauge({ workspaceId }: { workspaceId: string | undefi
       const res = await api.getFinOpsUsage(workspaceId);
       setUsage(res);
       setNewCap(String(res.max_monthly_compute_units || 500));
-    } catch {
-      setUsage({
-        current_month_compute_units: 342.5,
-        max_monthly_compute_units: 500.0,
-        percent_utilized: 68.5,
-        status: "HEALTHY",
-      });
+    } catch (err: any) {
+      console.warn("Could not load FinOps usage:", err?.message || err);
+      setUsage(null);
     } finally {
       setLoading(false);
     }

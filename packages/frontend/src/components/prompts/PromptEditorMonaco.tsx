@@ -38,30 +38,9 @@ export function PromptEditorMonaco({ workspaceId }: { workspaceId: string | unde
         setContent(res.versions[0].content);
         setSelectedVersion(res.versions[0].version_number);
       }
-    } catch {
-      setVersions([
-        {
-          id: "v-2",
-          version_number: 2,
-          content: "You are TitanRAG, a verified enterprise intelligence assistant.\nAnswer strictly using the verified context below.\n\nContext:\n{{ context }}\n\nQuery:\n{{ query }}",
-          environment: "PROD",
-          commit_message: "Enforce strict citation references for legal queries",
-          is_active: true,
-          token_count: 45,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "v-1",
-          version_number: 1,
-          content: "You are a helpful assistant.\nContext:\n{{ context }}\nQuery:\n{{ query }}",
-          environment: "STAGING",
-          commit_message: "Initial baseline prompt",
-          is_active: false,
-          token_count: 28,
-          created_at: new Date(Date.now() - 86400000).toISOString(),
-        },
-      ]);
-      setSelectedVersion(2);
+    } catch (err: any) {
+      console.warn("Could not load prompt versions:", err?.message || err);
+      setVersions([]);
     } finally {
       setLoading(false);
     }
