@@ -33,11 +33,20 @@ from titan_backend.core.logging import logger
 from titan_backend.core.quotas import preflight_chat_quota, record_chat_token_usage
 from titan_backend.core.rbac import Permission
 from titan_backend.db.models.chat import MessageRole
+from titan_backend.db.models.finops import FinOpsOperation
+from titan_backend.db.models.promptops import PromptEnvironment
 from titan_backend.db.models.settings import RAGSettings
+from titan_backend.db.models.workspaces import Workspace
 from titan_backend.db.session import get_db
+from titan_backend.services.ab_testing.router import ABExperimentRouter
 from titan_backend.services.chat.session_service import session_service
 from titan_backend.services.chat.stream_generator import format_sse, phased_stream_generator
 from titan_backend.services.chat.suggestions import suggestions_generator
+from titan_backend.services.finops.calculator import calculate_compute_units
+from titan_backend.services.finops.gatekeeper import FinOpsGatekeeper
+from titan_backend.services.finops.ledger import FinOpsLedgerService
+from titan_backend.services.observability.langfuse_client import llmops_tracer
+from titan_backend.services.promptops.engine import PromptOpsEngine
 from titan_backend.services.retrieval.candidate_validator import candidate_validator
 from titan_backend.services.retrieval.classifier import QueryIntent, classifier
 from titan_backend.services.retrieval.context_packer import context_packer
@@ -98,7 +107,16 @@ async def chat_endpoint(
 
     generation.
     """
-    # 1. FinOps pre-flight check
+    # 1. FinOps pre-flight check & atomic Compute Unit quota verification
+    workspace_obj = await db.get(Workspace, workspace_id)
+    ws_meta = getattr(workspace_obj, "settings", {}) or {}
+    quota_cfg = ws_meta.get("quota_limits", {}) if isinstance(ws_meta, dict) else {}
+    max_cu_cap = float(quota_cfg.get("max_compute_units", 0.0))
+    await FinOpsGatekeeper.check_and_reserve_quota(
+        tenant_id=current_user.tenant_id,
+        estimated_cu=1.0,
+        max_monthly_cu=max_cu_cap if max_cu_cap > 0 else None,
+    )
     await preflight_chat_quota(current_user.tenant_id)
 
     # 2. Prompt injection sanitization & canary injection
@@ -125,8 +143,25 @@ async def chat_endpoint(
 
         return StreamingResponse(meta_stream(), media_type="text/event-stream")
 
-    # 4. Resolve RAG Settings for Workspace
+    # 4. Resolve RAG Settings for Workspace & Dynamic A/B Experiment Overrides
     rag_settings = await get_or_create_workspace_settings(db, current_user.tenant_id, workspace_id)
+    exp_override, experiment_id, exp_variant = await ABExperimentRouter.get_active_experiment_override(
+        session=db,
+        workspace_id=workspace_id,
+        user_id=current_user.id,
+    )
+    if exp_override:
+        if "alpha" in exp_override:
+            rag_settings.dense_weight = float(exp_override["alpha"])
+            rag_settings.sparse_weight = round(1.0 - float(exp_override["alpha"]), 2)
+        if "top_k" in exp_override:
+            rag_settings.top_k = int(exp_override["top_k"])
+        if "top_n" in exp_override or "rerank_top_k" in exp_override:
+            rag_settings.rerank_top_k = int(exp_override.get("rerank_top_k", exp_override.get("top_n", rag_settings.rerank_top_k)))
+        if "confidence_threshold" in exp_override or "score_threshold" in exp_override:
+            rag_settings.score_threshold = float(exp_override.get("score_threshold", exp_override.get("confidence_threshold", rag_settings.score_threshold)))
+        if "model" in exp_override and not payload.model_override:
+            payload.model_override = str(exp_override["model"])
 
     # 5. Resolve user effective ACL groups with Redis cache & compaction
     user_groups = await resolve_user_acl_groups(
@@ -297,11 +332,17 @@ async def chat_endpoint(
         parent_context_enabled=rag_settings.parent_context_enabled,
     )
 
-    # 16. System Prompt Assembly
+    # 16. System Prompt Assembly (PromptOps registry integration)
+    active_prod_prompt = await PromptOpsEngine.get_active_prompt(
+        session=db,
+        workspace_id=workspace_id,
+        slug="system_chat",
+        environment=PromptEnvironment.PROD,
+    )
     system_prompt = prompt_engine.render_system_prompt(
         sources=packed_sources,
         grounding_mode=payload.grounding_mode,
-        custom_override=rag_settings.system_prompt_override,
+        custom_override=active_prod_prompt or rag_settings.system_prompt_override,
     )
 
     llm_messages = [{"role": "system", "content": system_prompt}]
@@ -363,6 +404,35 @@ async def chat_endpoint(
 
             # Record CU tokens in Redis/FinOps
             await record_chat_token_usage(current_user.tenant_id, tokens_count)
+
+            # Phase 6: FinOps atomic quota update and persistent audit ledger
+            cu_consumed = max(0.01, round(tokens_count / 1000.0 * 2.0, 4))
+            await FinOpsGatekeeper.record_usage(
+                tenant_id=current_user.tenant_id,
+                cu_consumed=cu_consumed,
+                max_monthly_cu=max_cu_cap if max_cu_cap > 0 else None,
+            )
+            finops_op = (
+                FinOpsOperation.CHAT_DEEP
+                if classification.recommended_mode == PipelineMode.DEEP
+                else FinOpsOperation.CHAT_FAST
+            )
+            await FinOpsLedgerService.record_transaction(
+                session=db,
+                tenant_id=current_user.tenant_id,
+                workspace_id=workspace_id,
+                operation_type=finops_op,
+                prompt_tokens=max(1, len(sanitized.clean_text.split()) * 2),
+                completion_tokens=tokens_count,
+                user_id=current_user.id,
+                model_name=payload.model_override or "gpt-4o",
+                provider="litellm",
+                details={
+                    "experiment_id": str(experiment_id) if experiment_id else None,
+                    "experiment_variant": exp_variant,
+                    "pipeline_mode": classification.recommended_mode.value,
+                },
+            )
 
             # Store in semantic cache
             if rag_settings.semantic_cache_enabled and full_text:
