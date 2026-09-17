@@ -7,6 +7,7 @@ import { MarkdownRenderer } from "./MarkdownRenderer";
 import { CitationCardTray } from "./CitationCardTray";
 import { RegenerateDropdown } from "./RegenerateDropdown";
 import { FeedbackModal } from "./FeedbackModal";
+import { NliBadge } from "./NliBadge";
 import {
   Sparkles,
   User,
@@ -98,12 +99,7 @@ export function MessageItem({
           </span>
 
           {!isUser && message.verified && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold">
-              <CheckCircle2 className="w-3 h-3" />
-              <span>
-                NLI Verified {message.entailmentScore ? `(${(message.entailmentScore * 100).toFixed(0)}%)` : ""}
-              </span>
-            </div>
+            <NliBadge score={message.entailmentScore} status="VERIFIED" />
           )}
         </div>
 

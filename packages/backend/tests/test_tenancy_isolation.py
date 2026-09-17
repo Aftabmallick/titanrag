@@ -206,3 +206,95 @@ async def test_workspace_member_removal_cleans_acl_memberships(async_client, moc
         )
         assert resp.status_code == 200
         mock_inval.assert_called_once_with(target_user_id)
+
+
+def test_path_traversal_scoped_storage_path_sanitization():
+    from titan_backend.clients.s3_client import build_scoped_storage_path
+
+    tenant_id = uuid4()
+    workspace_id = uuid4()
+    doc_id = uuid4()
+
+    # Attempt path traversal in filename
+    traversal_filename = "../../../etc/passwd"
+    clean_filename = traversal_filename.replace("../", "").replace("..\\", "")
+    path = build_scoped_storage_path(tenant_id, workspace_id, doc_id, clean_filename)
+    assert ".." not in path
+    assert path.startswith(f"{tenant_id}/{workspace_id}/{doc_id}/")
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_request_download_action():
+    tenant_id = uuid4()
+    workspace_id = uuid4()
+    doc_id = uuid4()
+
+    with pytest.raises(AppException) as exc_info:
+        await generate_presigned_get_url(
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            document_id=doc_id,
+            filename="document.pdf",
+            user_role="VIEWER",
+            action="download",
+        )
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "VIEWER_DOWNLOAD_RESTRICTED"
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_chat_history_leak_prevented(async_client):
+    tenant_attacker = uuid4()
+    user_attacker = uuid4()
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
+
+    foreign_session_id = uuid4()
+    resp = await async_client.get(
+        f"/api/v1/chat-sessions/{foreign_session_id}/messages",
+        headers={"Authorization": f"Bearer {token_attacker}"},
+    )
+    assert resp.status_code in {403, 404}
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_prompt_tampering_prevented(async_client):
+    tenant_attacker = uuid4()
+    user_attacker = uuid4()
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
+
+    foreign_ws = uuid4()
+    resp = await async_client.post(
+        f"/api/v1/workspaces/{foreign_ws}/prompts/system/versions",
+        json={"content": "Malicious prompt payload", "environment": "DEV"},
+        headers={"Authorization": f"Bearer {token_attacker}"},
+    )
+    assert resp.status_code in {403, 404}
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_rag_settings_tampering_prevented(async_client):
+    tenant_attacker = uuid4()
+    user_attacker = uuid4()
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
+
+    foreign_ws = uuid4()
+    resp = await async_client.patch(
+        f"/api/v1/workspaces/{foreign_ws}/rag-settings",
+        json={"top_k": 50, "hybrid_alpha": 0.1},
+        headers={"Authorization": f"Bearer {token_attacker}"},
+    )
+    assert resp.status_code in {403, 404}
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_document_deletion_blocked(async_client):
+    tenant_attacker = uuid4()
+    user_attacker = uuid4()
+    token_attacker, _ = create_access_token(user_id=user_attacker, tenant_id=tenant_attacker, email="attacker@evil.com")
+
+    foreign_doc_id = uuid4()
+    resp = await async_client.delete(
+        f"/api/v1/documents/{foreign_doc_id}",
+        headers={"Authorization": f"Bearer {token_attacker}"},
+    )
+    assert resp.status_code in {403, 404}

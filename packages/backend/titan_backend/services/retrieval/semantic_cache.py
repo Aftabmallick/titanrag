@@ -23,7 +23,12 @@ class SaltedSemanticCache:
     """
 
     def _get_sorted_groups_str(self, user_acl_groups: list[str]) -> str:
-        return ",".join(sorted(set(user_acl_groups + ["all-members"])))
+        unique_groups = sorted(set(user_acl_groups + ["all-members"]))
+        # Group compaction: hash when group list is large to prevent bloated Redis keys
+        if len(unique_groups) > 16:
+            group_str = ",".join(unique_groups)
+            return f"hash_{hashlib.sha256(group_str.encode()).hexdigest()[:16]}"
+        return ",".join(unique_groups)
 
     def compute_partition_prefix(
         self,

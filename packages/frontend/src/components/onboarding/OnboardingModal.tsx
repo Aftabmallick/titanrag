@@ -8,6 +8,9 @@ import { Sparkles, Building, UploadCloud, MessageSquare, CheckCircle2 } from "lu
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { StepWorkspace } from "./StepWorkspace";
+import { StepDocuments } from "./StepDocuments";
+import { StepAskAi } from "./StepAskAi";
 
 export interface OnboardingModalProps {
   isOpen: boolean;
@@ -100,101 +103,31 @@ export function OnboardingModal({ isOpen, onClose, onComplete }: OnboardingModal
           </div>
         </div>
 
-        {/* Step 1 Content */}
+        {/* Step 1: Workspace */}
         {step === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-100">Set Up Your First Workspace</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Workspaces are isolated knowledge domains with dedicated ACL access lists, vector
-                payload filters, and custom RAG tuning parameters.
-              </p>
-            </div>
-            <Input
-              label="Workspace Name"
-              placeholder={activeWorkspace?.name || "Legal & Compliance"}
-              value={workspaceName}
-              onChange={(e) => setWorkspaceName(e.target.value)}
-            />
-            <div className="flex justify-between items-center pt-2">
-              <button
-                onClick={() => setStep(2)}
-                className="text-xs text-slate-500 hover:text-slate-300 font-medium"
-              >
-                Skip (use default workspace)
-              </button>
-              <Button variant="primary" size="sm" loading={loading} onClick={handleCreateWorkspace}>
-                Continue to Step 2
-              </Button>
-            </div>
-          </div>
+          <StepWorkspace
+            workspaceName={workspaceName}
+            setWorkspaceName={setWorkspaceName}
+            activeWorkspaceName={activeWorkspace?.name}
+            loading={loading}
+            onNext={handleCreateWorkspace}
+          />
         )}
 
-        {/* Step 2 Content */}
+        {/* Step 2: Documents */}
         {step === 2 && (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-100">Add Enterprise Documents</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Upload PDF, DOCX, CSV, or TXT files. Documents undergo Docling structural parsing,
-                PII entity redaction, and hierarchical chunking.
-              </p>
-            </div>
-            <div className="p-6 rounded-xl border border-dashed border-slate-700 bg-slate-900/40 text-center space-y-2">
-              <UploadCloud className="w-8 h-8 text-sky-400 mx-auto" />
-              <p className="text-xs text-slate-300 font-medium">
-                You can upload files anytime via the Documents console
-              </p>
-              <p className="text-[11px] text-slate-500">
-                Supports native PDFs, scanned documents with OCR, and SaaS connectors.
-              </p>
-            </div>
-            <div className="flex justify-between items-center pt-2">
-              <button
-                onClick={() => setStep(1)}
-                className="text-xs text-slate-500 hover:text-slate-300 font-medium"
-              >
-                Back
-              </button>
-              <Button variant="primary" size="sm" onClick={() => setStep(3)}>
-                Continue to Step 3
-              </Button>
-            </div>
-          </div>
+          <StepDocuments
+            onBack={() => setStep(1)}
+            onNext={() => setStep(3)}
+          />
         )}
 
-        {/* Step 3 Content */}
+        {/* Step 3: Ask AI */}
         {step === 3 && (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h4 className="text-sm font-bold text-slate-100">Experience Grounded RAG Generation</h4>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Ask questions across your documents. TitanRAG uses hybrid dense + sparse retrieval,
-                cross-encoder reranking, and post-generation NLI claim verification.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs text-slate-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Clickable inline citations link directly to verified PDF pages.</span>
-              </div>
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs text-slate-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Sub-1.8s Fast-Path TTFT via in-process ONNX classifier.</span>
-              </div>
-            </div>
-            <div className="flex justify-between items-center pt-4">
-              <button
-                onClick={() => setStep(2)}
-                className="text-xs text-slate-500 hover:text-slate-300 font-medium"
-              >
-                Back
-              </button>
-              <Button variant="primary" size="sm" onClick={handleFinish}>
-                Start Using TitanRAG
-              </Button>
-            </div>
-          </div>
+          <StepAskAi
+            onBack={() => setStep(2)}
+            onFinish={handleFinish}
+          />
         )}
       </div>
     </Modal>

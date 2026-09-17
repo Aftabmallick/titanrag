@@ -66,15 +66,26 @@ async def generate_presigned_get_url(
     Records audit trail entry when db session is supplied.
     """
     is_pdf = filename.lower().endswith(".pdf")
-    if user_role.upper() == "VIEWER" and not is_pdf:
-        raise AppException(
-            message="Viewers are restricted from downloading raw non-visual assets.",
-            status_code=403,
-            error_code="VIEWER_RESTRICTION",
-        )
+    if user_role.upper() == "VIEWER":
+        if not is_pdf:
+            raise AppException(
+                message="Viewers are restricted from downloading raw non-visual assets.",
+                status_code=403,
+                error_code="VIEWER_RESTRICTION",
+            )
+        if action.lower() == "download":
+            raise AppException(
+                message="Viewers are prohibited from downloading raw documents. Use view-url instead.",
+                status_code=403,
+                error_code="VIEWER_DOWNLOAD_RESTRICTED",
+            )
 
     object_name = build_scoped_storage_path(tenant_id, workspace_id, document_id, filename)
     client = get_minio_client()
+
+    extra_query_params: dict[str, str | list[str] | tuple[str]] = {}
+    if action.lower() == "view":
+        extra_query_params["response-content-disposition"] = "inline"
 
     try:
         url = await asyncio.to_thread(
@@ -82,6 +93,7 @@ async def generate_presigned_get_url(
             bucket_name=settings.MINIO_BUCKET,
             object_name=object_name,
             expires=expires,
+            extra_query_params=extra_query_params or None,
         )
 
         # Audit logging (Task 2.8.3)

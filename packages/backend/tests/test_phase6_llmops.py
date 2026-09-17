@@ -347,3 +347,124 @@ async def test_list_evaluation_runs_endpoint(async_client, mock_db_session):
     assert data["runs"][0]["aggregate_scores"]["faithfulness"] == 0.95
 
     app.dependency_overrides.pop(get_current_user, None)
+
+
+def test_welch_t_test_continuous_metrics():
+    from titan_backend.services.ab_testing.statistics import calculate_welch_t_test
+
+    # Control: mean=120ms, std=15ms, n=100
+    # Treatment: mean=95ms, std=12ms, n=100 (significantly faster)
+    res = calculate_welch_t_test(mean_a=120.0, std_a=15.0, n_a=100, mean_b=95.0, std_b=12.0, n_b=100)
+    assert res["statistically_significant"] is True
+    assert res["p_value"] < 0.001
+    assert res["t_statistic"] < 0
+    assert res["relative_change_percent"] < -20.0
+
+
+def test_ab_safety_circuit_breaker():
+    from titan_backend.services.ab_testing.statistics import evaluate_safety_circuit_breaker
+
+    # Not enough samples -> no trip
+    tripped, reason = evaluate_safety_circuit_breaker(treatment_error_rate=0.10, total_samples=5)
+    assert tripped is False
+    assert reason is None
+
+    # Error rate spike (>5% and >2x control)
+    tripped, reason = evaluate_safety_circuit_breaker(
+        treatment_error_rate=0.08, control_error_rate=0.02, total_samples=50
+    )
+    assert tripped is True
+    assert "error rate spiked" in reason.lower()
+
+    # Latency degradation (>2x control when >1000ms)
+    tripped, reason = evaluate_safety_circuit_breaker(
+        treatment_error_rate=0.01,
+        control_error_rate=0.01,
+        treatment_latency_p95=2500.0,
+        control_latency_p95=900.0,
+        total_samples=50,
+    )
+    assert tripped is True
+    assert "latency degraded" in reason.lower()
+
+
+def test_murmurhash3_deterministic_bucketing():
+    from titan_backend.services.ab_testing.router import ABExperimentRouter, murmurhash3_32
+
+    exp_id = uuid4()
+    u1 = uuid4()
+
+    # Deterministic output for same inputs
+    bucket1 = ABExperimentRouter.get_variant_bucket(exp_id, u1)
+    bucket1_again = ABExperimentRouter.get_variant_bucket(exp_id, u1)
+    assert bucket1 == bucket1_again
+    assert 0 <= bucket1 < 100
+
+    # MurmurHash3 string hashing test
+    h = murmurhash3_32("titanrag_test_key", seed=42)
+    assert isinstance(h, int)
+    assert h >= 0
+
+
+@pytest.mark.asyncio
+async def test_prompt_promotion_regression_gates(mock_db_session):
+    from unittest.mock import MagicMock
+
+    from titan_backend.db.models.promptops import PromptEnvironment, PromptTemplate, PromptVersion
+    from titan_backend.services.promptops.engine import PromptOpsEngine
+
+    template_id = uuid4()
+    tmpl = PromptTemplate(id=template_id, workspace_id=uuid4(), slug="qa_system", name="QA System")
+    mock_db_session.get.return_value = tmpl
+
+    # 1. Direct DEV -> PROD promotion without STAGING must be rejected
+    dev_version = PromptVersion(
+        template_id=template_id,
+        version_number=1,
+        content="You are a helpful assistant.",
+        environment=PromptEnvironment.DEV,
+        token_count_estimate=100,
+        is_active=False,
+    )
+    mock_res = MagicMock()
+    mock_res.scalar_one_or_none.return_value = dev_version
+    mock_db_session.execute.return_value = mock_res
+
+    with pytest.raises(ValueError, match="Direct promotion from DEV to PROD is prohibited"):
+        await PromptOpsEngine.promote_version(
+            session=mock_db_session,
+            template_id=template_id,
+            version_number=1,
+            target_environment=PromptEnvironment.PROD,
+            force=False,
+        )
+
+    # 2. Token count limit rejection (>8000 tokens)
+    huge_version = PromptVersion(
+        template_id=template_id,
+        version_number=2,
+        content="Long prompt " * 9000,
+        environment=PromptEnvironment.STAGING,
+        token_count_estimate=9500,
+        is_active=False,
+    )
+    mock_res.scalar_one_or_none.return_value = huge_version
+    with pytest.raises(ValueError, match="exceeds maximum allowed safety limit"):
+        await PromptOpsEngine.promote_version(
+            session=mock_db_session,
+            template_id=template_id,
+            version_number=2,
+            target_environment=PromptEnvironment.PROD,
+            force=False,
+        )
+
+    # 3. Forced promotion bypasses gates
+    promoted = await PromptOpsEngine.promote_version(
+        session=mock_db_session,
+        template_id=template_id,
+        version_number=2,
+        target_environment=PromptEnvironment.PROD,
+        force=True,
+    )
+    assert promoted.environment == PromptEnvironment.PROD
+    assert promoted.is_active is True

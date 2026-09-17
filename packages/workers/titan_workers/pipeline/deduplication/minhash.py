@@ -72,3 +72,59 @@ class MinHashDeduplicator:
             changed_count=len(changed),
         )
         return unchanged, changed
+
+
+class WorkspaceMinHashLSHIndex:
+    """Maintains an LSH index for cross-document near-duplicate detection across a workspace.
+
+    Enables rapid sub-millisecond retrieval of duplicate or near-identical text passages
+    with Jaccard similarity above threshold.
+    """
+
+    def __init__(self, threshold: float = 0.85, num_perm: int = 128):
+        from datasketch import MinHashLSH
+
+        self.threshold = threshold
+        self.num_perm = num_perm
+        self.lsh = MinHashLSH(threshold=threshold, num_perm=num_perm)
+        self._minhashes: dict[str, MinHash] = {}
+        self.tokenizer = re.compile(r"\b\w+\b")
+
+    def create_minhash(self, text: str) -> MinHash:
+        m = MinHash(num_perm=self.num_perm)
+        for t in self.tokenizer.findall(text.lower()):
+            m.update(t.encode("utf-8"))
+        return m
+
+    def insert(self, item_id: str, text: str) -> None:
+        m = self.create_minhash(text)
+        try:
+            self.lsh.insert(item_id, m)
+            self._minhashes[item_id] = m
+        except ValueError:
+            # Key already exists in index
+            pass
+
+    def query_near_duplicates(self, text: str) -> list[str]:
+        """Returns IDs of all chunks having Jaccard similarity >= threshold with query text."""
+        m = self.create_minhash(text)
+        return [str(x) for x in self.lsh.query(m)]
+
+    def find_cross_document_duplicates(
+        self,
+        new_chunks: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Identifies any new chunk that is a near-duplicate of an existing indexed document."""
+        duplicate_matches = []
+        for c in new_chunks:
+            text = c.get("content", "")
+            matches = self.query_near_duplicates(text)
+            if matches:
+                duplicate_matches.append(
+                    {
+                        "chunk_index": c.get("chunk_index"),
+                        "matched_existing_chunk_ids": matches,
+                        "similarity_threshold": self.threshold,
+                    }
+                )
+        return duplicate_matches

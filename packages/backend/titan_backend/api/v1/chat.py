@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import AsyncGenerator
 from typing import Any, cast
 from uuid import UUID
@@ -44,6 +45,7 @@ from titan_backend.services.chat.stream_generator import format_sse, phased_stre
 from titan_backend.services.chat.suggestions import suggestions_generator
 from titan_backend.services.finops.gatekeeper import FinOpsGatekeeper
 from titan_backend.services.finops.ledger import FinOpsLedgerService
+from titan_backend.services.observability.langfuse_client import LLMOpsSpan, LLMOpsTrace, llmops_tracer
 from titan_backend.services.promptops.engine import PromptOpsEngine
 from titan_backend.services.retrieval.candidate_validator import candidate_validator
 from titan_backend.services.retrieval.classifier import QueryIntent, classifier
@@ -229,6 +231,16 @@ async def chat_endpoint(
         dense_query_text = await hyde_generator.generate_hypothetical_document(search_query)
 
     # 10. Multi-Stage Hybrid Search (Parallel Dense + BM25 with Multi-Hop support)
+    # LLMOps Trace Registration
+    trace = LLMOpsTrace(
+        workspace_id=workspace_id,
+        user_id=current_user.id,
+        query=sanitized.clean_text,
+        session_id=session.id if session else None,
+        tags=[f"mode:{classification.recommended_mode.value}"],
+    )
+    llmops_tracer.provider.create_trace(trace)
+
     sub_queries = [dense_query_text]
     if classification.recommended_mode == PipelineMode.DEEP:
         decomposed = await multi_hop_decomposer.decompose_query(search_query)
@@ -321,6 +333,16 @@ async def chat_endpoint(
     # 14. CRAG Confidence Gate
     crag_decision = crag_gate.evaluate(reranked, threshold=rag_settings.score_threshold)
     if not crag_decision.passed:
+        crag_span = LLMOpsSpan(
+            name="crag_confidence_gate",
+            parent_trace_id=trace.trace_id,
+            metadata={"crag_passed": False, "score_threshold": rag_settings.score_threshold},
+        )
+        crag_span.set_output(crag_decision.refusal_message)
+        trace.spans.append(crag_span)
+        llmops_tracer.provider.record_span(trace, crag_span)
+        trace.end_time = time.time()
+        llmops_tracer.provider.finalize_trace(trace)
 
         async def refusal_stream() -> AsyncGenerator[str, None]:
             refusal = crag_decision.refusal_message or "Insufficient context."
@@ -335,6 +357,22 @@ async def chat_endpoint(
         db=db,
         parent_context_enabled=rag_settings.parent_context_enabled,
     )
+
+    # Record retrieval span
+    retrieval_span = LLMOpsSpan(
+        name="hybrid_retrieval",
+        parent_trace_id=trace.trace_id,
+        metadata={
+            "dense_weight": rag_settings.dense_weight,
+            "sparse_weight": rag_settings.sparse_weight,
+            "top_k": rag_settings.top_k,
+            "rerank_top_k": rag_settings.rerank_top_k,
+            "sources_count": len(packed_sources),
+            "reranked_top_score": float(reranked[0].relevance_score) if reranked else 0.0,
+        },
+    )
+    trace.spans.append(retrieval_span)
+    llmops_tracer.provider.record_span(trace, retrieval_span)
 
     # 16. System Prompt Assembly (PromptOps registry integration)
     active_prod_prompt = await PromptOpsEngine.get_active_prompt(
@@ -437,6 +475,29 @@ async def chat_endpoint(
                     "pipeline_mode": classification.recommended_mode.value,
                 },
             )
+
+            # Record LLMOps generation span and finalize external trace (Phoenix / Langfuse)
+            try:
+                gen_span = LLMOpsSpan(
+                    name="generation",
+                    parent_trace_id=trace.trace_id,
+                    metadata={
+                        "model": payload.model_override or "gpt-4o",
+                        "usage": {
+                            "prompt_tokens": max(1, len(sanitized.clean_text.split()) * 2),
+                            "completion_tokens": tokens_count,
+                            "total_tokens": max(1, len(sanitized.clean_text.split()) * 2) + tokens_count,
+                        },
+                        "output": full_text[:1000],
+                    },
+                )
+                trace.spans.append(gen_span)
+                llmops_tracer.provider.record_span(trace, gen_span)
+                trace.total_tokens = tokens_count
+                trace.end_time = time.time()
+                llmops_tracer.provider.finalize_trace(trace)
+            except Exception as trace_err:
+                logger.warning("llmops_trace_record_failed", error=str(trace_err))
 
             # Store in semantic cache
             if rag_settings.semantic_cache_enabled and full_text:

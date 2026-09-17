@@ -125,10 +125,38 @@ class PromptOpsEngine:
         template_id: UUID,
         version_number: int,
         target_environment: PromptEnvironment,
+        force: bool = False,
     ) -> PromptVersion:
         template = await session.get(PromptTemplate, template_id)
         if not template:
             raise ValueError(f"Template {template_id} not found")
+
+        target_stmt = select(PromptVersion).where(
+            PromptVersion.template_id == template_id,
+            PromptVersion.version_number == version_number,
+        )
+        version = (await session.execute(target_stmt)).scalar_one_or_none()
+        if not version:
+            raise ValueError(f"Version {version_number} not found for template {template_id}")
+
+        # --- REGRESSION PROMOTION GATES ---
+        if not force:
+            # 1. Syntax validation gate
+            sandbox.validate_template_syntax(version.content)
+
+            # 2. Token count safety limit (max 8,000 tokens)
+            if version.token_count_estimate and version.token_count_estimate > 8000:
+                raise ValueError(
+                    f"Promotion rejected by gatekeeper: Token count ({version.token_count_estimate}) "
+                    f"exceeds maximum allowed safety limit (8000 tokens)."
+                )
+
+            # 3. Environment progression gate: Cannot deploy directly from DEV to PROD without STAGING
+            if target_environment == PromptEnvironment.PROD and version.environment == PromptEnvironment.DEV:
+                raise ValueError(
+                    "Promotion rejected: Direct promotion from DEV to PROD is prohibited. "
+                    "Prompt must first be promoted and validated in STAGING (or use force=True with authorization)."
+                )
 
         # Deactivate current active version for this environment
         await session.execute(
@@ -141,15 +169,6 @@ class PromptOpsEngine:
             .values(is_active=False)
         )
 
-        # Activate target version and update its environment
-        target_stmt = select(PromptVersion).where(
-            PromptVersion.template_id == template_id,
-            PromptVersion.version_number == version_number,
-        )
-        version = (await session.execute(target_stmt)).scalar_one_or_none()
-        if not version:
-            raise ValueError(f"Version {version_number} not found for template {template_id}")
-
         version.environment = target_environment
         version.is_active = True
         session.add(version)
@@ -158,6 +177,14 @@ class PromptOpsEngine:
 
         # Invalidate cache
         await cls.invalidate_cache(template.workspace_id, template.slug, target_environment)
+
+        logger.info(
+            "prompt_version_promoted",
+            template_id=str(template_id),
+            version=version_number,
+            environment=target_environment.value,
+            forced=force,
+        )
 
         return version
 

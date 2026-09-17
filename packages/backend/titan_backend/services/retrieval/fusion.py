@@ -1,4 +1,3 @@
-import math
 import time
 from typing import NamedTuple
 from uuid import UUID
@@ -60,11 +59,17 @@ class TieredFusionEngine:
                 if created_at is not None:
                     try:
                         doc_ts = float(created_at)
-                        elapsed_days = max(0.0, (now_ts - doc_ts) / 86400.0)
-                        decay_multiplier = math.exp(-recency_decay_rate * (elapsed_days / 30.0))
-                        score *= 1.0 + (decay_multiplier * 0.15)
+                        age_days = max(0.0, (now_ts - doc_ts) / 86400.0)
+                        decay_multiplier = 1.0 / (1.0 + (recency_decay_rate * age_days))
+                        score *= decay_multiplier
                     except (ValueError, TypeError):
                         pass
+
+            # Document staleness penalty (Task 6.5)
+            is_stale = payloads.get(c_id, {}).get("is_stale", False)
+            if is_stale:
+                # Apply 30% score penalty to stale documents to favor fresh documentation
+                score *= 0.70
 
             scores.append(
                 FusedCandidate(

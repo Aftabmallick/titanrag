@@ -61,3 +61,4 @@ minio-data/
 grafana-data/
 *.tsbuildinfo
 ui_screenshots/
+celerybeat-schedule*
