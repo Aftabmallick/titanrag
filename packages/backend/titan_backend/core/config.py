@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     RERANKER_TIMEOUT_MS: int = 400
 
     # OpenTelemetry
+    OTEL_ENABLED: bool = False
     OTEL_EXPORTER_OTLP_ENDPOINT: str = "http://localhost:4317"
     OTEL_SERVICE_NAME: str = "titan-backend"
     OTEL_TRACES_SAMPLER: str = "always_on"

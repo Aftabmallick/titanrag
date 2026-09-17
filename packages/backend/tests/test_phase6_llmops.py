@@ -297,3 +297,53 @@ async def test_chat_finops_quota_enforcement(async_client, mock_db_session):
         assert data["error"]["code"] == "QUOTA_EXCEEDED" or "QUOTA_EXCEEDED" in str(data)
 
     app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_list_evaluation_runs_endpoint(async_client, mock_db_session):
+    from unittest.mock import MagicMock
+
+    from titan_backend.api.v1.auth import CurrentUser, get_current_user
+    from titan_backend.db.models.evaluation import EvaluationRun, EvaluationStatus, EvaluationTrigger
+    from titan_backend.main import app
+
+    tenant_id = uuid4()
+    workspace_id = uuid4()
+    dataset_id = uuid4()
+    run_id = uuid4()
+
+    mock_user = CurrentUser(id=uuid4(), tenant_id=tenant_id, email="eval@corp.com", role="MEMBER", is_superuser=True)
+    app.dependency_overrides[get_current_user] = lambda: mock_user
+
+    from titan_backend.db.models.workspaces import Workspace
+
+    mock_ws = Workspace(id=workspace_id, tenant_id=tenant_id, name="Test WS")
+    mock_db_session.get.return_value = mock_ws
+
+    mock_run = EvaluationRun(
+        id=run_id,
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        dataset_id=dataset_id,
+        rag_config_snapshot={"hybrid_alpha": 0.7},
+        status=EvaluationStatus.COMPLETED,
+        triggered_by=EvaluationTrigger.MANUAL,
+        aggregate_scores={"faithfulness": 0.95, "answer_relevancy": 0.92},
+        latency_stats={"p95_ms": 250},
+        total_compute_units=12.5,
+        total_dollar_cost=0.031,
+    )
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_run]
+    mock_db_session.execute.return_value = mock_result
+
+    resp = await async_client.get(f"/api/v1/workspaces/{workspace_id}/evaluations/runs")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "runs" in data
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["status"] == "COMPLETED"
+    assert data["runs"][0]["aggregate_scores"]["faithfulness"] == 0.95
+
+    app.dependency_overrides.pop(get_current_user, None)

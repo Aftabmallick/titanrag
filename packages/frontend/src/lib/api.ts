@@ -295,8 +295,8 @@ export class ApiClient {
     } catch {
       return [
         {
-          id: "ws_enterprise_default",
-          tenant_id: "tenant_enterprise_default",
+          id: "4a2f48a2-6615-4b05-ad60-6616cc11f01a",
+          tenant_id: "4284c9db-eada-44ba-a415-0d71617fe4f1",
           name: "Enterprise Defense Knowledge Base",
           description: "Production legal, compliance, and architectural documentation",
           is_archived: false,
@@ -707,22 +707,27 @@ export class ApiClient {
   // DLQ Tasks
   async listDLQTasks(): Promise<{ items: DLQTaskRecord[]; total: number }> {
     try {
-      return await this.request("/api/v1/admin/dlq");
-    } catch {
+      const res: any = await this.request("/api/v1/admin/dlq");
+      const failedTasks: any[] = res.failed_ingestion_tasks || [];
+      const items: DLQTaskRecord[] = failedTasks.map((t) => ({
+        id: String(t.id),
+        document_id: String(t.document_id),
+        task_type: t.stage || "ingestion",
+        status: t.status,
+        error_message: t.error_message || "Ingestion task failure",
+        retry_count: 3,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
       return {
-        items: [
-          {
-            id: "dlq-task-9182",
-            document_id: "doc-ocr-corrupt",
-            task_type: "docling_ocr_parsing",
-            status: "FAILED",
-            error_message: "DoclingWorkerTimeout: PDF page 14 OCR exceeded 60s budget",
-            retry_count: 3,
-            created_at: new Date(Date.now() - 7200000).toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ],
-        total: 1,
+        items,
+        total: items.length + (res.failed_outbox_projections || 0),
+      };
+    } catch (err: any) {
+      console.warn("Failed fetching DLQ tasks:", err?.message || err);
+      return {
+        items: [],
+        total: 0,
       };
     }
   }
@@ -872,6 +877,10 @@ export class ApiClient {
 
   async getEvaluationRun(workspaceId: string, runId: string): Promise<any> {
     return this.request(`/api/v1/workspaces/${workspaceId}/evaluations/runs/${runId}`);
+  }
+
+  async listEvaluationRuns(workspaceId: string): Promise<{ runs: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/evaluations/runs`);
   }
 
   async getFinOpsUsage(workspaceId: string): Promise<any> {

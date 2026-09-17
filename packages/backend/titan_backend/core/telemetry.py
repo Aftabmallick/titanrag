@@ -10,7 +10,7 @@ from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 logger = structlog.get_logger("titanrag.telemetry")
@@ -29,14 +29,17 @@ def init_telemetry(app: FastAPI, engine: AsyncEngine | None = None) -> None:
     )
 
     provider = TracerProvider(resource=resource)
+    otel_enabled = os.getenv("OTEL_ENABLED", "false").lower() in ("true", "1", "yes")
 
-    try:
-        otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-        logger.info("telemetry_initialized", endpoint=otlp_endpoint, service=service_name)
-    except Exception as e:
-        logger.warning("otlp_exporter_failed_fallback_to_console", error=str(e))
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    if otel_enabled:
+        try:
+            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+            provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+            logger.info("telemetry_initialized", endpoint=otlp_endpoint, service=service_name)
+        except Exception as e:
+            logger.warning("otlp_exporter_failed_fallback_to_console", error=str(e))
+    else:
+        logger.info("telemetry_otlp_disabled_local_mode", service=service_name)
 
     trace.set_tracer_provider(provider)
 

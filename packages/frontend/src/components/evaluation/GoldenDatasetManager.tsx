@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
 export function GoldenDatasetManager({
@@ -28,64 +29,60 @@ export function GoldenDatasetManager({
   const [running, setRunning] = useState<string | null>(null);
   const [latestRun, setLatestRun] = useState<any>(null);
 
-  const fetchDatasets = useCallback(async () => {
+  const fetchDatasetsAndRuns = useCallback(async () => {
     if (!workspaceId) return;
     setLoading(true);
     try {
-      const res = await api.listGoldenDatasets(workspaceId);
-      setDatasets(res.datasets || []);
-    } catch {
-      setDatasets([
-        {
-          id: "ds-1",
-          name: "Enterprise Core RAG Benchmark v1.0",
-          description: "Curated ground-truth test suite covering legal contracts, NDAs, and Q3 financial filings.",
-          version: 1,
-          tags: ["golden", "finance", "legal"],
-          item_count: 24,
-          created_at: new Date().toISOString(),
-        },
+      const [dsRes, runsRes] = await Promise.all([
+        api.listGoldenDatasets(workspaceId).catch(() => ({ datasets: [] })),
+        api.listEvaluationRuns(workspaceId).catch(() => ({ runs: [] })),
       ]);
+      setDatasets(dsRes.datasets || []);
+      const completedRun = (runsRes.runs || []).find((r: any) => r.status === "COMPLETED");
+      if (completedRun) {
+        setLatestRun(completedRun);
+        if (onSelectRun && completedRun.aggregate_scores) {
+          onSelectRun(completedRun.aggregate_scores);
+        }
+      }
+    } catch {
+      setDatasets([]);
     } finally {
       setLoading(false);
     }
-  }, [workspaceId]);
+  }, [workspaceId, onSelectRun]);
 
   useEffect(() => {
-    fetchDatasets();
-  }, [fetchDatasets]);
+    fetchDatasetsAndRuns();
+  }, [fetchDatasetsAndRuns]);
 
   const handleRunEvaluation = async (dsId: string) => {
     if (!workspaceId) return;
     setRunning(dsId);
     try {
       const res = await api.triggerEvaluationRun(workspaceId, dsId);
-      // Poll or simulate completion
-      setTimeout(async () => {
+      const pollInterval = setInterval(async () => {
         try {
           const runDetails = await api.getEvaluationRun(workspaceId, res.run_id);
-          setLatestRun(runDetails);
-          if (onSelectRun && runDetails.aggregate_scores) {
-            onSelectRun(runDetails.aggregate_scores);
+          if (runDetails.status === "COMPLETED" || runDetails.status === "FAILED") {
+            clearInterval(pollInterval);
+            setLatestRun(runDetails);
+            if (onSelectRun && runDetails.aggregate_scores) {
+              onSelectRun(runDetails.aggregate_scores);
+            }
+            setRunning(null);
           }
         } catch {
-          // Mock completed results
-          const mockScores = {
-            faithfulness: 0.96,
-            answer_relevancy: 0.92,
-            context_precision: 0.94,
-            context_recall: 0.88,
-            ndcg_5: 0.95,
-          };
-          setLatestRun({
-            run_id: res.run_id,
-            status: "COMPLETED",
-            aggregate_scores: mockScores,
-          });
-          if (onSelectRun) onSelectRun(mockScores);
+          clearInterval(pollInterval);
+          setRunning(null);
         }
+      }, 1500);
+
+      // Max timeout of 15 seconds for polling
+      setTimeout(() => {
+        clearInterval(pollInterval);
         setRunning(null);
-      }, 2000);
+      }, 15000);
     } catch (err: any) {
       alert("Failed triggering evaluation: " + (err.message || err));
       setRunning(null);
@@ -100,7 +97,7 @@ export function GoldenDatasetManager({
           <h3 className="text-sm font-bold text-white">Curated Golden Datasets</h3>
         </div>
         <button
-          onClick={fetchDatasets}
+          onClick={fetchDatasetsAndRuns}
           disabled={loading}
           className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
         >
@@ -108,7 +105,14 @@ export function GoldenDatasetManager({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 gap-4">
+      {datasets.length === 0 && !loading ? (
+        <EmptyState
+          icon={<Layers className="w-6 h-6 text-sky-400" />}
+          title="No Golden Datasets Found"
+          description="Create or promote evaluation datasets to benchmark Faithfulness, Answer Relevancy, and IR precision."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
         {datasets.map((ds) => (
           <div
             key={ds.id}
@@ -155,6 +159,7 @@ export function GoldenDatasetManager({
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from titan_backend.api.v1.events import broadcast_event
 from titan_backend.db.models.chat import ChatMessage
@@ -94,8 +94,8 @@ class FeedbackService:
 
         # Compute aggregate satisfaction stats
         stats_stmt = select(
-            func.coalesce(func.sum(func.case((Feedback.rating > 0, 1), else_=0)), 0).label("positive"),
-            func.coalesce(func.sum(func.case((Feedback.rating < 0, 1), else_=0)), 0).label("negative"),
+            func.coalesce(func.sum(case((Feedback.rating > 0, 1), else_=0)), 0).label("positive"),
+            func.coalesce(func.sum(case((Feedback.rating < 0, 1), else_=0)), 0).label("negative"),
             func.count(Feedback.id).label("total_feedback"),
         ).where(Feedback.workspace_id == workspace_id)
 
