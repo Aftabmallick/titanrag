@@ -586,15 +586,25 @@ export class ApiClient {
   async submitFeedback(
     workspaceId: string,
     messageId: string,
-    rating: "up" | "down",
+    ratingOrData: "up" | "down" | number | { rating: number; comment?: string; corrected_answer?: string; citation_issues?: any[] },
     text?: string,
     citationIssues?: Array<{ citation_id: string; issue: string }>
-  ): Promise<{ status: string }> {
+  ): Promise<any> {
     try {
-      return await this.request(`/api/v1/workspaces/${workspaceId}/messages/${messageId}/feedback`, {
+      let bodyData: any;
+      if (typeof ratingOrData === "object") {
+        bodyData = ratingOrData;
+      } else {
+        const numericRating = ratingOrData === "up" || ratingOrData === 1 ? 1 : -1;
+        bodyData = {
+          rating: numericRating,
+          comment: text,
+          citation_issues: citationIssues || [],
+        };
+      }
+      return await this.request(`/api/v1/workspaces/${workspaceId}/chat-messages/${messageId}/feedback`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rating, text, citation_issues: citationIssues || [] }),
+        body: JSON.stringify(bodyData),
       });
     } catch {
       return { status: "ok" };
@@ -746,6 +756,139 @@ export class ApiClient {
       };
     }
   }
+
+  // Phase 6 LLMOps, Feedback, Prompts, A/B Testing, Evaluation, FinOps
+  async listFeedback(
+    workspaceId: string,
+    params?: { rating?: number; triage_status?: string; limit?: number; offset?: number }
+  ): Promise<{ items: any[]; total: number; statistics: any }> {
+    const query = new URLSearchParams();
+    if (params?.rating !== undefined) query.set("rating", String(params.rating));
+    if (params?.triage_status) query.set("triage_status", params.triage_status);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    return this.request(`/api/v1/workspaces/${workspaceId}/feedback?${query.toString()}`);
+  }
+
+  async updateFeedbackTriage(workspaceId: string, feedbackId: string, status: string): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/feedback/${feedbackId}/triage`, {
+      method: "PATCH",
+      body: JSON.stringify({ triage_status: status }),
+    });
+  }
+
+  async promoteFeedbackToGolden(workspaceId: string, feedbackId: string, datasetId?: string): Promise<any> {
+    const query = datasetId ? `?dataset_id=${datasetId}` : "";
+    return this.request(`/api/v1/workspaces/${workspaceId}/feedback/${feedbackId}/promote-to-golden${query}`, {
+      method: "POST",
+    });
+  }
+
+  async listPrompts(workspaceId: string): Promise<{ templates: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts`);
+  }
+
+  async listPromptVersions(workspaceId: string, slug: string): Promise<{ template: any; versions: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts/${slug}/versions`);
+  }
+
+  async createPromptVersion(workspaceId: string, slug: string, data: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts/${slug}/versions`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async promotePromptVersion(workspaceId: string, slug: string, versionNumber: number, targetEnv: string): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts/${slug}/promote`, {
+      method: "POST",
+      body: JSON.stringify({ version_number: versionNumber, target_environment: targetEnv }),
+    });
+  }
+
+  async rollbackPrompt(workspaceId: string, slug: string, env: string = "PROD"): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts/${slug}/rollback?environment=${env}`, {
+      method: "POST",
+    });
+  }
+
+  async diffPromptVersions(workspaceId: string, slug: string, v1: number, v2: number): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/prompts/${slug}/diff?v1=${v1}&v2=${v2}`);
+  }
+
+  async listExperiments(workspaceId: string): Promise<{ experiments: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/ab-experiments`);
+  }
+
+  async createExperiment(workspaceId: string, data: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/ab-experiments`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateExperimentStatus(workspaceId: string, experimentId: string, status: string): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/ab-experiments/${experimentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async concludeExperiment(workspaceId: string, experimentId: string, data: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/ab-experiments/${experimentId}/conclude`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listGoldenDatasets(workspaceId: string): Promise<{ datasets: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/golden-datasets`);
+  }
+
+  async createGoldenDataset(workspaceId: string, data: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/golden-datasets`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async listDatasetItems(workspaceId: string, datasetId: string): Promise<{ dataset_id: string; items: any[] }> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/golden-datasets/${datasetId}/items`);
+  }
+
+  async addDatasetItem(workspaceId: string, datasetId: string, data: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/golden-datasets/${datasetId}/items`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async triggerEvaluationRun(workspaceId: string, datasetId: string, override?: any): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/evaluations/run`, {
+      method: "POST",
+      body: JSON.stringify({ dataset_id: datasetId, rag_config_override: override || {} }),
+    });
+  }
+
+  async getEvaluationRun(workspaceId: string, runId: string): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/evaluations/runs/${runId}`);
+  }
+
+  async getFinOpsUsage(workspaceId: string): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/finops/usage`);
+  }
+
+  async getFinOpsBreakdown(workspaceId: string, days: number = 30): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/finops/breakdown?days=${days}`);
+  }
+
+  async updateBudgetCap(workspaceId: string, maxComputeUnits: number): Promise<any> {
+    return this.request(`/api/v1/workspaces/${workspaceId}/finops/budget`, {
+      method: "PUT",
+      body: JSON.stringify({ max_compute_units: maxComputeUnits }),
+    });
+  }
 }
 
 export const api = new ApiClient();
+
