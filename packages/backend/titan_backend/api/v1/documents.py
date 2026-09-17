@@ -39,6 +39,7 @@ from titan_backend.clients.s3_client import (
     generate_presigned_get_url,
     get_minio_client,
 )
+from titan_backend.core.backpressure import verify_ingestion_backpressure
 from titan_backend.core.config import settings
 from titan_backend.core.dependencies import CurrentUser, get_current_user, require_permission
 from titan_backend.core.errors import AppException
@@ -68,6 +69,7 @@ async def upload_document(
     acl_groups: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(require_permission(Permission.UPLOAD)),
+    _backpressure: None = Depends(verify_ingestion_backpressure),
 ) -> DocumentUploadResponse:
     tenant_id = current_user.tenant_id
     filename = file.filename or "upload.bin"

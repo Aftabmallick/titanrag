@@ -16,6 +16,7 @@ class ValidatedCandidate(NamedTuple):
     page_number: int | None
     bbox: dict[str, Any] | None
     chunk_text: str
+    is_stale: bool = False
 
 
 class CandidateValidationBarrier:
@@ -43,6 +44,7 @@ class CandidateValidationBarrier:
                 Chunk.content,
                 Chunk.meta,
                 Document.title,
+                Document.is_stale,
             )
             .join(Document, Chunk.document_id == Document.id)
             .where(
@@ -59,7 +61,7 @@ class CandidateValidationBarrier:
 
         validated: dict[UUID, ValidatedCandidate] = {}
         for row in rows:
-            c_id, doc_id, p_id, page, text, meta, doc_title = row
+            c_id, doc_id, p_id, page, text, meta, doc_title, is_stale = row
             meta_dict = meta if isinstance(meta, dict) else {}
             heading = meta_dict.get("section_heading")
             bbox = meta_dict.get("bbox")
@@ -73,6 +75,7 @@ class CandidateValidationBarrier:
                 page_number=page,
                 bbox=bbox if isinstance(bbox, dict) else None,
                 chunk_text=text,
+                is_stale=bool(is_stale),
             )
 
         return validated

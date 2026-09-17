@@ -194,3 +194,43 @@ def test_clamav_daemon_stream_scan() -> None:
             is_safe, threats = scan_file_safety(b"malicious bytes", "invoice.pdf")
             assert not is_safe
             assert any("CLAMAV_DETECTED_Trojan.Downloader" in t for t in threats)
+
+
+@pytest.mark.asyncio
+async def test_backpressure_controller_trips_503_on_high_queue_depth():
+    from titan_backend.core.backpressure import BackpressureController, ServiceDegradedException
+
+    controller = BackpressureController(max_depth=50)
+
+    with patch.object(controller, "get_total_queue_depth", return_value=120):
+        with pytest.raises(ServiceDegradedException) as exc_info:
+            await controller.check_ingestion_backpressure()
+        assert exc_info.value.status_code == 503
+        assert exc_info.value.detail["error"] == "SERVICE_DEGRADED"
+        assert exc_info.value.headers["Retry-After"] == "30"
+
+
+def test_workspace_minhash_lsh_index_duplicate_detection():
+    from titan_workers.pipeline.deduplication.minhash import WorkspaceMinHashLSHIndex
+
+    lsh_index = WorkspaceMinHashLSHIndex(threshold=0.80)
+
+    # Insert baseline document chunk
+    doc1_chunk = "The quarterly financial earnings showed a twelve percent revenue increase across cloud operations."
+    lsh_index.insert("chunk_doc1_p1", doc1_chunk)
+
+    # Query with identical text
+    matches = lsh_index.query_near_duplicates(doc1_chunk)
+    assert "chunk_doc1_p1" in matches
+
+    # Query with near-identical text (minor variation)
+    doc2_near_dup = (
+        "The quarterly financial earnings showed a 12 percent revenue increase across cloud operations today."
+    )
+    matches_near = lsh_index.query_near_duplicates(doc2_near_dup)
+    assert "chunk_doc1_p1" in matches_near
+
+    # Query with completely different text
+    completely_different = "Quantum computing and entanglement qubits in cryogenic superconducting circuits."
+    matches_diff = lsh_index.query_near_duplicates(completely_different)
+    assert len(matches_diff) == 0

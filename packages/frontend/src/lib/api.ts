@@ -150,6 +150,64 @@ export interface RAGSettingsRecord {
   cache_ttl_seconds: number;
 }
 
+export const DEFAULT_RAG_SETTINGS: RAGSettingsRecord = {
+  workspace_id: "ws_enterprise_default",
+  search_strategy: "hybrid",
+  hybrid_alpha: 0.7,
+  top_k: 40,
+  rerank_top_k: 5,
+  reranker_model: "cohere-rerank-v3",
+  score_threshold: 0.4,
+  llm_model: "gpt-4o",
+  grounding_mode: "balanced",
+  system_prompt: "You are TitanRAG, an enterprise AI assistant. Answer using strictly the verified sources provided in the context.",
+  temperature: 0.2,
+  parent_context_enabled: true,
+  hyde_enabled: false,
+  contextual_chunking_enabled: true,
+  nli_verification_enabled: true,
+  pii_redaction_mode: "REPLACE",
+  semantic_cache_enabled: true,
+  cache_similarity_threshold: 0.95,
+  cache_ttl_seconds: 86400,
+};
+
+export function normalizeRagSettings(raw: any, workspaceId: string): RAGSettingsRecord {
+  if (!raw || typeof raw !== "object") {
+    return { ...DEFAULT_RAG_SETTINGS, workspace_id: workspaceId || DEFAULT_RAG_SETTINGS.workspace_id };
+  }
+
+  // Parse search strategy
+  let searchStrategy: "hybrid" | "dense" | "sparse" = DEFAULT_RAG_SETTINGS.search_strategy;
+  const rawMode = String(raw.retrieval_mode || raw.search_strategy || "").toLowerCase();
+  if (rawMode.includes("dense")) searchStrategy = "dense";
+  else if (rawMode.includes("sparse")) searchStrategy = "sparse";
+  else if (rawMode.includes("hybrid")) searchStrategy = "hybrid";
+
+  return {
+    ...DEFAULT_RAG_SETTINGS,
+    workspace_id: String(raw.workspace_id || workspaceId || DEFAULT_RAG_SETTINGS.workspace_id),
+    search_strategy: searchStrategy,
+    hybrid_alpha: typeof raw.dense_weight === "number" ? raw.dense_weight : (typeof raw.hybrid_alpha === "number" ? raw.hybrid_alpha : DEFAULT_RAG_SETTINGS.hybrid_alpha),
+    top_k: typeof raw.top_k === "number" ? raw.top_k : DEFAULT_RAG_SETTINGS.top_k,
+    rerank_top_k: typeof raw.rerank_top_k === "number" ? raw.rerank_top_k : DEFAULT_RAG_SETTINGS.rerank_top_k,
+    reranker_model: raw.reranker_model || DEFAULT_RAG_SETTINGS.reranker_model,
+    score_threshold: typeof raw.score_threshold === "number" ? raw.score_threshold : DEFAULT_RAG_SETTINGS.score_threshold,
+    llm_model: raw.llm_model || DEFAULT_RAG_SETTINGS.llm_model,
+    grounding_mode: raw.grounding_mode || DEFAULT_RAG_SETTINGS.grounding_mode,
+    system_prompt: raw.system_prompt_override ?? raw.system_prompt ?? DEFAULT_RAG_SETTINGS.system_prompt,
+    temperature: typeof raw.temperature === "number" ? raw.temperature : DEFAULT_RAG_SETTINGS.temperature,
+    parent_context_enabled: raw.parent_context_enabled ?? DEFAULT_RAG_SETTINGS.parent_context_enabled,
+    hyde_enabled: raw.hyde_enabled ?? DEFAULT_RAG_SETTINGS.hyde_enabled,
+    contextual_chunking_enabled: raw.contextual_chunking_enabled ?? DEFAULT_RAG_SETTINGS.contextual_chunking_enabled,
+    nli_verification_enabled: raw.nli_verification_enabled ?? DEFAULT_RAG_SETTINGS.nli_verification_enabled,
+    pii_redaction_mode: raw.pii_redaction_mode || DEFAULT_RAG_SETTINGS.pii_redaction_mode,
+    semantic_cache_enabled: raw.semantic_cache_enabled ?? DEFAULT_RAG_SETTINGS.semantic_cache_enabled,
+    cache_similarity_threshold: typeof raw.cache_cosine_threshold === "number" ? raw.cache_cosine_threshold : (typeof raw.cache_similarity_threshold === "number" ? raw.cache_similarity_threshold : DEFAULT_RAG_SETTINGS.cache_similarity_threshold),
+    cache_ttl_seconds: typeof raw.cache_ttl_seconds === "number" ? raw.cache_ttl_seconds : DEFAULT_RAG_SETTINGS.cache_ttl_seconds,
+  };
+}
+
 export class ApiClient {
   private customToken: string | null = null;
   private baseUrl: string = "";
@@ -620,41 +678,57 @@ export class ApiClient {
   // RAG Settings
   async getRagSettings(workspaceId: string): Promise<RAGSettingsRecord> {
     try {
-      return await this.request(`/api/v1/workspaces/${workspaceId}/rag-settings`);
+      const raw = await this.request(`/api/v1/workspaces/${workspaceId}/rag-settings`);
+      return normalizeRagSettings(raw, workspaceId);
     } catch {
-      return {
-        workspace_id: workspaceId || "ws_enterprise_default",
-        search_strategy: "hybrid",
-        hybrid_alpha: 0.7,
-        top_k: 40,
-        rerank_top_k: 5,
-        reranker_model: "cohere-rerank-v3",
-        score_threshold: 0.4,
-        llm_model: "gpt-4o",
-        grounding_mode: "balanced",
-        system_prompt: "You are TitanRAG, an enterprise AI assistant. Answer using strictly the verified sources provided in the context.",
-        temperature: 0.2,
-        parent_context_enabled: true,
-        hyde_enabled: false,
-        contextual_chunking_enabled: true,
-        nli_verification_enabled: true,
-        pii_redaction_mode: "REPLACE",
-        semantic_cache_enabled: true,
-        cache_similarity_threshold: 0.95,
-        cache_ttl_seconds: 86400,
-      };
+      return normalizeRagSettings(null, workspaceId);
     }
   }
 
   async updateRagSettings(workspaceId: string, settings: Partial<RAGSettingsRecord>): Promise<RAGSettingsRecord> {
     try {
-      return await this.request(`/api/v1/workspaces/${workspaceId}/rag-settings`, {
+      // Map frontend fields to backend RAGSettingsUpdate schema
+      const backendPayload: Record<string, any> = {};
+      if (settings.search_strategy) {
+        backendPayload.retrieval_mode =
+          settings.search_strategy === "dense"
+            ? "DENSE_ONLY"
+            : settings.search_strategy === "sparse"
+            ? "SPARSE_ONLY"
+            : "HYBRID";
+      }
+      if (typeof settings.hybrid_alpha === "number") {
+        backendPayload.dense_weight = settings.hybrid_alpha;
+        backendPayload.sparse_weight = Number((1.0 - settings.hybrid_alpha).toFixed(2));
+      }
+      if (typeof settings.top_k === "number") backendPayload.top_k = settings.top_k;
+      if (typeof settings.rerank_top_k === "number") backendPayload.rerank_top_k = settings.rerank_top_k;
+      if (typeof settings.score_threshold === "number") backendPayload.score_threshold = settings.score_threshold;
+      if (typeof settings.parent_context_enabled === "boolean") {
+        backendPayload.parent_context_enabled = settings.parent_context_enabled;
+      }
+      if (typeof settings.hyde_enabled === "boolean") backendPayload.hyde_enabled = settings.hyde_enabled;
+      if (typeof settings.semantic_cache_enabled === "boolean") {
+        backendPayload.semantic_cache_enabled = settings.semantic_cache_enabled;
+      }
+      if (typeof settings.cache_similarity_threshold === "number") {
+        backendPayload.cache_cosine_threshold = settings.cache_similarity_threshold;
+      }
+      if (typeof settings.cache_ttl_seconds === "number") {
+        backendPayload.cache_ttl_seconds = settings.cache_ttl_seconds;
+      }
+      if (settings.system_prompt !== undefined) {
+        backendPayload.system_prompt_override = settings.system_prompt;
+      }
+
+      const raw = (await this.request(`/api/v1/workspaces/${workspaceId}/rag-settings`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(settings),
-      });
+        body: JSON.stringify(backendPayload),
+      })) as Record<string, any> | undefined;
+      return normalizeRagSettings({ ...settings, ...(raw || {}) }, workspaceId);
     } catch {
-      return settings as RAGSettingsRecord;
+      return normalizeRagSettings(settings, workspaceId);
     }
   }
 

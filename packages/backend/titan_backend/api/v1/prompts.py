@@ -27,6 +27,7 @@ class CreatePromptVersionRequest(BaseModel):
 class PromotePromptRequest(BaseModel):
     version_number: int
     target_environment: PromptEnvironment
+    force: bool = Field(default=False, description="Bypass promotion regression gates with audit record")
 
 
 @router.get("")
@@ -179,6 +180,7 @@ async def promote_prompt_version(
             template_id=tmpl.id,
             version_number=req.version_number,
             target_environment=req.target_environment,
+            force=req.force,
         )
         return {
             "slug": slug,

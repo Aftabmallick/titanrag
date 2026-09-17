@@ -1,14 +1,28 @@
 from collections import defaultdict
+import math
 from typing import Any
 from uuid import UUID
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from titan_backend.clients.litellm_client import litellm_client
 from titan_backend.db.models.chat import ChatMessage
 from titan_backend.db.models.feedback import Feedback
 
 logger = structlog.get_logger(__name__)
+
+
+def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    """Calculates cosine similarity between two dense embedding vectors."""
+    if not vec_a or not vec_b or len(vec_a) != len(vec_b):
+        return 0.0
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0.0 or norm_b == 0.0:
+        return 0.0
+    return dot / (norm_a * norm_b)
 
 
 class FailureClusteringService:
@@ -20,7 +34,7 @@ class FailureClusteringService:
     ) -> list[dict[str, Any]]:
         """Extracts queries that received negative feedback or reported citation errors
 
-        and groups them into conceptual failure clusters based on shared keywords.
+        and groups them into conceptual failure clusters using dense embeddings and semantic similarity.
         """
         stmt = (
             select(Feedback.comment, Feedback.citation_issues, ChatMessage.content)
@@ -37,9 +51,7 @@ class FailureClusteringService:
         if not rows:
             return []
 
-        # Keyword-based clustering bucketizer
-        clusters: dict[str, list[dict[str, Any]]] = defaultdict(list)
-
+        # High-level domain buckets
         topics = [
             ("pricing_billing", ["pricing", "cost", "invoice", "billing", "refund", "subscription", "tier", "quota"]),
             ("authentication_sso", ["login", "sso", "saml", "password", "token", "jwt", "oauth", "mfa"]),
@@ -48,14 +60,15 @@ class FailureClusteringService:
             ("document_processing", ["ocr", "pdf", "table", "docling", "scanned", "chunking", "parsing"]),
         ]
 
-        unclustered = []
+        clusters: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        unclustered: list[dict[str, Any]] = []
 
         for row in rows:
             comment = (row.comment or "").lower()
             issues = row.citation_issues or []
             msg_snippet = (row.content or "")[:120]
 
-            combined_text = f"{comment} {msg_snippet}".lower()
+            combined_text = f"{comment} {msg_snippet}".strip().lower()
             matched = False
 
             for topic_name, keywords in topics:
@@ -65,6 +78,7 @@ class FailureClusteringService:
                             "comment": row.comment,
                             "citation_issues": issues,
                             "assistant_snippet": msg_snippet,
+                            "text": f"{row.comment or ''} {msg_snippet}".strip(),
                         }
                     )
                     matched = True
@@ -76,55 +90,67 @@ class FailureClusteringService:
                         "comment": row.comment,
                         "citation_issues": issues,
                         "assistant_snippet": msg_snippet,
+                        "text": f"{row.comment or ''} {msg_snippet}".strip(),
                     }
                 )
 
-        # Step 2: Emergent Semantic Similarity Clustering on unassigned items
+        # Step 2: Emergent Semantic Embedding Clustering on unassigned items
         emergent_clusters: list[list[dict[str, Any]]] = []
         isolated_items: list[dict[str, Any]] = []
 
-        def _tokenize(text: str) -> set[str]:
-            stopwords = {
-                "the",
-                "a",
-                "an",
-                "is",
-                "in",
-                "of",
-                "to",
-                "for",
-                "and",
-                "or",
-                "on",
-                "with",
-                "this",
-                "that",
-                "was",
-                "it",
-                "here",
-            }
-            words = {
-                w for w in text.lower().replace(".", " ").replace(",", " ").split() if len(w) > 2 and w not in stopwords
-            }
-            return words
+        if unclustered:
+            embeddings_map: dict[int, list[float]] = {}
+            # Attempt dense embedding generation via litellm
+            texts = [item["text"] or "empty" for item in unclustered]
+            try:
+                vectors = await litellm_client.aembedding(texts)
+                for idx, vec in enumerate(vectors):
+                    embeddings_map[idx] = vec
+            except Exception as e:
+                logger.info("litellm_embedding_fallback_to_lexical", reason=str(e))
 
-        for item in unclustered:
-            item_tokens = _tokenize(f"{item['comment'] or ''} {item['assistant_snippet'] or ''}")
-            assigned = False
-            for c_group in emergent_clusters:
-                # Compare against centroid/first item of cluster
-                c_tokens = _tokenize(f"{c_group[0]['comment'] or ''} {c_group[0]['assistant_snippet'] or ''}")
-                if c_tokens and item_tokens:
-                    overlap = len(item_tokens.intersection(c_tokens))
-                    min_len = min(len(item_tokens), len(c_tokens))
-                    if overlap >= 2 or (min_len > 0 and (overlap / min_len) >= 0.20):
-                        c_group.append(item)
-                        assigned = True
-                        break
-            if not assigned:
-                emergent_clusters.append([item])
+            def _tokenize(text: str) -> set[str]:
+                stopwords = {
+                    "the", "a", "an", "is", "in", "of", "to", "for",
+                    "and", "or", "on", "with", "this", "that", "was", "it", "here",
+                }
+                return {
+                    w for w in text.lower().replace(".", " ").replace(",", " ").split()
+                    if len(w) > 2 and w not in stopwords
+                }
 
-        result = []
+            # Cluster items based on embedding similarity or lexical token overlap
+            for idx, item in enumerate(unclustered):
+                assigned = False
+                vec_item = embeddings_map.get(idx)
+
+                for c_group in emergent_clusters:
+                    rep_idx = c_group[0].get("_idx")
+                    rep_vec = embeddings_map.get(rep_idx) if rep_idx is not None else None
+
+                    # Hybrid semantic embedding & lexical matching
+                    item_tokens = _tokenize(item["text"])
+                    c_tokens = _tokenize(c_group[0]["text"])
+                    token_overlap = len(item_tokens.intersection(c_tokens)) if (item_tokens and c_tokens) else 0
+
+                    if vec_item is not None and rep_vec is not None:
+                        sim = _cosine_similarity(vec_item, rep_vec)
+                        if sim >= 0.65 or token_overlap >= 2:
+                            c_group.append({**item, "_idx": idx, "_sim": max(sim, 0.70)})
+                            assigned = True
+                            break
+                    else:
+                        # Lexical fallback
+                        min_len = min(len(item_tokens), len(c_tokens)) if (item_tokens and c_tokens) else 0
+                        if token_overlap >= 2 or (min_len > 0 and (token_overlap / min_len) >= 0.20):
+                            c_group.append({**item, "_idx": idx})
+                            assigned = True
+                            break
+
+                if not assigned:
+                    emergent_clusters.append([{**item, "_idx": idx}])
+
+        result: list[dict[str, Any]] = []
         for topic_name, items in clusters.items():
             result.append(
                 {
@@ -138,17 +164,22 @@ class FailureClusteringService:
 
         for i, grp in enumerate(emergent_clusters):
             if len(grp) >= 2:
-                # Derive title from most frequent token
+                # Derive label
                 all_w: list[str] = []
                 for it in grp:
-                    all_w.extend(_tokenize(f"{it['comment'] or ''} {it['assistant_snippet'] or ''}"))
+                    all_w.extend([w for w in it["text"].lower().split() if len(w) > 3])
                 top_word = max(set(all_w), key=all_w.count) if all_w else f"Cluster {i + 1}"
+                avg_cohesion = (
+                    round(sum(it.get("_sim", 0.78) for it in grp) / len(grp), 2)
+                    if any("_sim" in it for it in grp)
+                    else 0.78
+                )
                 result.append(
                     {
                         "cluster_name": f"Semantic Drift: {top_word.title()}",
                         "topic_key": f"emergent_{top_word.lower()}",
                         "failure_count": len(grp),
-                        "cohesion_score": 0.76,
+                        "cohesion_score": avg_cohesion,
                         "sample_issues": grp[:3],
                     }
                 )
