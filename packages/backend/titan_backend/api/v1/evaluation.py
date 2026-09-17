@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,23 +53,29 @@ async def list_golden_datasets(
     if not workspace or workspace.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
-    stmt = select(GoldenDataset).where(GoldenDataset.workspace_id == workspace_id).order_by(GoldenDataset.created_at.desc())
+    stmt = (
+        select(GoldenDataset)
+        .where(GoldenDataset.workspace_id == workspace_id)
+        .order_by(GoldenDataset.created_at.desc())
+    )
     datasets = (await session.execute(stmt)).scalars().all()
 
     result = []
     for d in datasets:
         items_count_stmt = select(GoldenDatasetItem.id).where(GoldenDatasetItem.dataset_id == d.id)
         count = len((await session.execute(items_count_stmt)).scalars().all())
-        result.append({
-            "id": str(d.id),
-            "name": d.name,
-            "description": d.description,
-            "version": d.version,
-            "tags": d.tags,
-            "is_active": d.is_active,
-            "item_count": count,
-            "created_at": d.created_at.isoformat(),
-        })
+        result.append(
+            {
+                "id": str(d.id),
+                "name": d.name,
+                "description": d.description,
+                "version": d.version,
+                "tags": d.tags,
+                "is_active": d.is_active,
+                "item_count": count,
+                "created_at": d.created_at.isoformat(),
+            }
+        )
 
     return {"datasets": result}
 
@@ -117,7 +123,11 @@ async def list_dataset_items(
     if not dataset or dataset.workspace_id != workspace_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Dataset not found")
 
-    stmt = select(GoldenDatasetItem).where(GoldenDatasetItem.dataset_id == dataset_id).order_by(GoldenDatasetItem.created_at)
+    stmt = (
+        select(GoldenDatasetItem)
+        .where(GoldenDatasetItem.dataset_id == dataset_id)
+        .order_by(GoldenDatasetItem.created_at)
+    )
     items = (await session.execute(stmt)).scalars().all()
 
     return {
@@ -202,6 +212,7 @@ async def trigger_evaluation_run(
     # Dispatch Celery task
     try:
         from titan_workers.tasks.evaluation_tasks import run_evaluation_suite
+
         run_evaluation_suite.delay(str(run.id), str(dataset.id))
     except Exception:
         # If workers not running synchronously in current process, update status for test runner

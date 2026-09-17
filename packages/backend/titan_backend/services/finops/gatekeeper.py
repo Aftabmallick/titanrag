@@ -1,9 +1,8 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import HTTPException, status
 import structlog
-
+from fastapi import HTTPException, status
 from titan_backend.clients.redis_client import get_redis
 
 logger = structlog.get_logger(__name__)

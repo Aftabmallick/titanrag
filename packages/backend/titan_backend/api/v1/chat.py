@@ -42,10 +42,8 @@ from titan_backend.services.ab_testing.router import ABExperimentRouter
 from titan_backend.services.chat.session_service import session_service
 from titan_backend.services.chat.stream_generator import format_sse, phased_stream_generator
 from titan_backend.services.chat.suggestions import suggestions_generator
-from titan_backend.services.finops.calculator import calculate_compute_units
 from titan_backend.services.finops.gatekeeper import FinOpsGatekeeper
 from titan_backend.services.finops.ledger import FinOpsLedgerService
-from titan_backend.services.observability.langfuse_client import llmops_tracer
 from titan_backend.services.promptops.engine import PromptOpsEngine
 from titan_backend.services.retrieval.candidate_validator import candidate_validator
 from titan_backend.services.retrieval.classifier import QueryIntent, classifier
@@ -157,9 +155,15 @@ async def chat_endpoint(
         if "top_k" in exp_override:
             rag_settings.top_k = int(exp_override["top_k"])
         if "top_n" in exp_override or "rerank_top_k" in exp_override:
-            rag_settings.rerank_top_k = int(exp_override.get("rerank_top_k", exp_override.get("top_n", rag_settings.rerank_top_k)))
+            rag_settings.rerank_top_k = int(
+                exp_override.get("rerank_top_k", exp_override.get("top_n", rag_settings.rerank_top_k))
+            )
         if "confidence_threshold" in exp_override or "score_threshold" in exp_override:
-            rag_settings.score_threshold = float(exp_override.get("score_threshold", exp_override.get("confidence_threshold", rag_settings.score_threshold)))
+            rag_settings.score_threshold = float(
+                exp_override.get(
+                    "score_threshold", exp_override.get("confidence_threshold", rag_settings.score_threshold)
+                )
+            )
         if "model" in exp_override and not payload.model_override:
             payload.model_override = str(exp_override["model"])
 

@@ -9,8 +9,7 @@ CU = 1.0 * (prompt_tokens / 1000)
    + 2.0 * Rerank_calls
 """
 
-from decimal import Decimal, ROUND_HALF_UP
-from typing import Any
+from decimal import ROUND_HALF_UP, Decimal
 
 # Standard dollar rate per Compute Unit (e.g. $0.002 per CU)
 DEFAULT_DOLLAR_PER_CU = 0.0025

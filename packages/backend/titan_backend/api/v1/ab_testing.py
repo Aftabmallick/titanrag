@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +12,6 @@ from titan_backend.db.models.ab_testing import ABExperiment, ABExperimentStatus
 from titan_backend.db.models.settings import RAGSettings
 from titan_backend.db.models.workspaces import Workspace
 from titan_backend.db.session import get_db
-from titan_backend.services.ab_testing.statistics import calculate_two_proportion_z_test
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/ab-experiments", tags=["A/B Testing"])
 
@@ -31,7 +30,9 @@ class UpdateExperimentStatusRequest(BaseModel):
 
 class ConcludeExperimentRequest(BaseModel):
     winning_variant: str = Field(..., description="'CONTROL', 'TREATMENT', or 'INCONCLUSIVE'")
-    apply_to_workspace_settings: bool = Field(True, description="Whether to update active RAGSettings with winning config")
+    apply_to_workspace_settings: bool = Field(
+        True, description="Whether to update active RAGSettings with winning config"
+    )
 
 
 @router.get("")
@@ -45,7 +46,9 @@ async def list_experiments(
     if not workspace or workspace.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
 
-    stmt = select(ABExperiment).where(ABExperiment.workspace_id == workspace_id).order_by(ABExperiment.created_at.desc())
+    stmt = (
+        select(ABExperiment).where(ABExperiment.workspace_id == workspace_id).order_by(ABExperiment.created_at.desc())
+    )
     experiments = (await session.execute(stmt)).scalars().all()
 
     return {
@@ -88,13 +91,14 @@ async def create_experiment(
     control_config = {}
     if settings:
         control_config = {
-            "model": settings.model,
-            "search_strategy": settings.search_strategy.value if hasattr(settings.search_strategy, "value") else str(settings.search_strategy),
-            "alpha": settings.alpha,
+            "retrieval_mode": settings.retrieval_mode,
+            "dense_weight": settings.dense_weight,
+            "sparse_weight": settings.sparse_weight,
             "top_k": settings.top_k,
-            "top_n": settings.top_n,
-            "confidence_threshold": settings.confidence_threshold,
-            "grounding_mode": settings.grounding_mode.value if hasattr(settings.grounding_mode, "value") else str(settings.grounding_mode),
+            "rerank_top_k": settings.rerank_top_k,
+            "score_threshold": settings.score_threshold,
+            "context_window_strategy": settings.context_window_strategy,
+            "hyde_enabled": settings.hyde_enabled,
         }
 
     experiment = ABExperiment(

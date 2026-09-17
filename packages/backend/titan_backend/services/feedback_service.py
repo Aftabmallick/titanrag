@@ -1,14 +1,10 @@
-from datetime import UTC, datetime, timedelta
-import json
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 import structlog
-
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from titan_backend.api.v1.events import broadcast_event
-from titan_backend.clients.redis_client import get_redis
 from titan_backend.db.models.chat import ChatMessage
 from titan_backend.db.models.feedback import Feedback, FeedbackTriageStatus
 

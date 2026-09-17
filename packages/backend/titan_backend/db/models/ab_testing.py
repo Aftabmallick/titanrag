@@ -45,6 +45,4 @@ class ABExperiment(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin)
     start_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (
-        Index("ix_ab_experiments_workspace_status", "workspace_id", "status"),
-    )
+    __table_args__ = (Index("ix_ab_experiments_workspace_status", "workspace_id", "status"),)

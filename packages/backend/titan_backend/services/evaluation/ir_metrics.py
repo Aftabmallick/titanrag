@@ -1,5 +1,5 @@
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 
 def mean_reciprocal_rank(retrieved_ids: Sequence[str], ground_truth_ids: Sequence[str]) -> float:

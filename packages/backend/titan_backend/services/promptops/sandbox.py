@@ -1,8 +1,7 @@
-import ast
 import re
 from typing import Any
 
-from jinja2 import Environment, StrictUndefined, TemplateSyntaxError
+from jinja2 import StrictUndefined, TemplateSyntaxError
 from jinja2.sandbox import SandboxedEnvironment
 
 # Disallowed built-in function and attribute names in AST
@@ -43,7 +42,7 @@ class SandboxedPromptEngine:
     def validate_template_syntax(self, template_str: str) -> None:
         """Ensures template parses as valid Jinja2 and contains no prohibited constructs."""
         try:
-            parsed = self.env.parse(template_str)
+            self.env.parse(template_str)
         except TemplateSyntaxError as e:
             raise ValueError(f"Jinja2 template syntax error at line {e.lineno}: {e.message}") from e
 

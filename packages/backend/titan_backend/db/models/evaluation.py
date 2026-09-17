@@ -2,7 +2,7 @@ import enum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, Enum, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -46,9 +46,7 @@ class GoldenDataset(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin
         order_by="GoldenDatasetItem.created_at",
     )
 
-    __table_args__ = (
-        Index("ix_golden_datasets_tenant_workspace", "tenant_id", "workspace_id"),
-    )
+    __table_args__ = (Index("ix_golden_datasets_tenant_workspace", "tenant_id", "workspace_id"),)
 
 
 class GoldenDatasetItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -105,9 +103,7 @@ class EvaluationRun(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin
         cascade="all, delete-orphan",
     )
 
-    __table_args__ = (
-        Index("ix_evaluation_runs_workspace_created", "workspace_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_evaluation_runs_workspace_created", "workspace_id", "created_at"),)
 
 
 class EvaluationResultItem(Base, UUIDPrimaryKeyMixin, TimestampMixin):

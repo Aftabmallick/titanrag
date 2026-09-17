@@ -1,16 +1,12 @@
 import asyncio
-from datetime import UTC, datetime
-import json
 import os
 import time
 from typing import Any
 from uuid import UUID
 
-import httpx
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-import structlog
-
 from titan_backend.db.models.evaluation import (
     EvaluationResultItem,
     EvaluationRun,
@@ -22,22 +18,20 @@ from titan_backend.services.evaluation.ir_metrics import (
     hit_rate_at_k,
     mean_reciprocal_rank,
     ndcg_at_k,
-    precision_at_k,
-    recall_at_k,
 )
 from titan_backend.services.evaluation.metrics import (
     calculate_answer_relevancy_heuristic,
     calculate_context_precision,
     calculate_context_recall,
-    calculate_faithfulness,
 )
+
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
 
 logger = structlog.get_logger(__name__)
 
 
-def _get_async_session():
+def _get_async_session() -> AsyncSession:
     db_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://titan:titan@localhost:5432/titanrag")
     if "postgresql://" in db_url and "+asyncpg" not in db_url:
         db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
@@ -46,7 +40,7 @@ def _get_async_session():
 
 
 @celery_app.task(base=TracedTask, bind=True, name="titan_workers.tasks.evaluation.run_suite")
-def run_evaluation_suite(self, run_id_str: str, dataset_id_str: str) -> dict[str, Any]:
+def run_evaluation_suite(self: Any, run_id_str: str, dataset_id_str: str) -> dict[str, Any]:
     """Execute asynchronous evaluation over a golden dataset and compute benchmark scores."""
     return asyncio.run(_run_evaluation_async(run_id_str, dataset_id_str))
 

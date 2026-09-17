@@ -24,7 +24,13 @@ def upgrade() -> None:
         "golden_datasets",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
@@ -38,7 +44,13 @@ def upgrade() -> None:
     op.create_table(
         "golden_dataset_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("dataset_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("golden_datasets.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "dataset_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("golden_datasets.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("query", sa.Text(), nullable=False),
         sa.Column("expected_answer", sa.Text(), nullable=False),
         sa.Column("expected_chunk_ids", postgresql.JSONB(), nullable=False, server_default="[]"),
@@ -58,8 +70,20 @@ def upgrade() -> None:
         "evaluation_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("dataset_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("golden_datasets.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "dataset_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("golden_datasets.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("rag_config_snapshot", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("status", evaluation_status_enum, nullable=False, server_default="PENDING", index=True),
         sa.Column("triggered_by", evaluation_trigger_enum, nullable=False, server_default="MANUAL"),
@@ -76,8 +100,20 @@ def upgrade() -> None:
     op.create_table(
         "evaluation_result_items",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("run_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("evaluation_runs.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("dataset_item_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("golden_dataset_items.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "run_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("evaluation_runs.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "dataset_item_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("golden_dataset_items.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("query", sa.Text(), nullable=False),
         sa.Column("generated_answer", sa.Text(), nullable=False),
         sa.Column("retrieved_chunk_ids", postgresql.JSONB(), nullable=False, server_default="[]"),
@@ -97,7 +133,13 @@ def upgrade() -> None:
         "prompt_templates",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -110,12 +152,20 @@ def upgrade() -> None:
     op.create_table(
         "prompt_versions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("template_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("prompt_templates.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "template_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("prompt_templates.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("version_number", sa.Integer(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("input_schema", postgresql.JSONB(), nullable=False, server_default="{}"),
         sa.Column("environment", prompt_env_enum, nullable=False, server_default="DEV", index=True),
-        sa.Column("author_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column(
+            "author_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+        ),
         sa.Column("commit_message", sa.Text(), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("token_count_estimate", sa.Integer(), nullable=False, server_default="0"),
@@ -123,7 +173,9 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.UniqueConstraint("template_id", "version_number", name="uq_prompt_version_template_num"),
     )
-    op.create_index("ix_prompt_versions_template_env_active", "prompt_versions", ["template_id", "environment", "is_active"])
+    op.create_index(
+        "ix_prompt_versions_template_env_active", "prompt_versions", ["template_id", "environment", "is_active"]
+    )
 
     # 4. A/B Testing
     ab_status_enum = sa.Enum("DRAFT", "RUNNING", "PAUSED", "CONCLUDED", "ROLLED_BACK", name="abexperimentstatus")
@@ -132,7 +184,13 @@ def upgrade() -> None:
         "ab_experiments",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("status", ab_status_enum, nullable=False, server_default="DRAFT", index=True),
@@ -153,14 +211,35 @@ def upgrade() -> None:
     op.create_index("ix_ab_experiments_workspace_status", "ab_experiments", ["workspace_id", "status"])
 
     # 5. FinOps Ledger
-    finops_op_enum = sa.Enum("CHAT_FAST", "CHAT_DEEP", "INGESTION_DOCLING", "INGESTION_EMBEDDING", "COLPALI_VISION", "RERANK", "EVALUATION", name="finopsoperation")
+    finops_op_enum = sa.Enum(
+        "CHAT_FAST",
+        "CHAT_DEEP",
+        "INGESTION_DOCLING",
+        "INGESTION_EMBEDDING",
+        "COLPALI_VISION",
+        "RERANK",
+        "EVALUATION",
+        name="finopsoperation",
+    )
 
     op.create_table(
         "finops_ledger",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
         sa.Column("request_id", sa.String(128), nullable=True, index=True),
         sa.Column("operation_type", finops_op_enum, nullable=False, index=True),
         sa.Column("prompt_tokens", sa.Integer(), nullable=False, server_default="0"),
@@ -174,7 +253,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index("ix_finops_ledger_tenant_workspace_created", "finops_ledger", ["tenant_id", "workspace_id", "created_at"])
+    op.create_index(
+        "ix_finops_ledger_tenant_workspace_created", "finops_ledger", ["tenant_id", "workspace_id", "created_at"]
+    )
     op.create_index("ix_finops_ledger_operation_created", "finops_ledger", ["operation_type", "created_at"])
 
     # 6. Feedback table enhancements
@@ -183,7 +264,15 @@ def upgrade() -> None:
 
     op.add_column("feedback", sa.Column("citation_issues", postgresql.JSONB(), nullable=False, server_default="[]"))
     op.add_column("feedback", sa.Column("triage_status", feedback_triage_enum, nullable=False, server_default="NEW"))
-    op.add_column("feedback", sa.Column("promoted_dataset_item_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("golden_dataset_items.id", ondelete="SET NULL"), nullable=True))
+    op.add_column(
+        "feedback",
+        sa.Column(
+            "promoted_dataset_item_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("golden_dataset_items.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+    )
     op.create_index("ix_feedback_workspace_triage", "feedback", ["workspace_id", "triage_status"])
 
 

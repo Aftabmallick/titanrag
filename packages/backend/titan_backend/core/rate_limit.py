@@ -76,7 +76,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         api_key_header = request.headers.get("X-API-Key", "")
 
         import hashlib
-
         import os
 
         identifier = f"ip:{client_ip}"

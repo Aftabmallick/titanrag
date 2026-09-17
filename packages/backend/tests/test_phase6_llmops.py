@@ -1,6 +1,6 @@
-import pytest
 from uuid import uuid4
 
+import pytest
 from titan_backend.services.ab_testing.router import ABExperimentRouter
 from titan_backend.services.ab_testing.statistics import calculate_two_proportion_z_test
 from titan_backend.services.evaluation.ir_metrics import (
@@ -18,7 +18,7 @@ from titan_backend.services.evaluation.metrics import (
 )
 from titan_backend.services.finops.calculator import calculate_compute_units, calculate_dollar_cost
 from titan_backend.services.finops.gatekeeper import QuotaExceededException
-from titan_backend.services.promptops.diff import compute_prompt_diff, count_tokens
+from titan_backend.services.promptops.diff import compute_prompt_diff
 from titan_backend.services.promptops.sandbox import SecurityViolation, sandbox
 
 
@@ -79,8 +79,10 @@ def test_ab_testing_deterministic_bucketing():
 
     b1_first = ABExperimentRouter.get_variant_bucket(exp_id, u1)
     b1_second = ABExperimentRouter.get_variant_bucket(exp_id, u1)
+    b2 = ABExperimentRouter.get_variant_bucket(exp_id, u2)
     assert b1_first == b1_second
     assert 0 <= b1_first < 100
+    assert 0 <= b2 < 100
 
 
 def test_ab_testing_statistics_z_test():
@@ -230,8 +232,9 @@ async def test_golden_datasets_api_endpoints(async_client, mock_db_session):
 
 @pytest.mark.asyncio
 async def test_failure_clustering_semantic_similarity(mock_db_session):
-    from titan_backend.services.analytics.failure_clustering import FailureClusteringService
     from unittest.mock import MagicMock
+
+    from titan_backend.services.analytics.failure_clustering import FailureClusteringService
 
     class MockRow:
         def __init__(self, comment, content, issues=None):
@@ -262,6 +265,7 @@ async def test_failure_clustering_semantic_similarity(mock_db_session):
 @pytest.mark.asyncio
 async def test_chat_finops_quota_enforcement(async_client, mock_db_session):
     from unittest.mock import patch
+
     from titan_backend.api.v1.auth import CurrentUser, get_current_user
     from titan_backend.db.models.workspaces import Workspace
     from titan_backend.main import app
@@ -293,4 +297,3 @@ async def test_chat_finops_quota_enforcement(async_client, mock_db_session):
         assert data["error"]["code"] == "QUOTA_EXCEEDED" or "QUOTA_EXCEEDED" in str(data)
 
     app.dependency_overrides.pop(get_current_user, None)
-

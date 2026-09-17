@@ -2,10 +2,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
-
 from titan_backend.db.models.finops import FinOpsLedger, FinOpsOperation
 from titan_backend.services.finops.calculator import calculate_compute_units, calculate_dollar_cost
 
@@ -116,12 +115,14 @@ class FinOpsLedgerService:
 
         for row in op_rows:
             op_name = row.operation_type.value if hasattr(row.operation_type, "value") else str(row.operation_type)
-            operations_breakdown.append({
-                "operation": op_name,
-                "compute_units": float(row.cu),
-                "cost_usd": float(row.cost),
-                "count": row.count,
-            })
+            operations_breakdown.append(
+                {
+                    "operation": op_name,
+                    "compute_units": float(row.cu),
+                    "cost_usd": float(row.cost),
+                    "count": row.count,
+                }
+            )
             if row.operation_type in ingestion_ops:
                 ingestion_cu += float(row.cu)
             elif row.operation_type in retrieval_ops:

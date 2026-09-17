@@ -1,10 +1,9 @@
 from typing import Any
 from uuid import UUID
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
-
 from titan_backend.db.models.chat import ChatMessage
 from titan_backend.db.models.evaluation import GoldenDataset, GoldenDatasetItem
 from titan_backend.db.models.feedback import Feedback, FeedbackTriageStatus
@@ -33,7 +32,7 @@ class FlywheelTriageService:
         if not dataset_id:
             ds_stmt = (
                 select(GoldenDataset)
-                .where(GoldenDataset.workspace_id == workspace_id, GoldenDataset.is_active == True)
+                .where(GoldenDataset.workspace_id == workspace_id, GoldenDataset.is_active)
                 .order_by(GoldenDataset.created_at.desc())
                 .limit(1)
             )
@@ -45,7 +44,6 @@ class FlywheelTriageService:
                     workspace_id=workspace_id,
                     name="Continuous Flywheel Golden Dataset",
                     description="Automatically curated test cases from user feedback and reported citation errors",
-                    tags=["flywheel", "auto-generated"],
                     is_active=True,
                 )
                 session.add(dataset)
@@ -56,10 +54,11 @@ class FlywheelTriageService:
                 raise ValueError(f"Target GoldenDataset {dataset_id} not found")
 
         # Extract cited chunk IDs from assistant message
-        citations = msg.citations or []
-        chunk_ids = []
-        doc_ids = []
-        for c in citations:
+        citations_raw = msg.citations
+        citations_list: list[Any] = citations_raw if isinstance(citations_raw, list) else []
+        chunk_ids: list[str] = []
+        doc_ids: list[str] = []
+        for c in citations_list:
             if isinstance(c, dict):
                 if c.get("chunk_id"):
                     chunk_ids.append(str(c["chunk_id"]))

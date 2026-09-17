@@ -1,11 +1,13 @@
-import math
-from typing import Sequence
+from collections.abc import Sequence
+
 import structlog
 
 logger = structlog.get_logger(__name__)
 
 
-def calculate_context_precision(retrieved_chunk_ids: Sequence[str], ground_truth_chunk_ids: Sequence[str], k: int = 5) -> float:
+def calculate_context_precision(
+    retrieved_chunk_ids: Sequence[str], ground_truth_chunk_ids: Sequence[str], k: int = 5
+) -> float:
     """Context Precision evaluates whether ground-truth relevant chunks appear at the highest ranks.
 
     Formula: sum(precision@k * v_k) / total_relevant_in_top_k

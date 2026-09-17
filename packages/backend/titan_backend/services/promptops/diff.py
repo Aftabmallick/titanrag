@@ -3,10 +3,10 @@ from typing import Any
 
 import tiktoken
 
-_tokenizer = None
+_tokenizer: Any = None
 
 
-def get_tokenizer():
+def get_tokenizer() -> Any:
     global _tokenizer
     if _tokenizer is None:
         try:

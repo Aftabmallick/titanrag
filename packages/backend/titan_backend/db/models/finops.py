@@ -36,9 +36,7 @@ class FinOpsLedger(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin)
         index=True,
     )
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    operation_type: Mapped[FinOpsOperation] = mapped_column(
-        Enum(FinOpsOperation), nullable=False, index=True
-    )
+    operation_type: Mapped[FinOpsOperation] = mapped_column(Enum(FinOpsOperation), nullable=False, index=True)
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     gpu_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)

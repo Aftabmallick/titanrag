@@ -4,9 +4,9 @@ from typing import Any
 
 def calculate_two_proportion_z_test(
     count_a: int,  # Successes in Control
-    n_a: int,      # Total in Control
+    n_a: int,  # Total in Control
     count_b: int,  # Successes in Treatment
-    n_b: int,      # Total in Treatment
+    n_b: int,  # Total in Treatment
 ) -> dict[str, Any]:
     """Performs a two-proportion Z-test for satisfaction rate difference.
 

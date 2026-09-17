@@ -49,7 +49,7 @@ async def submit_message_feedback(
         )
         return feedback
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.get("/feedback")
@@ -106,7 +106,7 @@ async def update_feedback_triage(
             status=req.triage_status,
         )
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e
 
 
 @router.post("/feedback/{feedback_id}/promote-to-golden", status_code=status.HTTP_201_CREATED)
@@ -138,5 +138,4 @@ async def promote_feedback_to_golden_dataset(
             "query": item.query,
         }
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

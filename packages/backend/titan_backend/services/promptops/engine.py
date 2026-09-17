@@ -1,10 +1,9 @@
 from typing import Any
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
-
 from titan_backend.clients.redis_client import get_redis
 from titan_backend.db.models.promptops import PromptEnvironment, PromptTemplate, PromptVersion
 from titan_backend.services.promptops.diff import count_tokens
@@ -50,7 +49,7 @@ class PromptOpsEngine:
                 PromptTemplate.workspace_id == workspace_id,
                 PromptTemplate.slug == slug,
                 PromptVersion.environment == environment,
-                PromptVersion.is_active == True,
+                PromptVersion.is_active,
             )
             .order_by(PromptVersion.version_number.desc())
             .limit(1)
@@ -98,7 +97,8 @@ class PromptOpsEngine:
         max_ver_stmt = select(func.coalesce(func.max(PromptVersion.version_number), 0)).where(
             PromptVersion.template_id == template.id
         )
-        next_ver = (await session.execute(max_ver_stmt)).scalar() + 1
+        max_val = (await session.execute(max_ver_stmt)).scalar()
+        next_ver = (int(max_val) if max_val is not None else 0) + 1
 
         token_est = count_tokens(content)
 
@@ -136,7 +136,7 @@ class PromptOpsEngine:
             .where(
                 PromptVersion.template_id == template_id,
                 PromptVersion.environment == target_environment,
-                PromptVersion.is_active == True,
+                PromptVersion.is_active,
             )
             .values(is_active=False)
         )

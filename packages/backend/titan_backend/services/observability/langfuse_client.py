@@ -1,6 +1,7 @@
-from contextlib import asynccontextmanager
 import os
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -48,7 +49,7 @@ class LLMOpsTrace:
         self.total_cost_usd = 0.0
 
     @asynccontextmanager
-    async def span(self, name: str, metadata: dict[str, Any] | None = None):
+    async def span(self, name: str, metadata: dict[str, Any] | None = None) -> AsyncIterator[LLMOpsSpan]:
         s = LLMOpsSpan(name=name, parent_trace_id=self.trace_id, metadata=metadata)
         s.start_time = time.time()
         self.spans.append(s)
@@ -65,7 +66,7 @@ class LLMOpsTrace:
         name: str,
         model: str,
         metadata: dict[str, Any] | None = None,
-    ):
+    ) -> AsyncIterator[LLMOpsSpan]:
         s = LLMOpsSpan(name=name, parent_trace_id=self.trace_id, metadata=metadata)
         s.metadata["model"] = model
         s.start_time = time.time()
@@ -91,7 +92,7 @@ class LLMOpsTracer:
         user_id: UUID | None = None,
         session_id: UUID | None = None,
         tags: list[str] | None = None,
-    ):
+    ) -> AsyncIterator[LLMOpsTrace]:
         trace = LLMOpsTrace(
             workspace_id=workspace_id,
             user_id=user_id,

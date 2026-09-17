@@ -2,10 +2,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+import structlog
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
-
 from titan_backend.db.models.chat import ChatMessage, ChatSession, MessageRole
 from titan_backend.db.models.feedback import Feedback
 from titan_backend.db.models.finops import FinOpsLedger
@@ -66,7 +65,9 @@ class AnalyticsEngine:
             "total_dollar_cost": float(finops_res.total_cost),
             "total_prompt_tokens": finops_res.prompt_tok,
             "total_completion_tokens": finops_res.compl_tok,
-            "avg_cost_per_query_usd": round(float(finops_res.total_cost) / total_queries, 4) if total_queries > 0 else 0.0,
+            "avg_cost_per_query_usd": round(float(finops_res.total_cost) / total_queries, 4)
+            if total_queries > 0
+            else 0.0,
         }
 
     @staticmethod

@@ -2,10 +2,9 @@ import hashlib
 from typing import Any
 from uuid import UUID
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-import structlog
-
 from titan_backend.db.models.ab_testing import ABExperiment, ABExperimentStatus
 
 logger = structlog.get_logger(__name__)
@@ -15,7 +14,7 @@ class ABExperimentRouter:
     @staticmethod
     def get_variant_bucket(experiment_id: UUID, user_id: UUID) -> int:
         """Determines deterministically if user falls into TREATMENT or CONTROL."""
-        hasher = hashlib.sha256(f"{experiment_id}:{user_id}".encode("utf-8"))
+        hasher = hashlib.sha256(f"{experiment_id}:{user_id}".encode())
         hash_val = int(hasher.hexdigest(), 16) % 100
         return hash_val
 

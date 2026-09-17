@@ -47,25 +47,27 @@ async def list_workspace_prompts(
     for t in templates:
         active_versions_stmt = select(PromptVersion).where(
             PromptVersion.template_id == t.id,
-            PromptVersion.is_active == True,
+            PromptVersion.is_active,
         )
         active_versions = (await session.execute(active_versions_stmt)).scalars().all()
 
-        result.append({
-            "id": str(t.id),
-            "slug": t.slug,
-            "name": t.name,
-            "description": t.description,
-            "active_versions": [
-                {
-                    "version_number": v.version_number,
-                    "environment": v.environment.value,
-                    "token_count": v.token_count_estimate,
-                    "created_at": v.created_at.isoformat(),
-                }
-                for v in active_versions
-            ],
-        })
+        result.append(
+            {
+                "id": str(t.id),
+                "slug": t.slug,
+                "name": t.name,
+                "description": t.description,
+                "active_versions": [
+                    {
+                        "version_number": v.version_number,
+                        "environment": v.environment.value,
+                        "token_count": v.token_count_estimate,
+                        "created_at": v.created_at.isoformat(),
+                    }
+                    for v in active_versions
+                ],
+            }
+        )
 
     return {"templates": result}
 
@@ -90,7 +92,9 @@ async def list_prompt_versions(
     if not tmpl:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Prompt '{slug}' not found")
 
-    ver_stmt = select(PromptVersion).where(PromptVersion.template_id == tmpl.id).order_by(PromptVersion.version_number.desc())
+    ver_stmt = (
+        select(PromptVersion).where(PromptVersion.template_id == tmpl.id).order_by(PromptVersion.version_number.desc())
+    )
     versions = (await session.execute(ver_stmt)).scalars().all()
 
     return {
@@ -145,7 +149,7 @@ async def create_prompt_version(
             "message": "Prompt version created successfully",
         }
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/{slug}/promote")
@@ -184,7 +188,7 @@ async def promote_prompt_version(
             "message": f"Successfully promoted version {promoted.version_number} to {promoted.environment.value}",
         }
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/{slug}/rollback")
@@ -221,7 +225,7 @@ async def rollback_prompt(
             "message": f"Rolled back to version {active.version_number}",
         }
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.get("/{slug}/diff")
