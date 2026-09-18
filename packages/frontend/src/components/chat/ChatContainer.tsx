@@ -40,9 +40,30 @@ export function ChatContainer({
   const [groundingMode, setGroundingMode] = useState<"strict" | "balanced" | "creative">("balanced");
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const handleSend = (textToSend?: string) => {
-    const q = textToSend || query;
-    if (!q.trim()) return;
+  const handleSend = async (textToSend?: string, attachedImageBase64?: string) => {
+    let q = textToSend || query;
+    if (!q.trim() && !attachedImageBase64) return;
+
+    if (attachedImageBase64) {
+      try {
+        const res = await fetch("/api/v1/chat/multimodal/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_prompt: q || "Explain this diagram or document screenshot",
+            image_base64: attachedImageBase64,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.data?.search_expansion_query) {
+            q = `${q ? q + " " : ""}[Visual Context: ${data.data.visual_summary}]`;
+          }
+        }
+      } catch (err) {
+        console.warn("Multimodal query expansion fallback:", err);
+      }
+    }
 
     sendQuery(q, {
       sessionId,
@@ -204,7 +225,7 @@ export function ChatContainer({
           <ChatInput
             query={query}
             setQuery={setQuery}
-            onSend={() => handleSend()}
+            onSend={(img) => handleSend(undefined, img)}
             onStop={abort}
             status={status}
           />

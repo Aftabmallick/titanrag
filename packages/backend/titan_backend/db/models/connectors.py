@@ -49,6 +49,10 @@ class Connector(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin):
     auth_credentials: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     sync_schedule: Mapped[str | None] = mapped_column(String(100), nullable=True)  # cron expression
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    cdc_cursor: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    last_sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_acl_mapping: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    sync_stats: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
 
     sync_logs: Mapped[list["ConnectorSyncLog"]] = relationship(
         "ConnectorSyncLog", back_populates="connector", cascade="all, delete-orphan"

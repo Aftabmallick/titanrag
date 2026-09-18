@@ -10,6 +10,7 @@ volumes:
   qdrant-data:
   minio-data:
   grafana-data:
+  neo4j-data:
 
 services:
   # ---------------------------------------------------------------------------
@@ -148,6 +149,29 @@ services:
     networks:
       - titan-net
 
+  neo4j:
+    image: neo4j:5.23-community
+    container_name: titan-neo4j
+    restart: unless-stopped
+    profiles: ["graph", "default", "full"]
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/titan_dev_password}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - titan-net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   # ---------------------------------------------------------------------------
   # Application Core Services
   # ---------------------------------------------------------------------------
@@ -165,6 +189,7 @@ services:
       REDIS_HOST: redis
       QDRANT_HOST: qdrant
       MINIO_ENDPOINT: minio:9000
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -259,6 +284,29 @@ services:
       REDIS_HOST: redis
       QDRANT_HOST: qdrant
     command: ["celery", "-A", "titan_workers.celery_app.celery_app", "worker", "-l", "info", "-Q", "heavy_ml,reranking", "--concurrency=1"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - titan-net
+
+  celery-media:
+    build:
+      context: ../workers
+      dockerfile: Dockerfile.core
+    container_name: titan-celery-media
+    restart: unless-stopped
+    profiles: ["media", "full"]
+    env_file:
+      - ../../.env.defaults
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      QDRANT_HOST: qdrant
+      MINIO_ENDPOINT: minio:9000
+    command: ["celery", "-A", "titan_workers.celery_app.celery_app", "worker", "-l", "info", "-Q", "media_transcription", "--concurrency=2"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -391,3 +439,18 @@ services:
       COLLECTOR_OTLP_ENABLED: "true"
     networks:
       - titan-net
+
+  # ---------------------------------------------------------------------------
+  # Self-Hosted Embedding Acceleration (TEI)
+  # ---------------------------------------------------------------------------
+  text-embeddings-inference:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    container_name: titan-tei
+    restart: unless-stopped
+    profiles: ["embeddings", "full"]
+    ports:
+      - "8081:80"
+    command: ["--model-id", "BAAI/bge-large-en-v1.5", "--port", "80"]
+    networks:
+      - titan-net
+
