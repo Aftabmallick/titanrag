@@ -3,15 +3,17 @@
 import React, { useState, useEffect } from "react";
 import { Play, Copy, Check, Terminal, Zap, Shield, RefreshCw, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { ENDPOINT_CATALOG, EndpointSpec } from "@/components/playground/endpointCatalog";
+import { ENDPOINT_CATALOG, EndpointSpec, fetchDynamicEndpointsFromOpenApi } from "@/components/playground/endpointCatalog";
 import { CodeSnippetGenerator } from "@/components/playground/CodeSnippetGenerator";
 
 export default function PlaygroundPage() {
   const { activeWorkspace, workspaces } = useAuth();
 
+  const [catalog, setCatalog] = useState<EndpointSpec[]>(ENDPOINT_CATALOG);
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointSpec>(ENDPOINT_CATALOG[0]);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("http://localhost:8000");
+  const [refreshingCatalog, setRefreshingCatalog] = useState(false);
   const [bodyText, setBodyText] = useState("");
   const [pathParamValues, setPathParamValues] = useState<Record<string, string>>({});
 
@@ -44,6 +46,22 @@ export default function PlaygroundPage() {
       setBodyText("");
     }
   }, [selectedEndpoint, activeWorkspace]);
+
+  const loadOpenApiCatalog = async () => {
+    setRefreshingCatalog(true);
+    try {
+      const dynamicEndpoints = await fetchDynamicEndpointsFromOpenApi(baseUrl);
+      setCatalog(dynamicEndpoints);
+    } catch {
+      setCatalog(ENDPOINT_CATALOG);
+    } finally {
+      setRefreshingCatalog(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOpenApiCatalog();
+  }, [baseUrl]);
 
   // Resolve dynamic path e.g. /workspaces/{workspace_id}/chat -> /workspaces/123/chat
   let resolvedPath = selectedEndpoint.path;
@@ -168,12 +186,23 @@ export default function PlaygroundPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Sidebar: Endpoint Directory */}
         <div className="lg:col-span-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-4">
-          <div className="text-xs font-bold text-slate-400 uppercase tracking-wider px-2">
-            API Endpoints Catalog
+          <div className="flex items-center justify-between px-2">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              API Endpoints ({catalog.length})
+            </span>
+            <button
+              onClick={loadOpenApiCatalog}
+              disabled={refreshingCatalog}
+              className="text-[11px] text-slate-400 hover:text-sky-400 flex items-center gap-1 transition-colors"
+              title="Refresh endpoints from OpenAPI schema"
+            >
+              <RefreshCw className={`w-3 h-3 ${refreshingCatalog ? "animate-spin text-sky-400" : ""}`} />
+              <span>Sync</span>
+            </button>
           </div>
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1">
-            {ENDPOINT_CATALOG.map((ep) => {
+            {catalog.map((ep) => {
               const isSelected = selectedEndpoint.id === ep.id;
               return (
                 <button

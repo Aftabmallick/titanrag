@@ -1,8 +1,10 @@
+from __future__ import annotations
+
 import os
 import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any
+from typing import Any, List, cast
 from uuid import UUID
 
 import httpx
@@ -35,7 +37,7 @@ class TitanClient:
         timeout: float = 30.0,
         max_retries: int = 3,
     ):
-        raw_url = base_url or os.getenv("TITANRAG_BASE_URL", "http://localhost:8000")
+        raw_url = base_url or os.getenv("TITANRAG_BASE_URL") or "http://localhost:8000"
         self.base_url = raw_url.rstrip("/")
         if not self.base_url.endswith("/api/v1"):
             self.api_v1_url = f"{self.base_url}/api/v1"
@@ -204,7 +206,7 @@ class _DocumentsResource:
         workspace_id: UUID | str,
         file_path_or_bytes: str | Path | bytes,
         filename: str | None = None,
-        acl_groups: list[str] | None = None,
+        acl_groups: List[str] | None = None,
     ) -> DocumentUploadResponse:
         if isinstance(file_path_or_bytes, (str, Path)):
             path = Path(file_path_or_bytes)
@@ -305,7 +307,7 @@ class _PluginsResource:
         workspace_id: UUID | str,
         name: str,
         endpoint_url: str,
-        hooks: list[str],
+        hooks: List[str],
         timeout_ms: int = 2000,
         is_active: bool = True,
         description: str | None = None,
@@ -319,11 +321,11 @@ class _PluginsResource:
             "description": description,
         }
         resp = self._c.request("POST", f"/workspaces/{workspace_id}/plugins", json=payload)
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     def ping(self, workspace_id: UUID | str, plugin_id: UUID | str) -> dict[str, Any]:
         resp = self._c.request("POST", f"/workspaces/{workspace_id}/plugins/{plugin_id}/ping")
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     def delete(self, workspace_id: UUID | str, plugin_id: UUID | str) -> None:
         self._c.request("DELETE", f"/workspaces/{workspace_id}/plugins/{plugin_id}")

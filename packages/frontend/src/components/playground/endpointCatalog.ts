@@ -8,7 +8,7 @@ export interface EndpointParam {
 
 export interface EndpointSpec {
   id: string;
-  category: "Chat & Search" | "Documents" | "Workspaces" | "Settings" | "Plugins" | "FinOps";
+  category: "Chat & Search" | "Documents" | "Workspaces" | "Settings" | "Plugins" | "FinOps" | "Other";
   name: string;
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   path: string;
@@ -139,3 +139,58 @@ export const ENDPOINT_CATALOG: EndpointSpec[] = [
     ]
   }
 ];
+
+export async function fetchDynamicEndpointsFromOpenApi(baseUrl: string): Promise<EndpointSpec[]> {
+  try {
+    const url = `${baseUrl.replace(/\/+$/, "")}/openapi.json`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return ENDPOINT_CATALOG;
+
+    const openapi = await res.json();
+    const paths = openapi.paths || {};
+    const dynamicCatalog: EndpointSpec[] = [];
+
+    for (const [pathKey, methods] of Object.entries<any>(paths)) {
+      for (const [methodKey, op] of Object.entries<any>(methods)) {
+        const method = methodKey.toUpperCase() as "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+        if (!["GET", "POST", "PUT", "DELETE", "PATCH"].includes(method)) continue;
+
+        let category: EndpointSpec["category"] = "Other";
+        if (pathKey.includes("/chat")) category = "Chat & Search";
+        else if (pathKey.includes("/documents")) category = "Documents";
+        else if (pathKey.includes("/workspaces")) category = "Workspaces";
+        else if (pathKey.includes("/settings")) category = "Settings";
+        else if (pathKey.includes("/plugins")) category = "Plugins";
+        else if (pathKey.includes("/finops")) category = "FinOps";
+
+        const pathParams: EndpointParam[] = [];
+        const matches = pathKey.match(/\{([^}]+)\}/g);
+        if (matches) {
+          for (const m of matches) {
+            const name = m.replace(/[{}]/g, "");
+            pathParams.push({
+              name,
+              type: "string",
+              required: true,
+              description: `Path parameter ${name}`,
+            });
+          }
+        }
+
+        dynamicCatalog.push({
+          id: `${method.toLowerCase()}-${pathKey.replace(/[^a-zA-Z0-9]/g, "-")}`,
+          category,
+          name: op.summary || op.operationId || `${method} ${pathKey}`,
+          method,
+          path: pathKey,
+          description: op.description || op.summary || `Execute ${method} on ${pathKey}`,
+          pathParams: pathParams.length > 0 ? pathParams : undefined,
+        });
+      }
+    }
+
+    return dynamicCatalog.length > 0 ? dynamicCatalog : ENDPOINT_CATALOG;
+  } catch {
+    return ENDPOINT_CATALOG;
+  }
+}

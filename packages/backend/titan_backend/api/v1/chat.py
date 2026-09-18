@@ -433,6 +433,30 @@ async def chat_endpoint(
 
         # Post-stream persistence and FinOps accounting
         try:
+            # External Webhook ON_POST_GENERATE Plugin Hook (egress compliance / redaction)
+            try:
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+                from titan_backend.db.models.plugin import HookType
+                plugin_disp = PluginDispatcher(db=db)
+                post_plugins = await plugin_disp.get_active_plugins_for_hook(workspace_id, HookType.ON_POST_GENERATE)
+                for p_hook in post_plugins:
+                    hook_res = await plugin_disp.dispatch_single(
+                        plugin=p_hook,
+                        hook_type=HookType.ON_POST_GENERATE,
+                        payload={
+                            "workspace_id": str(workspace_id),
+                            "session_id": str(session.id) if session else None,
+                            "query": sanitized.clean_text,
+                            "generated_answer": full_text,
+                        },
+                        request_id=trace.trace_id,
+                    )
+                    if hook_res.success and hook_res.data and "sanitized_answer" in hook_res.data:
+                        full_text = hook_res.data["sanitized_answer"]
+                        logger.info("plugin_on_post_generate_sanitized", plugin_id=str(p_hook.id))
+            except Exception as hook_err:
+                logger.warning("plugin_on_post_generate_failed", error=str(hook_err))
+
             if session:
                 await session_service.add_message(
                     db=db,

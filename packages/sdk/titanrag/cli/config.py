@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from titanrag.sync_client import TitanClient
 
@@ -18,7 +20,7 @@ def load_config() -> dict[str, Any]:
         return {}
     try:
         with open(CONFIG_FILE) as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     except Exception:
         return {}
 

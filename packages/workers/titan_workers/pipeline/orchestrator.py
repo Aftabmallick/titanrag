@@ -94,6 +94,29 @@ class IngestionPipelineOrchestrator:
             parser = get_parser_for_file(filename, mime_type)
             parsed_doc = await parser.parse(file_bytes, filename, mime_type)
 
+            # Stage 1b: External Webhook ON_PARSE Plugin Hook
+            try:
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+                from titan_backend.db.models.plugin import HookType
+                dispatcher = PluginDispatcher(db=db)
+                active_parse_plugins = await dispatcher.get_active_plugins_for_hook(workspace_id, HookType.ON_PARSE)
+                for plugin in active_parse_plugins:
+                    combined_text = "\n\n".join(e.text for e in parsed_doc.elements)
+                    hook_payload = {
+                        "document_id": doc_str,
+                        "filename": filename,
+                        "mime_type": mime_type,
+                        "raw_text": combined_text[:50000],
+                    }
+                    res = await dispatcher.dispatch_single(plugin, HookType.ON_PARSE, hook_payload, request_id=doc_str)
+                    if res.success and res.data and "enriched_text" in res.data:
+                        if parsed_doc.elements:
+                            parsed_doc.elements[0].text = res.data["enriched_text"]
+                            parsed_doc.elements = [parsed_doc.elements[0]]
+                        logger.info("plugin_on_parse_enriched", plugin_id=str(plugin.id), doc_id=doc_str)
+            except Exception as e:
+                logger.warning("plugin_on_parse_skipped", error=str(e), doc_id=doc_str)
+
             # -------------------------------------------------------------
             # Stage 2: PII Redaction
             # -------------------------------------------------------------
@@ -113,6 +136,23 @@ class IngestionPipelineOrchestrator:
 
             parent_chunks, child_chunks = self.chunker.chunk_document(parsed_doc, filename)
             all_chunks = parent_chunks + child_chunks
+
+            # Stage 3b: External Webhook ON_CHUNK Plugin Hook
+            try:
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+                from titan_backend.db.models.plugin import HookType
+                dispatcher = PluginDispatcher(db=db)
+                active_chunk_plugins = await dispatcher.get_active_plugins_for_hook(workspace_id, HookType.ON_CHUNK)
+                for plugin in active_chunk_plugins:
+                    chunk_payload = {
+                        "document_id": doc_str,
+                        "filename": filename,
+                        "total_chunks": len(all_chunks),
+                        "sample_chunks": [c.text[:200] for c in all_chunks[:5]],
+                    }
+                    await dispatcher.dispatch_single(plugin, HookType.ON_CHUNK, chunk_payload, request_id=doc_str)
+            except Exception as e:
+                logger.warning("plugin_on_chunk_skipped", error=str(e), doc_id=doc_str)
 
             # -------------------------------------------------------------
             # Stage 4: Contextual Chunk Prepending

@@ -273,7 +273,12 @@ export class TitanChatElement extends HTMLElement {
 }
 
 function escapeHtml(text: string): string {
-  return text.replace(/[&<>"']/g, "");
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // Auto-register Custom Element

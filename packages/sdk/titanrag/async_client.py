@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any
+from typing import Any, List, cast
 from uuid import UUID
 
 import httpx
@@ -33,7 +35,7 @@ class AsyncTitanClient:
         token: str | None = None,
         timeout: float = 30.0,
     ):
-        raw_url = base_url or os.getenv("TITANRAG_BASE_URL", "http://localhost:8000")
+        raw_url = base_url or os.getenv("TITANRAG_BASE_URL") or "http://localhost:8000"
         self.base_url = raw_url.rstrip("/")
         if not self.base_url.endswith("/api/v1"):
             self.api_v1_url = f"{self.base_url}/api/v1"
@@ -120,12 +122,12 @@ class AsyncTitanClient:
     async def get_health_live(self) -> dict[str, Any]:
         """Query unversioned liveness probe."""
         resp = await self.request("GET", "/health/live", is_v1=False)
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     async def get_health_ready(self) -> dict[str, Any]:
         """Query unversioned deep readiness probe."""
         resp = await self.request("GET", "/health/ready", is_v1=False)
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     async def get_metrics(self) -> str:
         """Fetch Prometheus metrics."""
@@ -192,7 +194,7 @@ class _AsyncDocumentsResource:
         workspace_id: UUID | str,
         file_path_or_bytes: str | Path | bytes,
         filename: str | None = None,
-        acl_groups: list[str] | None = None,
+        acl_groups: List[str] | None = None,
     ) -> DocumentUploadResponse:
         if isinstance(file_path_or_bytes, (str, Path)):
             path = Path(file_path_or_bytes)
@@ -294,7 +296,7 @@ class _AsyncPluginsResource:
         workspace_id: UUID | str,
         name: str,
         endpoint_url: str,
-        hooks: list[str],
+        hooks: List[str],
         timeout_ms: int = 2000,
         is_active: bool = True,
         description: str | None = None,
@@ -308,11 +310,11 @@ class _AsyncPluginsResource:
             "description": description,
         }
         resp = await self._c.request("POST", f"/workspaces/{workspace_id}/plugins", json=payload)
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     async def ping(self, workspace_id: UUID | str, plugin_id: UUID | str) -> dict[str, Any]:
         resp = await self._c.request("POST", f"/workspaces/{workspace_id}/plugins/{plugin_id}/ping")
-        return resp.json()
+        return cast(dict[str, Any], resp.json())
 
     async def delete(self, workspace_id: UUID | str, plugin_id: UUID | str) -> None:
         await self._c.request("DELETE", f"/workspaces/{workspace_id}/plugins/{plugin_id}")

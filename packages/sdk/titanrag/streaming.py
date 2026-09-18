@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import json
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, AsyncIterable, Generator, Iterable
 from typing import Any
 
 from titanrag.models import (
@@ -23,7 +25,10 @@ def parse_sse_line(line: str) -> dict[str, Any] | None:
     if stripped.startswith("data:"):
         payload_str = stripped[5:].strip()
         try:
-            return json.loads(payload_str)
+            parsed = json.loads(payload_str)
+            if isinstance(parsed, dict):
+                return parsed
+            return {"type": "token", "token": str(parsed)}
         except json.JSONDecodeError:
             return {"type": "token", "token": payload_str}
     return None
@@ -75,7 +80,7 @@ def construct_chat_event(data: dict[str, Any], token_index: int = 0) -> ChatEven
     return None
 
 
-def iter_sse_events(lines: Generator[str, None, None]) -> Generator[ChatEvent, None, None]:
+def iter_sse_events(lines: Iterable[str]) -> Generator[ChatEvent, None, None]:
     """Synchronous generator yielding typed ChatEvents from an SSE text line iterator."""
     token_idx = 0
     for line in lines:
@@ -88,7 +93,7 @@ def iter_sse_events(lines: Generator[str, None, None]) -> Generator[ChatEvent, N
                 yield event
 
 
-async def aiter_sse_events(lines: AsyncGenerator[str, None]) -> AsyncGenerator[ChatEvent, None]:
+async def aiter_sse_events(lines: AsyncIterable[str]) -> AsyncGenerator[ChatEvent, None]:
     """Asynchronous generator yielding typed ChatEvents from an SSE text line stream."""
     token_idx = 0
     async for line in lines:

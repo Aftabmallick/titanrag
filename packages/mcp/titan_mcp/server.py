@@ -150,6 +150,21 @@ def create_mcp_server(client: TitanClient | None = None) -> MCPServer:
         except Exception as e:
             return f"Workspace resource unavailable: {e}"
 
+    @mcp.resource("document://{document_id}")
+    def get_document_resource(document_id: str) -> str:
+        """Resource exposing document content, chunk breakdown, and ingestion status."""
+        try:
+            workspaces = sdk_client.workspaces.list()
+            for w in workspaces:
+                try:
+                    doc = sdk_client.documents.get_status(workspace_id=w.id, document_id=document_id)
+                    return json.dumps(doc.model_dump(mode="json"), indent=2)
+                except Exception:
+                    continue
+            return f"Document {document_id} not found in accessible workspaces"
+        except Exception as e:
+            return f"Document resource unavailable: {e}"
+
     @mcp.resource("config://rag-settings/{workspace_id}")
     def get_settings_resource(workspace_id: str) -> str:
         """Resource exposing active RAG settings for a workspace."""
