@@ -18,7 +18,10 @@ import {
   X,
   Share2,
   FolderTree,
+  Terminal,
+  Webhook,
 } from "lucide-react";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { api, ChatSessionRecord } from "@/lib/api";
@@ -297,6 +300,28 @@ export function Sidebar({
               <ShieldAlert className="w-4 h-4 shrink-0" />
               {!collapsed && <span>{t("nav.admin", "Admin & DLQ")}</span>}
             </button>
+
+            <Link
+              href="/playground"
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors",
+                "text-slate-300 hover:bg-slate-900 hover:text-white"
+              )}
+            >
+              <Terminal className="w-4 h-4 shrink-0 text-sky-400" />
+              {!collapsed && <span>API Playground</span>}
+            </Link>
+
+            <Link
+              href="/admin/plugins"
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-colors",
+                "text-slate-300 hover:bg-slate-900 hover:text-white"
+              )}
+            >
+              <Webhook className="w-4 h-4 shrink-0 text-indigo-400" />
+              {!collapsed && <span>Webhook Plugins</span>}
+            </Link>
           </div>
 
           {/* Chat Sessions History */}

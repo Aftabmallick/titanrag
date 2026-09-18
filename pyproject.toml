@@ -4,13 +4,16 @@ version = "0.1.0"
 description = "TitanRAG Monorepo Workspace"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "mcp>=2.2.0",
+]
 
 [tool.uv.workspace]
 members = [
     "packages/backend",
     "packages/workers",
     "packages/sdk",
+    "packages/mcp",
 ]
 
 [tool.ruff]
@@ -23,8 +26,8 @@ ignore = ["B008", "N805", "E501", "N818", "UP042"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["packages/backend/tests", "packages/workers/tests", "packages/sdk/tests"]
-pythonpath = ["packages/backend", "packages/workers", "packages/sdk"]
+testpaths = ["packages/backend/tests", "packages/workers/tests", "packages/sdk/tests", "packages/mcp/tests"]
+pythonpath = ["packages/backend", "packages/workers", "packages/sdk", "packages/mcp"]
 
 [tool.mypy]
 python_version = "3.12"

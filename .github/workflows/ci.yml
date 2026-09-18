@@ -44,9 +44,10 @@ jobs:
           cache: "npm"
           cache-dependency-path: packages/frontend/package-lock.json
 
-      - name: OpenAPI Contract Validation
+      - name: OpenAPI Contract Validation & Breaking Changes Check
         run: |
           uv run python scripts/verify_openapi_contract.py
+          uv run python scripts/openapi_changelog.py --strict
 
       - name: Frontend Tests & Build Check
         working-directory: packages/frontend

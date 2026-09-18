@@ -1,0 +1,14 @@
+{
+  "name": "@titanrag/widget",
+  "version": "0.1.0",
+  "description": "Zero-dependency, Shadow DOM embeddable chat widget for TitanRAG",
+  "main": "dist/widget.js",
+  "module": "dist/widget.js",
+  "types": "dist/titan-chat.d.ts",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test.js"
+  },
+  "keywords": ["titanrag", "rag", "chat-widget", "web-component", "shadow-dom"],
+  "license": "Apache-2.0"
+}

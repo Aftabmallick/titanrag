@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TitanRAG Embeddable Chat Widget Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 800px;
+      width: 100%;
+      background: #1e293b;
+      padding: 32px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    h1 { margin-top: 0; color: #38bdf8; }
+    p { line-height: 1.6; color: #94a3b8; }
+    pre {
+      background: #0f172a;
+      padding: 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      color: #38bdf8;
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      background: #0369a1;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="badge">Drop-in Integration</span>
+    <h1>TitanRAG Chat Widget Demo</h1>
+    <p>
+      This page demonstrates the <strong>&lt;titan-chat&gt;</strong> custom element.
+      All styling is isolated inside the Shadow DOM so host CSS cannot corrupt it.
+    </p>
+
+    <h3>Embed Code:</h3>
+    <pre><code>&lt;!-- 1. Include the 15KB lightweight bundle --&gt;
+&lt;script src="/widget.js" async&gt;&lt;/script&gt;
+
+&lt;!-- 2. Drop the custom element anywhere on your page --&gt;
+&lt;titan-chat
+  workspace="default"
+  api-key="tr_demo_key"
+  base-url="http://localhost:8000"
+  theme="dark"
+  position="bottom-right"
+  bot-name="Titan AI"
+&gt;&lt;/titan-chat&gt;</code></pre>
+
+    <p>
+      Look at the <strong>bottom-right corner</strong> of your screen to interact with the widget!
+    </p>
+  </div>
+
+  <!-- Embed Widget -->
+  <script src="/widget.js"></script>
+  <titan-chat
+    workspace="00000000-0000-0000-0000-000000000000"
+    api-key="tr_demo_key"
+    base-url="http://localhost:8000"
+    theme="dark"
+    position="bottom-right"
+    bot-name="Titan Assistant"
+  ></titan-chat>
+</body>
+</html>
