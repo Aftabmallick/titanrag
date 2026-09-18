@@ -2,6 +2,7 @@ import re
 import shutil
 import subprocess
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.ocr.multilingual")

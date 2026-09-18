@@ -1,6 +1,4 @@
 import io
-import shutil
-import subprocess
 
 import structlog
 from pypdf import PdfReader
@@ -23,6 +21,7 @@ class PDFParser(DocumentParser):
         Executes multilingual OCR (10+ languages) with script detection and bounding box coordinate estimation.
         """
         from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
+
         ocr_engine = MultilingualOCREngine()
         res = ocr_engine.run_ocr(image_bytes or b"", page_num=page_num)
         ocr_text = res["text"]

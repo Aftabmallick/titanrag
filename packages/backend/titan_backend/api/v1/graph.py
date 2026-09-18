@@ -1,6 +1,7 @@
-from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Any
+
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from titan_backend.core.dependencies import CurrentUser, get_current_user
@@ -26,7 +27,7 @@ async def get_workspace_graph_elements(
     workspace_id: uuid.UUID,
     limit: int = Query(default=150, ge=10, le=500),
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Return Cytoscape.js compatible graph elements (nodes & edges) for interactive visualization."""
     store = get_graph_store()
     elements = await store.get_workspace_graph(
@@ -42,7 +43,7 @@ async def query_knowledge_graph(
     workspace_id: uuid.UUID,
     payload: GraphQueryRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Execute graph-augmented entity expansion Cypher queries for a user prompt."""
     formatted_context, facts = await GraphHybridRetriever.retrieve_graph_context(
         tenant_id=current_user.tenant_id,
@@ -64,7 +65,7 @@ async def extract_graph_from_text(
     workspace_id: uuid.UUID,
     payload: GraphExtractRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Test extractor on sample chunk text."""
     entities, relations = KnowledgeGraphExtractor.extract_from_chunk(payload.text)
     return {

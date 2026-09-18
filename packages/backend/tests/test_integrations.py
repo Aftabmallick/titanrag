@@ -1,12 +1,9 @@
 import hashlib
 import hmac
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
-import pytest
 
+import pytest
 from titan_backend.integrations.agent_actions import AgentActionManager
-from titan_backend.integrations.email_parser import InboundEmailParser
 from titan_backend.integrations.slack import build_slack_rag_response, verify_slack_signature
 from titan_backend.integrations.teams import build_teams_adaptive_card
 from titan_backend.integrations.webhook_dispatcher import WebhookDispatcher
@@ -28,7 +25,7 @@ def test_slack_signature_verification():
     body = b"command=%2Ftitan&text=What+is+our+revenue%3F"
     now_ts = str(int(time.time()))
 
-    sig_base = f"v0:{now_ts}:{body.decode('utf-8')}".encode("utf-8")
+    sig_base = f"v0:{now_ts}:{body.decode('utf-8')}".encode()
     valid_sig = "v0=" + hmac.new(secret.encode("utf-8"), sig_base, hashlib.sha256).hexdigest()
 
     assert verify_slack_signature(secret, body, now_ts, valid_sig) is True

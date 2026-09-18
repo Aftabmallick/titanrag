@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.colpali.classifier")

@@ -1,8 +1,8 @@
-from typing import Any
 import uuid
-from qdrant_client.http import models as qmodels
-import structlog
+from typing import Any
 
+import structlog
+from qdrant_client.http import models as qmodels
 from titan_backend.clients.qdrant_client import get_qdrant_client
 from titan_backend.colpali.embedder import ColPaliMultiVectorEmbedder
 
@@ -52,35 +52,37 @@ class ColPaliVisualRetriever:
                 )
             )
 
-        qdrant_filter = qmodels.Filter(must=filter_conditions)
+        from typing import cast
+
+        qdrant_filter = qmodels.Filter(must=cast(Any, filter_conditions))
 
         try:
             # Query Qdrant multi-vector collection
             # Use average query vector for initial candidate pre-selection
-            avg_q_vec = [
-                sum(q[i] for q in query_vectors) / len(query_vectors)
-                for i in range(len(query_vectors[0]))
-            ]
+            avg_q_vec = [sum(q[i] for q in query_vectors) / len(query_vectors) for i in range(len(query_vectors[0]))]
 
-            search_results = await client.search(
+            search_results = await client.query_points(
                 collection_name=cls.COLLECTION_NAME,
-                query_vector=("colpali", avg_q_vec),
+                query=avg_q_vec,
+                using="colpali",
                 query_filter=qdrant_filter,
                 limit=limit,
                 with_payload=True,
             )
 
             results = []
-            for hit in search_results:
+            for hit in search_results.points:
                 payload = hit.payload or {}
-                results.append({
-                    "document_id": payload.get("document_id"),
-                    "page_number": payload.get("page_number"),
-                    "entropy_score": payload.get("entropy_score"),
-                    "score": round(float(hit.score), 4),
-                    "image_url": payload.get("image_url"),
-                    "caption": payload.get("description", "Visual Diagram / Infographic"),
-                })
+                results.append(
+                    {
+                        "document_id": payload.get("document_id"),
+                        "page_number": payload.get("page_number"),
+                        "entropy_score": payload.get("entropy_score"),
+                        "score": round(float(hit.score), 4),
+                        "image_url": payload.get("image_url"),
+                        "caption": payload.get("description", "Visual Diagram / Infographic"),
+                    }
+                )
             return results
         except Exception as e:
             logger.warning("colpali_search_skipped_or_failed", error=str(e))

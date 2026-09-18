@@ -1,12 +1,11 @@
-import base64
 import email
-from email import policy
 import hashlib
-from typing import Any
 import uuid
+from email import policy
+from typing import Any
+
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from titan_backend.clients.s3_client import get_minio_client
 from titan_backend.db.models.documents import Document, DocumentStatus, DocumentVersion
 
@@ -40,12 +39,14 @@ class InboundEmailParser:
         attachments_processed: list[str] = []
         minio_client = get_minio_client()
 
+        import io
+
         # Extract attachments
         for part in msg.iter_attachments():
             fn = part.get_filename() or f"attachment_{uuid.uuid4().hex[:8]}.bin"
             content_type = part.get_content_type()
             payload = part.get_payload(decode=True)
-            if not payload:
+            if not isinstance(payload, bytes) or not payload:
                 continue
 
             doc_id = uuid.uuid4()
@@ -55,7 +56,8 @@ class InboundEmailParser:
             minio_client.put_object(
                 bucket_name="titanrag-documents",
                 object_name=s3_key,
-                data=payload,
+                data=io.BytesIO(payload),
+                length=len(payload),
                 content_type=content_type,
             )
 

@@ -1,6 +1,7 @@
-from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Any
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,13 +34,17 @@ async def list_document_visual_pages(
     document_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[dict[str, Any]]:
     """Retrieve all qualified visual diagram/chart pages for a document."""
-    stmt = select(VisualPage).where(
-        VisualPage.document_id == document_id,
-        VisualPage.workspace_id == workspace_id,
-        VisualPage.tenant_id == current_user.tenant_id,
-    ).order_by(VisualPage.page_number)
+    stmt = (
+        select(VisualPage)
+        .where(
+            VisualPage.document_id == document_id,
+            VisualPage.workspace_id == workspace_id,
+            VisualPage.tenant_id == current_user.tenant_id,
+        )
+        .order_by(VisualPage.page_number)
+    )
     res = await db.execute(stmt)
     pages = res.scalars().all()
 
@@ -62,7 +67,7 @@ async def search_visual_knowledge(
     workspace_id: uuid.UUID,
     payload: VisualSearchRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Execute late-interaction visual search across charts, diagrams, and figures."""
     results = await ColPaliVisualRetriever.search_visual_pages(
         tenant_id=current_user.tenant_id,
@@ -82,7 +87,7 @@ async def evaluate_page_entropy(
     workspace_id: uuid.UUID,
     payload: EvaluateEntropyRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Test the Gated Visual Entropy Classifier on layout metrics."""
     metrics = VisualEntropyClassifier.evaluate_page(
         page_number=payload.page_number,

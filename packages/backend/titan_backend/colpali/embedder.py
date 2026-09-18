@@ -1,5 +1,5 @@
 import math
-from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.colpali.embedder")
@@ -22,15 +22,15 @@ class ColPaliMultiVectorEmbedder:
         Falls back to deterministic spatial patch vectors if PaliGemma/Torch is not loaded.
         """
         try:
-            import torch
             # When full model is loaded in heavy worker
-            from colpali_engine.models import ColPali
+            pass
             # placeholder for live model call
         except Exception:
             pass
 
         # Generate normalized 128-dim multi-vectors representing image spatial grid
         import hashlib
+
         seed = int(hashlib.sha256(image_bytes[:512]).hexdigest()[:8], 16)
 
         multi_vectors: list[list[float]] = []
@@ -57,6 +57,7 @@ class ColPaliMultiVectorEmbedder:
         multi_vectors: list[list[float]] = []
         for token_idx, token in enumerate(tokens[:32]):
             import hashlib
+
             seed = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
             vec = []
             norm_sq = 0.0
@@ -87,7 +88,7 @@ class ColPaliMultiVectorEmbedder:
             max_sim = -1.0
             for d_vec in doc_multi_vectors:
                 # Dot product
-                dot = sum(q * d for q, d in zip(q_vec, d_vec))
+                dot = sum(q * d for q, d in zip(q_vec, d_vec, strict=False))
                 if dot > max_sim:
                     max_sim = dot
             total_score += max_sim

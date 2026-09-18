@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
 import re
+from datetime import UTC, datetime
 from typing import Any
+
 import httpx
 import structlog
 from bs4 import BeautifulSoup
-
 from titan_backend.connectors.base import BaseConnector, ConnectorChange, ConnectorFile
 
 logger = structlog.get_logger("titanrag.connectors.confluence")
@@ -86,9 +86,7 @@ class ConfluenceConnector(BaseConnector):
             for p in data.get("results", []):
                 created_str = p.get("createdAt")
                 mod_time = (
-                    datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                    if created_str
-                    else datetime.now(timezone.utc)
+                    datetime.fromisoformat(created_str.replace("Z", "+00:00")) if created_str else datetime.now(UTC)
                 )
                 results.append(
                     ConnectorFile(
@@ -103,9 +101,7 @@ class ConfluenceConnector(BaseConnector):
                 )
             return results, next_link
 
-    async def fetch_changes(
-        self, cursor: dict[str, Any]
-    ) -> tuple[list[ConnectorChange], dict[str, Any]]:
+    async def fetch_changes(self, cursor: dict[str, Any]) -> tuple[list[ConnectorChange], dict[str, Any]]:
         last_synced_at = cursor.get("last_synced_at")
         async with httpx.AsyncClient(timeout=15.0) as client:
             cql = f"space = '{self.space_key}'" if self.space_key else "type = 'page'"
@@ -122,16 +118,12 @@ class ConfluenceConnector(BaseConnector):
 
             data = resp.json()
             new_cursor = {
-                "last_synced_at": datetime.now(timezone.utc).isoformat(),
+                "last_synced_at": datetime.now(UTC).isoformat(),
             }
             changes: list[ConnectorChange] = []
             for p in data.get("results", []):
                 mod_date = p.get("version", {}).get("when")
-                mod_time = (
-                    datetime.fromisoformat(mod_date.replace("Z", "+00:00"))
-                    if mod_date
-                    else datetime.now(timezone.utc)
-                )
+                mod_time = datetime.fromisoformat(mod_date.replace("Z", "+00:00")) if mod_date else datetime.now(UTC)
                 conn_file = ConnectorFile(
                     file_id=str(p["id"]),
                     name=f"{p.get('title', 'page')}.md",

@@ -1,6 +1,7 @@
 import os
-from typing import Any
 import uuid
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.graph.store")
@@ -24,10 +25,11 @@ class Neo4jGraphStore:
         self.password = password or os.getenv("NEO4J_PASSWORD", "titan_dev_password")
         self._driver = None
 
-    async def get_driver(self):
+    async def get_driver(self) -> Any:
         if self._driver is None:
             try:
                 from neo4j import AsyncGraphDatabase
+
                 self._driver = AsyncGraphDatabase.driver(
                     self.uri,
                     auth=(self.user, self.password),
@@ -39,7 +41,7 @@ class Neo4jGraphStore:
                 return None
         return self._driver
 
-    async def close(self):
+    async def close(self) -> None:
         if self._driver:
             await self._driver.close()
             self._driver = None
@@ -169,13 +171,15 @@ class Neo4jGraphStore:
                     limit=limit,
                 )
                 async for record in result:
-                    facts.append({
-                        "source": record["source"],
-                        "source_type": record["source_type"],
-                        "relations": record["relations"],
-                        "target": record["target"],
-                        "target_type": record["target_type"],
-                    })
+                    facts.append(
+                        {
+                            "source": record["source"],
+                            "source_type": record["source_type"],
+                            "relations": record["relations"],
+                            "target": record["target"],
+                            "target_type": record["target_type"],
+                        }
+                    )
         except Exception as e:
             logger.warning("neo4j_neighborhood_query_error", error=str(e))
         return facts
@@ -230,15 +234,17 @@ class Neo4jGraphStore:
                             }
                         }
 
-                    edges.append({
-                        "data": {
-                            "id": f"{s_id}_{t_id}_{record['rel_label']}",
-                            "source": s_id,
-                            "target": t_id,
-                            "label": record["rel_label"],
-                            "weight": record["weight"],
+                    edges.append(
+                        {
+                            "data": {
+                                "id": f"{s_id}_{t_id}_{record['rel_label']}",
+                                "source": s_id,
+                                "target": t_id,
+                                "label": record["rel_label"],
+                                "weight": record["weight"],
+                            }
                         }
-                    })
+                    )
         except Exception as e:
             logger.warning("neo4j_workspace_graph_error", error=str(e))
 

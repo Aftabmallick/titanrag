@@ -1,10 +1,8 @@
 import base64
-from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
-import pytest
+from datetime import UTC, datetime, timedelta
 
-from titan_backend.auth.saml import SAMLAssertionData, SAMLServiceProvider
+import pytest
+from titan_backend.auth.saml import SAMLServiceProvider
 from titan_backend.db.models.saml import SAMLConfiguration
 
 MOCK_SAML_RESPONSE_XML = """<?xml version="1.0"?>
@@ -72,7 +70,7 @@ def test_build_authn_request():
 
 
 def test_process_saml_response_success():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     issue_instant = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     not_before = (now - timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
     not_on_or_after = (now + timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -103,7 +101,7 @@ def test_process_saml_response_success():
 
 
 def test_process_saml_response_expired():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     issue_instant = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     not_before = (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
     not_on_or_after = (now - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")

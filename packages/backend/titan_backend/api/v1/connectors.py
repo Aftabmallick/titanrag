@@ -1,13 +1,14 @@
-from typing import Any
 import uuid
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from titan_backend.core.dependencies import CurrentUser, get_current_user, get_db
 from titan_backend.connectors.cdc_manager import CdcDeltaSyncManager
 from titan_backend.connectors.factory import get_connector
+from titan_backend.core.dependencies import CurrentUser, get_current_user, get_db
 from titan_backend.db.models.connectors import Connector, ConnectorStatus, ConnectorSyncLog
 
 router = APIRouter(prefix="/workspaces/{workspace_id}/connectors", tags=["connectors"])
@@ -42,13 +43,13 @@ async def create_connector(
     payload: ConnectorCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ConnectorResponse:
     """Register a new SaaS connector for the workspace."""
     # Validate connector type
     try:
-        instance = get_connector(payload.connector_type, payload.config, payload.auth_credentials)
+        get_connector(payload.connector_type, payload.config, payload.auth_credentials)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
     connector = Connector(
         tenant_id=current_user.tenant_id,
@@ -87,12 +88,16 @@ async def list_connectors(
     workspace_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> list[ConnectorResponse]:
     """List all connectors registered in the workspace."""
-    stmt = select(Connector).where(
-        Connector.workspace_id == workspace_id,
-        Connector.tenant_id == current_user.tenant_id,
-    ).order_by(desc(Connector.created_at))
+    stmt = (
+        select(Connector)
+        .where(
+            Connector.workspace_id == workspace_id,
+            Connector.tenant_id == current_user.tenant_id,
+        )
+        .order_by(desc(Connector.created_at))
+    )
     result = await db.execute(stmt)
     connectors = result.scalars().all()
 
@@ -121,7 +126,7 @@ async def get_connector_details(
     connector_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> ConnectorResponse:
     stmt = select(Connector).where(
         Connector.id == connector_id,
         Connector.workspace_id == workspace_id,
@@ -154,7 +159,7 @@ async def test_connector_connection(
     connector_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Ping probe testing external connectivity to the SaaS source."""
     stmt = select(Connector).where(
         Connector.id == connector_id,
@@ -180,7 +185,7 @@ async def trigger_connector_sync(
     connector_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Trigger an on-demand CDC delta synchronization for the connector."""
     stmt = select(Connector).where(
         Connector.id == connector_id,
@@ -212,7 +217,7 @@ async def delete_connector(
     connector_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> None:
     stmt = select(Connector).where(
         Connector.id == connector_id,
         Connector.workspace_id == workspace_id,
@@ -235,10 +240,13 @@ async def list_connector_sync_logs(
     limit: int = 50,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
-    stmt = select(ConnectorSyncLog).where(
-        ConnectorSyncLog.connector_id == connector_id
-    ).order_by(desc(ConnectorSyncLog.started_at)).limit(limit)
+) -> list[dict[str, Any]]:
+    stmt = (
+        select(ConnectorSyncLog)
+        .where(ConnectorSyncLog.connector_id == connector_id)
+        .order_by(desc(ConnectorSyncLog.started_at))
+        .limit(limit)
+    )
     res = await db.execute(stmt)
     logs = res.scalars().all()
 

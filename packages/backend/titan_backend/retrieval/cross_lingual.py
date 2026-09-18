@@ -1,5 +1,6 @@
 import re
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.retrieval.cross_lingual")
@@ -93,7 +94,7 @@ class CrossLingualRetriever:
         self,
         query: str,
         detected_lang: str | None = None,
-    ) -> list[dict[str, str]]:
+    ) -> list[dict[str, Any]]:
         """
         Creates query variants including native language and cross-lingual English search scaffolding.
         """

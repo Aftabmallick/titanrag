@@ -1,7 +1,7 @@
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from titan_backend.colpali.embedder import ColPaliMultiVectorEmbedder
 from titan_backend.colpali.entropy_classifier import VisualEntropyClassifier
 from titan_backend.colpali.retriever import ColPaliVisualRetriever

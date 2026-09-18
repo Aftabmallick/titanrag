@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
-import pytest
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from titan_backend.connectors.base import ConnectorChange, ConnectorFile
 from titan_backend.connectors.cdc_manager import CdcDeltaSyncManager
 from titan_backend.connectors.confluence import ConfluenceConnector, html_to_markdown
@@ -10,7 +10,7 @@ from titan_backend.connectors.factory import get_connector
 from titan_backend.connectors.google_drive import GoogleDriveConnector
 from titan_backend.connectors.notion import NotionConnector, block_to_markdown
 from titan_backend.connectors.sharepoint import SharePointConnector
-from titan_backend.db.models.connectors import Connector, ConnectorStatus, SyncStatus
+from titan_backend.db.models.connectors import Connector, ConnectorStatus
 
 
 def test_confluence_html_to_markdown():
@@ -185,7 +185,7 @@ async def test_cdc_sync_manager_execution():
                 name="SecurityPolicy.pdf",
                 mime_type="application/pdf",
                 size_bytes=1000,
-                modified_at=datetime.now(timezone.utc),
+                modified_at=datetime.now(UTC),
                 acl_permissions=["secops@corp.com"],
             ),
         ),
@@ -196,11 +196,16 @@ async def test_cdc_sync_manager_execution():
         ),
     ]
 
-    with patch("titan_backend.connectors.google_drive.GoogleDriveConnector.fetch_changes", new_callable=AsyncMock) as mock_fetch, \
-         patch("titan_backend.connectors.google_drive.GoogleDriveConnector.download_file", new_callable=AsyncMock) as mock_dl, \
-         patch.object(manager.minio_client, "put_object") as mock_put, \
-         patch.object(manager.qdrant_client, "delete", new_callable=AsyncMock) as mock_qdelete:
-
+    with (
+        patch(
+            "titan_backend.connectors.google_drive.GoogleDriveConnector.fetch_changes", new_callable=AsyncMock
+        ) as mock_fetch,
+        patch(
+            "titan_backend.connectors.google_drive.GoogleDriveConnector.download_file", new_callable=AsyncMock
+        ) as mock_dl,
+        patch.object(manager.minio_client, "put_object") as mock_put,
+        patch.object(manager.qdrant_client, "delete", new_callable=AsyncMock) as mock_qdelete,
+    ):
         mock_fetch.return_value = (mock_changes, {"page_token": "cursor_v2"})
         mock_dl.return_value = (b"%PDF-1.4 Mock Content", "SecurityPolicy.pdf")
 

@@ -1,12 +1,15 @@
 import re
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.graph.extractor")
 
 # Common entity regex patterns for fast-path extraction without model latency
 TECH_PATTERNS = r"\b(Python|PostgreSQL|Redis|Qdrant|Docker|Kubernetes|FastAPI|Celery|Neo4j|SAML|OAuth2|GraphQL|REST)\b"
-ORG_PATTERNS = r"\b([A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*\s+(?:Inc|Corp|LLC|Ltd|Technologies|Systems|Labs|Foundation|Group))\b"
+ORG_PATTERNS = (
+    r"\b([A-Z][a-z0-9]+(?:\s+[A-Z][a-z0-9]+)*\s+(?:Inc|Corp|LLC|Ltd|Technologies|Systems|Labs|Foundation|Group))\b"
+)
 RELATION_PATTERNS = [
     (r"(?P<src>[A-Z][A-Za-z0-9_]+)\s+acquired\s+(?P<tgt>[A-Z][A-Za-z0-9_]+)", "ACQUIRED"),
     (r"(?P<src>[A-Z][A-Za-z0-9_]+)\s+integrates\s+with\s+(?P<tgt>[A-Z][A-Za-z0-9_]+)", "INTEGRATES_WITH"),
@@ -55,12 +58,14 @@ class KnowledgeGraphExtractor:
                 if tgt.upper() not in entities_map:
                     entities_map[tgt.upper()] = {"name": tgt, "type": "CONCEPT", "properties": {}}
 
-                relationships.append({
-                    "source": src,
-                    "target": tgt,
-                    "relation": rel_type,
-                    "quote": match.group(0),
-                    "weight": 1.0,
-                })
+                relationships.append(
+                    {
+                        "source": src,
+                        "target": tgt,
+                        "relation": rel_type,
+                        "quote": match.group(0),
+                        "weight": 1.0,
+                    }
+                )
 
         return list(entities_map.values()), relationships

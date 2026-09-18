@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
 import httpx
 import structlog
-
 from titan_backend.connectors.base import BaseConnector, ConnectorChange, ConnectorFile
 
 logger = structlog.get_logger("titanrag.connectors.gdrive")
@@ -30,10 +30,10 @@ class GoogleDriveConnector(BaseConnector):
 
     async def _refresh_access_token_if_needed(self, client: httpx.AsyncClient) -> str:
         if self.access_token and not self.refresh_token:
-            return self.access_token
+            return str(self.access_token)
 
         if not self.refresh_token:
-            return self.access_token
+            return str(self.access_token)
 
         token_url = "https://oauth2.googleapis.com/token"
         payload = {
@@ -46,10 +46,10 @@ class GoogleDriveConnector(BaseConnector):
             resp = await client.post(token_url, data=payload)
             if resp.status_code == 200:
                 data = resp.json()
-                self.access_token = data.get("access_token", self.access_token)
+                self.access_token = str(data.get("access_token", self.access_token))
         except Exception as e:
             logger.warning("gdrive_token_refresh_failed", error=str(e))
-        return self.access_token
+        return str(self.access_token)
 
     async def test_connection(self) -> bool:
         if not self.access_token and not self.refresh_token:
@@ -108,16 +108,10 @@ class GoogleDriveConnector(BaseConnector):
 
                 mod_time_str = f.get("modifiedTime")
                 mod_time = (
-                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
-                    if mod_time_str
-                    else datetime.now(timezone.utc)
+                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00")) if mod_time_str else datetime.now(UTC)
                 )
 
-                acl_permissions = [
-                    p.get("emailAddress")
-                    for p in f.get("permissions", [])
-                    if p.get("emailAddress")
-                ]
+                acl_permissions = [p.get("emailAddress") for p in f.get("permissions", []) if p.get("emailAddress")]
 
                 results.append(
                     ConnectorFile(
@@ -132,9 +126,7 @@ class GoogleDriveConnector(BaseConnector):
                 )
             return results, next_page
 
-    async def fetch_changes(
-        self, cursor: dict[str, Any]
-    ) -> tuple[list[ConnectorChange], dict[str, Any]]:
+    async def fetch_changes(self, cursor: dict[str, Any]) -> tuple[list[ConnectorChange], dict[str, Any]]:
         start_page_token = cursor.get("page_token")
         async with httpx.AsyncClient(timeout=15.0) as client:
             token = await self._refresh_access_token_if_needed(client)
@@ -166,7 +158,7 @@ class GoogleDriveConnector(BaseConnector):
             data = changes_resp.json()
             new_cursor = {
                 "page_token": data.get("newStartPageToken") or data.get("nextPageToken", start_page_token),
-                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "synced_at": datetime.now(UTC).isoformat(),
             }
 
             changes: list[ConnectorChange] = []
@@ -186,13 +178,9 @@ class GoogleDriveConnector(BaseConnector):
                     mod_time = (
                         datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
                         if mod_time_str
-                        else datetime.now(timezone.utc)
+                        else datetime.now(UTC)
                     )
-                    acl_perms = [
-                        p.get("emailAddress")
-                        for p in f.get("permissions", [])
-                        if p.get("emailAddress")
-                    ]
+                    acl_perms = [p.get("emailAddress") for p in f.get("permissions", []) if p.get("emailAddress")]
                     conn_file = ConnectorFile(
                         file_id=file_id,
                         name=f.get("name", f"file_{file_id}"),

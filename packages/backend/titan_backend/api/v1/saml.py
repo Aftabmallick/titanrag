@@ -1,16 +1,16 @@
-from datetime import datetime, timezone
-from typing import Any
 import uuid
+from datetime import UTC, datetime
+from typing import Any
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_backend.auth.saml import SAMLServiceProvider
 from titan_backend.clients.redis_client import get_redis_client
-from titan_backend.core.config import settings
-from titan_backend.core.dependencies import CurrentUser, get_current_user, get_db, require_admin
+from titan_backend.core.dependencies import CurrentUser, get_db, require_admin
 from titan_backend.core.security import create_access_token, create_refresh_token
 from titan_backend.db.models.saml import SAMLConfiguration
 from titan_backend.db.models.users import User
@@ -52,7 +52,7 @@ async def get_saml_sp_metadata(
     tenant_id: uuid.UUID,
     request: Request,
     db: AsyncSession = Depends(get_db),
-):
+) -> Response:
     """Download SAML 2.0 Service Provider (SP) metadata XML for IdP import."""
     stmt = select(SAMLConfiguration).where(SAMLConfiguration.tenant_id == tenant_id)
     res = await db.execute(stmt)
@@ -71,7 +71,7 @@ async def saml_sso_login(
     tenant_id: uuid.UUID,
     relay_state: str | None = None,
     db: AsyncSession = Depends(get_db),
-):
+) -> RedirectResponse:
     """Initiate SP-initiated SAML login flow, redirecting to the IdP."""
     stmt = select(SAMLConfiguration).where(
         SAMLConfiguration.tenant_id == tenant_id,
@@ -92,10 +92,10 @@ async def saml_sso_login(
 @router.post("/auth/sso/saml/{tenant_id}/acs")
 async def saml_assertion_consumer_service(
     tenant_id: uuid.UUID,
-    SAMLResponse: str = Form(...),
-    RelayState: str | None = Form(None),
+    SAMLResponse: str = Form(...),  # noqa: N803
+    RelayState: str | None = Form(None),  # noqa: N803
     db: AsyncSession = Depends(get_db),
-):
+) -> Any:
     """
     Assertion Consumer Service (ACS) endpoint.
     Receives HTTP-POST SAMLResponse from IdP, validates assertions, performs JIT provisioning,
@@ -113,7 +113,7 @@ async def saml_assertion_consumer_service(
     try:
         assertion = SAMLServiceProvider.process_saml_response(SAMLResponse, config)
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"SAML validation error: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"SAML validation error: {str(e)}") from e
 
     # Just-In-Time (JIT) Provisioning
     stmt_user = select(User).where(User.email == assertion.email)
@@ -122,12 +122,12 @@ async def saml_assertion_consumer_service(
 
     if not user:
         user = User(
+            tenant_id=tenant_id,
             email=assertion.email,
             hashed_password="SAML_USER_NO_PASSWORD",
             full_name=assertion.full_name,
             is_active=True,
             is_superuser=False,
-            role="MEMBER",
         )
         db.add(user)
         await db.flush()
@@ -136,25 +136,29 @@ async def saml_assertion_consumer_service(
 
     # Invalidate cached ACL tokens in Redis
     try:
-        redis = get_redis_client()
+        redis = await get_redis_client()
         await redis.delete(f"user_acl:{user.id}")
     except Exception:
         pass
 
     # Update config last login
-    config.last_login_at = datetime.now(timezone.utc)
+    config.last_login_at = datetime.now(UTC)
     await db.commit()
 
     # Issue tokens
-    access_token = create_access_token(
-        subject=str(user.id),
-        tenant_id=str(tenant_id),
-        claims={"email": user.email, "role": user.role, "saml_groups": assertion.groups},
+    access_token, _ = create_access_token(
+        user_id=user.id,
+        tenant_id=tenant_id,
+        email=user.email,
+        role="MEMBER",
+        extra_claims={"saml_groups": assertion.groups},
     )
-    refresh_token = create_refresh_token(subject=str(user.id), tenant_id=str(tenant_id))
+    refresh_token, _ = create_refresh_token(user_id=user.id, tenant_id=tenant_id)
 
     # If RelayState is a URL, redirect with tokens in hash fragment
-    if RelayState and (RelayState.startswith("http://") or RelayState.startswith("https://") or RelayState.startswith("/")):
+    if RelayState and (
+        RelayState.startswith("http://") or RelayState.startswith("https://") or RelayState.startswith("/")
+    ):
         sep = "&" if "?" in RelayState else "?"
         dest = f"{RelayState}{sep}access_token={access_token}&refresh_token={refresh_token}"
         return RedirectResponse(url=dest, status_code=status.HTTP_302_FOUND)
@@ -179,7 +183,7 @@ async def configure_saml(
     request: Request,
     current_user: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-):
+) -> SAMLConfigResponse:
     """Admin endpoint to create or update SAML IdP configuration for the tenant."""
     base_url = str(request.base_url).rstrip("/")
     sp_entity_id = payload.sp_entity_id or f"{base_url}/api/v1/auth/sso/saml/{current_user.tenant_id}"
@@ -233,7 +237,7 @@ async def configure_saml(
 async def get_saml_config(
     current_user: CurrentUser = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-):
+) -> SAMLConfigResponse:
     stmt = select(SAMLConfiguration).where(SAMLConfiguration.tenant_id == current_user.tenant_id)
     res = await db.execute(stmt)
     config = res.scalar_one_or_none()

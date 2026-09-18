@@ -1,7 +1,7 @@
-from unittest.mock import AsyncMock, MagicMock, patch
 import uuid
-import pytest
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from titan_backend.graph.extractor import KnowledgeGraphExtractor
 from titan_backend.graph.retriever import GraphHybridRetriever
 from titan_backend.graph.store import Neo4jGraphStore

@@ -1,10 +1,10 @@
-from dataclasses import dataclass, field
-import io
 import os
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.media.transcriber")
@@ -42,17 +42,28 @@ class MediaTranscriptionEngine:
             logger.warning("ffmpeg_not_installed_returning_raw_bytes")
             return media_bytes
 
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as in_f, \
-             tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as out_f:
+        with (
+            tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as in_f,
+            tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as out_f,
+        ):
             try:
                 in_f.write(media_bytes)
                 in_f.flush()
                 out_path = out_f.name
 
                 cmd = [
-                    "ffmpeg", "-y", "-i", in_f.name,
-                    "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
-                    out_path
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    in_f.name,
+                    "-vn",
+                    "-acodec",
+                    "pcm_s16le",
+                    "-ar",
+                    "16000",
+                    "-ac",
+                    "1",
+                    out_path,
                 ]
                 subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
                 with open(out_path, "rb") as rf:
@@ -79,6 +90,7 @@ class MediaTranscriptionEngine:
 
         try:
             from faster_whisper import WhisperModel
+
             model = WhisperModel(model_size, device="cpu", compute_type="int8")
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
                 f.write(wav_bytes)

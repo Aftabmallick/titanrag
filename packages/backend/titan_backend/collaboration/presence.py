@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
 import json
+from datetime import UTC, datetime
 from typing import Any
-import structlog
 
+import structlog
 from titan_backend.clients.redis_client import get_redis_client
 
 logger = structlog.get_logger("titanrag.collaboration.presence")
@@ -28,13 +28,13 @@ class PresenceManager:
         user_name: str,
         user_email: str,
     ) -> list[dict[str, Any]]:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         key = cls._presence_key(workspace_id, session_id)
         user_info = {
             "user_id": user_id,
             "name": user_name,
             "email": user_email,
-            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "joined_at": datetime.now(UTC).isoformat(),
         }
         await redis.hset(key, user_id, json.dumps(user_info))
         await redis.expire(key, cls.TTL_SECONDS)
@@ -52,7 +52,7 @@ class PresenceManager:
         session_id: str,
         user_id: str,
     ) -> list[dict[str, Any]]:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         key = cls._presence_key(workspace_id, session_id)
         await redis.hdel(key, user_id)
 
@@ -68,7 +68,7 @@ class PresenceManager:
         session_id: str,
         user_id: str,
     ) -> None:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         key = cls._presence_key(workspace_id, session_id)
         await redis.expire(key, cls.TTL_SECONDS)
 
@@ -78,7 +78,7 @@ class PresenceManager:
         workspace_id: str,
         session_id: str,
     ) -> list[dict[str, Any]]:
-        redis = await get_redis_client()
+        redis: Any = await get_redis_client()
         key = cls._presence_key(workspace_id, session_id)
         raw_users = await redis.hgetall(key)
         users = []

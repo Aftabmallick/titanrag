@@ -1,7 +1,7 @@
 import json
 from typing import Any
-import structlog
 
+import structlog
 from titan_backend.clients.redis_client import get_redis_client
 
 logger = structlog.get_logger("titanrag.collaboration.broadcaster")

@@ -1,12 +1,12 @@
-from datetime import datetime, timezone
 import time
-from typing import Any
 import uuid
+from datetime import UTC, datetime
+from typing import Any
+
 import structlog
 from qdrant_client.http import models as qmodels
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from titan_backend.clients.qdrant_client import get_qdrant_client
 from titan_backend.clients.s3_client import get_minio_client
 from titan_backend.connectors.base import SyncResult
@@ -54,7 +54,7 @@ class CdcDeltaSyncManager:
             status=SyncStatus.RUNNING,
             documents_synced=0,
             documents_failed=0,
-            started_at=datetime.now(timezone.utc),
+            started_at=datetime.now(UTC),
             details={"initial_cursor": connector.cdc_cursor},
         )
         self.session.add(sync_log)
@@ -95,7 +95,7 @@ class CdcDeltaSyncManager:
 
             # Update connector metadata
             connector.cdc_cursor = next_cursor
-            connector.last_synced_at = datetime.now(timezone.utc)
+            connector.last_synced_at = datetime.now(UTC)
             connector.sync_stats = {
                 "total_added": connector.sync_stats.get("total_added", 0) + added_count,
                 "total_modified": connector.sync_stats.get("total_modified", 0) + modified_count,
@@ -109,7 +109,7 @@ class CdcDeltaSyncManager:
             sync_log.status = SyncStatus.SUCCESS if not errors else SyncStatus.FAILED
             sync_log.documents_synced = added_count + modified_count
             sync_log.documents_failed = len(errors)
-            sync_log.completed_at = datetime.now(timezone.utc)
+            sync_log.completed_at = datetime.now(UTC)
             sync_log.error_summary = "; ".join(errors[:3]) if errors else None
             sync_log.details = {
                 "added": added_count,
@@ -135,7 +135,7 @@ class CdcDeltaSyncManager:
         except Exception as e:
             await self.session.rollback()
             sync_log.status = SyncStatus.FAILED
-            sync_log.completed_at = datetime.now(timezone.utc)
+            sync_log.completed_at = datetime.now(UTC)
             sync_log.error_summary = str(e)
             connector.last_sync_error = str(e)
             await self.session.commit()
@@ -155,7 +155,7 @@ class CdcDeltaSyncManager:
         result = await self.session.execute(stmt)
         docs = result.scalars().all()
         for doc in docs:
-            doc.status = DocumentStatus.DELETED
+            doc.status = DocumentStatus.DELETING
             # Purge vectors from Qdrant
             try:
                 await self.qdrant_client.delete(
@@ -178,6 +178,7 @@ class CdcDeltaSyncManager:
     async def _handle_upsert_change(self, connector: Connector, instance: Any, change: Any) -> bool:
         """Download remote bytes, persist in MinIO, create/update Document, and trigger ingestion."""
         import hashlib
+        import io
 
         if not change.file:
             return False
@@ -204,7 +205,8 @@ class CdcDeltaSyncManager:
         self.minio_client.put_object(
             bucket_name="titanrag-documents",
             object_name=s3_key,
-            data=content,
+            data=io.BytesIO(content),
+            length=len(content),
             content_type=change.file.mime_type,
         )
 
@@ -222,12 +224,14 @@ class CdcDeltaSyncManager:
             existing_doc.storage_path = s3_key
             existing_doc.content_hash = content_hash
             meta = dict(existing_doc.meta)
-            meta.update({
-                "external_id": change.file_id,
-                "connector_type": connector.connector_type,
-                "source_acls": source_acls,
-                "version": change.file.version,
-            })
+            meta.update(
+                {
+                    "external_id": change.file_id,
+                    "connector_type": connector.connector_type,
+                    "source_acls": source_acls,
+                    "version": change.file.version,
+                }
+            )
             existing_doc.meta = meta
             doc_version = DocumentVersion(
                 document_id=existing_doc.id,
@@ -267,6 +271,7 @@ class CdcDeltaSyncManager:
         # Dispatch background ingestion task
         try:
             from titan_workers.tasks.pipeline import process_document_pipeline_task
+
             process_document_pipeline_task.delay(
                 document_id=str(doc_id),
                 tenant_id=str(connector.tenant_id),

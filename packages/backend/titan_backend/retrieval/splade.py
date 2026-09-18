@@ -1,9 +1,9 @@
 import collections
 import math
 import re
-from typing import Any
-from qdrant_client.http import models as qmodels
+
 import structlog
+from qdrant_client.http import models as qmodels
 
 logger = structlog.get_logger("titanrag.retrieval.splade")
 
@@ -20,6 +20,7 @@ class SpladeSparseEmbedder:
     @classmethod
     def _hash_token(cls, token: str) -> int:
         import hashlib
+
         return int(hashlib.md5(token.encode("utf-8")).hexdigest(), 16) % cls.VOCAB_SIZE
 
     @classmethod

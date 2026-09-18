@@ -1,4 +1,6 @@
 import uuid
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +19,7 @@ async def get_document_transcript(
     document_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Retrieve full transcript and timecode segments for an audio or video document."""
     stmt = select(MediaTranscription).where(
         MediaTranscription.document_id == document_id,
@@ -51,7 +53,7 @@ async def get_media_playback_url(
     document_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Generate a presigned streaming playback URL for the media player."""
     stmt = select(Document).where(
         Document.id == document_id,
@@ -66,6 +68,7 @@ async def get_media_playback_url(
     minio_client = get_minio_client()
     try:
         from datetime import timedelta
+
         url = minio_client.presigned_get_object(
             bucket_name="titanrag-documents",
             object_name=doc.storage_path,
@@ -78,4 +81,4 @@ async def get_media_playback_url(
             "mime_type": doc.mime_type,
         }
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e

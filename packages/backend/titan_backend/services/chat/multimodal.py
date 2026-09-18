@@ -1,7 +1,6 @@
-import asyncio
-import base64
 import time
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.chat.multimodal")
@@ -56,11 +55,13 @@ class MultiModalQueryProcessor:
             },
         ]
 
+        from typing import cast
+
         client = LiteLLMClient()
         try:
             response = await client.acompletion(
                 model=self.vision_model,
-                messages=messages,
+                messages=cast(Any, messages),
                 max_tokens=600,
                 temperature=0.1,
             )
@@ -119,7 +120,7 @@ class TEIBenchmarkSuite:
             for _ in range(num_batches):
                 start = time.perf_counter()
                 try:
-                    res = await client.post(
+                    _ = await client.post(
                         f"{self.tei_endpoint}/embed",
                         json={"inputs": sample_batch},
                     )
@@ -146,7 +147,5 @@ class TEIBenchmarkSuite:
             "p95_ms": round(p95, 2),
             "p99_ms": round(p99, 2),
             "avg_ms": round(avg_latency, 2),
-            "throughput_samples_per_sec": round(
-                total_samples / (sum(latencies_ms) / 1000.0), 2
-            ),
+            "throughput_samples_per_sec": round(total_samples / (sum(latencies_ms) / 1000.0), 2),
         }

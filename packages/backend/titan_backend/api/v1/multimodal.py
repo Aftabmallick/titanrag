@@ -1,5 +1,6 @@
 from typing import Any
-from fastapi import APIRouter, Depends, HTTPException
+
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from titan_backend.api.v1.auth import get_current_user

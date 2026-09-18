@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
 import httpx
 import structlog
-
 from titan_backend.connectors.base import BaseConnector, ConnectorChange, ConnectorFile
 
 logger = structlog.get_logger("titanrag.connectors.notion")
@@ -120,9 +120,7 @@ class NotionConnector(BaseConnector):
 
                 mod_time_str = page.get("last_edited_time")
                 mod_time = (
-                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
-                    if mod_time_str
-                    else datetime.now(timezone.utc)
+                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00")) if mod_time_str else datetime.now(UTC)
                 )
 
                 results.append(
@@ -137,9 +135,7 @@ class NotionConnector(BaseConnector):
                 )
             return results, next_cursor
 
-    async def fetch_changes(
-        self, cursor: dict[str, Any]
-    ) -> tuple[list[ConnectorChange], dict[str, Any]]:
+    async def fetch_changes(self, cursor: dict[str, Any]) -> tuple[list[ConnectorChange], dict[str, Any]]:
         last_synced_at = cursor.get("last_synced_at")
         async with httpx.AsyncClient(timeout=15.0) as client:
             payload: dict[str, Any] = {
@@ -153,7 +149,7 @@ class NotionConnector(BaseConnector):
 
             data = resp.json()
             new_cursor = {
-                "last_synced_at": datetime.now(timezone.utc).isoformat(),
+                "last_synced_at": datetime.now(UTC).isoformat(),
             }
 
             changes: list[ConnectorChange] = []
@@ -173,9 +169,7 @@ class NotionConnector(BaseConnector):
                         break
 
                 mod_time = (
-                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
-                    if mod_time_str
-                    else datetime.now(timezone.utc)
+                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00")) if mod_time_str else datetime.now(UTC)
                 )
                 conn_file = ConnectorFile(
                     file_id=pid,

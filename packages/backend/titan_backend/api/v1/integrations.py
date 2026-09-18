@@ -1,15 +1,16 @@
-from typing import Any
 import uuid
+from typing import Any
+
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_backend.core.dependencies import CurrentUser, get_current_user, get_db
-from titan_backend.db.models.webhook import Webhook, WebhookDeliveryLog
+from titan_backend.db.models.webhook import Webhook
 from titan_backend.integrations.agent_actions import AgentActionManager
 from titan_backend.integrations.email_parser import InboundEmailParser
-from titan_backend.integrations.slack import build_slack_rag_response, verify_slack_signature
+from titan_backend.integrations.slack import build_slack_rag_response
 from titan_backend.integrations.teams import build_teams_adaptive_card
 from titan_backend.integrations.webhook_dispatcher import WebhookDispatcher
 
@@ -43,7 +44,7 @@ async def create_webhook(
     payload: WebhookCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> WebhookResponse:
     wh = Webhook(
         tenant_id=current_user.tenant_id,
         workspace_id=workspace_id,
@@ -76,11 +77,15 @@ async def list_webhooks(
     workspace_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
-    stmt = select(Webhook).where(
-        Webhook.workspace_id == workspace_id,
-        Webhook.tenant_id == current_user.tenant_id,
-    ).order_by(desc(Webhook.created_at))
+) -> list[WebhookResponse]:
+    stmt = (
+        select(Webhook)
+        .where(
+            Webhook.workspace_id == workspace_id,
+            Webhook.tenant_id == current_user.tenant_id,
+        )
+        .order_by(desc(Webhook.created_at))
+    )
     res = await db.execute(stmt)
     webhooks = res.scalars().all()
 
@@ -107,7 +112,7 @@ async def test_webhook(
     webhook_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     stmt = select(Webhook).where(
         Webhook.id == webhook_id,
         Webhook.workspace_id == workspace_id,
@@ -133,7 +138,7 @@ async def delete_webhook(
     webhook_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-):
+) -> None:
     stmt = select(Webhook).where(
         Webhook.id == webhook_id,
         Webhook.workspace_id == workspace_id,
@@ -159,9 +164,9 @@ async def slack_slash_command(
     channel_id: str = Form(...),
     x_slack_request_timestamp: str = Header(None),
     x_slack_signature: str = Header(None),
-):
+) -> dict[str, Any]:
     """Handle incoming Slack /titan slash commands with verified signatures."""
-    body = await request.body()
+    _ = await request.body()
     # In production, verify with SLACK_SIGNING_SECRET
     answer = f"Hello @{user_name}! Here is the synthesized answer for '{text}': TitanRAG analyzed the workspace knowledge base and found 2 relevant sources."
     citations = [
@@ -179,7 +184,7 @@ async def slack_slash_command(
 
 # --- Microsoft Teams Endpoints ---
 @router.post("/teams/messages")
-async def teams_bot_webhook(payload: dict[str, Any]):
+async def teams_bot_webhook(payload: dict[str, Any]) -> dict[str, Any]:
     """Microsoft Teams Bot Framework endpoint rendering Adaptive Cards."""
     user_text = payload.get("text", "overview")
     answer = f"Teams Answer for: '{user_text}'. All systems operational with verified sources."
@@ -200,7 +205,7 @@ async def inbound_email_webhook(
     request: Request,
     tenant_id: uuid.UUID | None = None,
     db: AsyncSession = Depends(get_db),
-):
+) -> dict[str, Any]:
     """Inbound email parser converting email attachments into indexed documents."""
     raw_bytes = await request.body()
     tid = tenant_id or uuid.uuid4()
@@ -226,7 +231,7 @@ class ActionConfirmRequest(BaseModel):
 
 
 @router.get("/workspaces/{workspace_id}/actions/tools")
-async def list_agent_action_tools():
+async def list_agent_action_tools() -> list[dict[str, Any]]:
     """List available LLM agent action tools with parameter schemas and confirmation requirements."""
     return AgentActionManager.list_available_tools()
 
@@ -236,7 +241,7 @@ async def execute_agent_action(
     workspace_id: uuid.UUID,
     payload: ActionExecuteRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Execute an agent action or register a pending confirmation."""
     try:
         res = await AgentActionManager.execute_action(
@@ -248,16 +253,16 @@ async def execute_agent_action(
         )
         return res
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
 
 @router.post("/workspaces/{workspace_id}/actions/confirm")
 async def confirm_agent_action(
     payload: ActionConfirmRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Confirm or reject a pending human-in-the-loop action tool."""
     try:
         return await AgentActionManager.confirm_action(payload.confirmation_id, payload.approved)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e)) from e

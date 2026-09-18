@@ -1,15 +1,15 @@
-from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
 import time
-from typing import Any
 import uuid
+from datetime import UTC, datetime
+from typing import Any
+
 import httpx
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
 from titan_backend.db.models.webhook import Webhook, WebhookDeliveryLog
 
 logger = structlog.get_logger("titanrag.integrations.webhook")
@@ -24,7 +24,7 @@ class WebhookDispatcher:
 
     @staticmethod
     def sign_payload(payload_bytes: bytes, secret: str, timestamp: int) -> str:
-        mac_data = f"t={timestamp}.".encode("utf-8") + payload_bytes
+        mac_data = f"t={timestamp}.".encode() + payload_bytes
         signature = hmac.new(secret.encode("utf-8"), mac_data, hashlib.sha256).hexdigest()
         return f"t={timestamp},v1={signature}"
 
@@ -70,7 +70,7 @@ class WebhookDispatcher:
             "event": event_type,
             "tenant_id": str(webhook.tenant_id),
             "workspace_id": str(webhook.workspace_id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "data": payload_data,
         }
         payload_json = json.dumps(payload_envelope, sort_keys=True)
@@ -101,7 +101,7 @@ class WebhookDispatcher:
                     webhook.failure_count += 1
                 else:
                     webhook.failure_count = 0
-                    webhook.last_triggered_at = datetime.now(timezone.utc)
+                    webhook.last_triggered_at = datetime.now(UTC)
         except Exception as e:
             error_msg = str(e)
             webhook.failure_count += 1
@@ -117,7 +117,7 @@ class WebhookDispatcher:
             payload=payload_envelope,
             response_body=response_text,
             error_message=error_msg,
-            delivered_at=datetime.now(timezone.utc),
+            delivered_at=datetime.now(UTC),
         )
         session.add(log)
         await session.commit()

@@ -121,9 +121,7 @@ async def init_colpali_collection(
                     "colpali": qmodels.VectorParams(
                         size=vector_size,
                         distance=qmodels.Distance.DOT,
-                        multivector_config=qmodels.MultiVectorConfig(
-                            comparator=qmodels.MultiVectorComparator.MAX_SIM
-                        ),
+                        multivector_config=qmodels.MultiVectorConfig(comparator=qmodels.MultiVectorComparator.MAX_SIM),
                         on_disk=True,
                         hnsw_config=qmodels.HnswConfigDiff(
                             m=16,

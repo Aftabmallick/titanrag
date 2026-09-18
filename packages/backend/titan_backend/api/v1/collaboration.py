@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
 import json
-from typing import Any
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from titan_backend.collaboration.presence import PresenceManager
@@ -28,7 +29,7 @@ async def get_session_presence(
     workspace_id: uuid.UUID,
     session_id: uuid.UUID,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """List all currently active collaborators viewing the given chat session."""
     active_users = await PresenceManager.get_active_users(str(workspace_id), str(session_id))
     return {
@@ -44,7 +45,7 @@ async def create_document_annotation(
     workspace_id: uuid.UUID,
     payload: AnnotationCreateRequest,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> dict[str, Any]:
     """Add a collaborative team annotation / comment to a document passage."""
     annotation = {
         "id": f"ann_{uuid.uuid4().hex[:10]}",
@@ -56,7 +57,7 @@ async def create_document_annotation(
         "comment": payload.comment,
         "user_id": str(current_user.id),
         "user_email": current_user.email,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
     }
     _in_memory_annotations.append(annotation)
     return annotation
@@ -67,11 +68,10 @@ async def list_document_annotations(
     workspace_id: uuid.UUID,
     document_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> list[dict[str, Any]]:
     """List all annotations created for a document."""
     doc_annotations = [
-        a for a in _in_memory_annotations
-        if a["workspace_id"] == str(workspace_id) and a["document_id"] == document_id
+        a for a in _in_memory_annotations if a["workspace_id"] == str(workspace_id) and a["document_id"] == document_id
     ]
     return doc_annotations
 
@@ -80,7 +80,7 @@ async def list_document_annotations(
 async def websocket_presence_endpoint(
     websocket: WebSocket,
     workspace_id: uuid.UUID,
-):
+) -> None:
     """
     WebSocket connection endpoint for real-time presence, typing indicators,
     and heartbeat coordination.

@@ -38,6 +38,4 @@ class SAMLConfiguration(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampM
     allow_unencrypted_assertions: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (
-        Index("ix_saml_configs_tenant_active", "tenant_id", "is_active"),
-    )
+    __table_args__ = (Index("ix_saml_configs_tenant_active", "tenant_id", "is_active"),)

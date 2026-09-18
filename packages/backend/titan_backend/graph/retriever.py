@@ -1,7 +1,7 @@
-from typing import Any
 import uuid
-import structlog
+from typing import Any
 
+import structlog
 from titan_backend.graph.extractor import KnowledgeGraphExtractor
 from titan_backend.graph.store import get_graph_store
 
@@ -55,7 +55,7 @@ class GraphHybridRetriever:
             target = f["target"]
             for rel in f["relations"]:
                 rel_type = rel.get("type", "RELATED_TO")
-                quote = f" (Ref: \"{rel['quote']}\")" if rel.get("quote") else ""
+                quote = f' (Ref: "{rel["quote"]}")' if rel.get("quote") else ""
                 fact_lines.append(f"- ({source}) --[{rel_type}]--> ({target}){quote}")
 
         formatted_context = "\n".join(fact_lines) + "\n\n"

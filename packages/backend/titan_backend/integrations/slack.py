@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import time
 from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.integrations.slack")
@@ -20,12 +21,15 @@ def verify_slack_signature(
         if abs(time.time() - req_time) > 60 * 5:
             return False
 
-        sig_basestring = f"v0:{timestamp}:{body_bytes.decode('utf-8')}".encode("utf-8")
-        computed_sig = "v0=" + hmac.new(
-            signing_secret.encode("utf-8"),
-            sig_basestring,
-            hashlib.sha256,
-        ).hexdigest()
+        sig_basestring = f"v0:{timestamp}:{body_bytes.decode('utf-8')}".encode()
+        computed_sig = (
+            "v0="
+            + hmac.new(
+                signing_secret.encode("utf-8"),
+                sig_basestring,
+                hashlib.sha256,
+            ).hexdigest()
+        )
 
         return hmac.compare_digest(computed_sig, signature)
     except Exception as e:
@@ -67,23 +71,27 @@ def build_slack_rag_response(
             page_str = f" (Page {page_num})" if page_num else ""
             citation_lines.append(f"• *[Source {i}]* {doc_title}{page_str}")
 
-        blocks.append({
-            "type": "section",
-            "text": {
-                "type": "mrkdwn",
-                "text": "*Verified Sources:*\n" + "\n".join(citation_lines),
-            },
-        })
-
-    blocks.append({
-        "type": "context",
-        "elements": [
+        blocks.append(
             {
-                "type": "mrkdwn",
-                "text": f"Knowledge Base: *{workspace_name}* | Powered by TitanRAG Enterprise",
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Verified Sources:*\n" + "\n".join(citation_lines),
+                },
             }
-        ],
-    })
+        )
+
+    blocks.append(
+        {
+            "type": "context",
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"Knowledge Base: *{workspace_name}* | Powered by TitanRAG Enterprise",
+                }
+            ],
+        }
+    )
 
     return {
         "response_type": "in_channel",

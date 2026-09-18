@@ -1,7 +1,8 @@
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
 import uuid
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger("titanrag.integrations.agent_actions")
@@ -106,7 +107,7 @@ class AgentActionManager:
                 "arguments": arguments,
                 "user_id": user_id,
                 "workspace_id": workspace_id,
-                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
             }
             return {
                 "status": "requires_confirmation",
@@ -121,7 +122,7 @@ class AgentActionManager:
         return {
             "status": "executed",
             "tool_name": tool_name,
-            "executed_at": datetime.now(timezone.utc).isoformat(),
+            "executed_at": datetime.now(UTC).isoformat(),
             "result": {
                 "message": f"Successfully executed action {tool_name}",
                 "output_id": f"res_{uuid.uuid4().hex[:8]}",

@@ -61,9 +61,7 @@ class BaseConnector(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def fetch_changes(
-        self, cursor: dict[str, Any]
-    ) -> tuple[list[ConnectorChange], dict[str, Any]]:
+    async def fetch_changes(self, cursor: dict[str, Any]) -> tuple[list[ConnectorChange], dict[str, Any]]:
         """
         Query CDC changes since the provided cursor/high-water mark.
         Returns a list of ConnectorChange items and the next state cursor.

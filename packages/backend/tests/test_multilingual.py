@@ -1,9 +1,8 @@
 import json
 from pathlib import Path
-import pytest
 
-from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
 from titan_backend.retrieval.cross_lingual import CrossLingualRetriever
+from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
 
 
 def test_multilingual_ocr_script_detection():
@@ -76,7 +75,7 @@ def test_frontend_i18n_dictionaries():
         file_path = messages_dir / f"{locale}.json"
         assert file_path.exists(), f"Missing translation dictionary for {locale}"
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         assert required_keys.issubset(data.keys()), f"Locale {locale} missing primary key namespaces"

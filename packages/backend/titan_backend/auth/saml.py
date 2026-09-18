@@ -1,17 +1,11 @@
 import base64
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-import hashlib
-import re
 import urllib.parse
-from uuid import UUID, uuid4
 import xml.etree.ElementTree as ET
-import structlog
-from cryptography import x509
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import padding
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from uuid import uuid4
 
+import structlog
 from titan_backend.db.models.saml import SAMLConfiguration
 
 logger = structlog.get_logger("titanrag.auth.saml")
@@ -68,7 +62,7 @@ class SAMLServiceProvider:
         Builds a SAML 2.0 AuthnRequest and returns (redirect_url, request_id).
         """
         request_id = uuid4().hex
-        issue_instant = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        issue_instant = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         xml_content = AUTHN_REQUEST_TEMPLATE.format(
             request_id=request_id,
             issue_instant=issue_instant,
@@ -78,6 +72,7 @@ class SAMLServiceProvider:
         )
 
         import zlib
+
         # Deflate compression without zlib headers
         compressor = zlib.compressobj(level=9, method=zlib.DEFLATED, wbits=-15)
         deflated = compressor.compress(xml_content.encode("utf-8")) + compressor.flush()
@@ -106,7 +101,7 @@ class SAMLServiceProvider:
             xml_bytes = base64.b64decode(saml_response_b64)
             root = ET.fromstring(xml_bytes)
         except Exception as e:
-            raise ValueError(f"Invalid SAMLResponse base64/XML: {str(e)}")
+            raise ValueError(f"Invalid SAMLResponse base64/XML: {str(e)}") from e
 
         # Namespaces
         ns = {
@@ -139,7 +134,7 @@ class SAMLServiceProvider:
         # 2. Validate Timestamps
         conditions = assertion.find(".//saml:Conditions", ns)
         if conditions is not None:
-            now = datetime.now(timezone.utc)
+            now = datetime.now(UTC)
             not_before_str = conditions.get("NotBefore")
             not_on_or_after_str = conditions.get("NotOnOrAfter")
 

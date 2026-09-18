@@ -1,8 +1,7 @@
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
-import pytest
+from unittest.mock import AsyncMock, patch
 
+import pytest
 from titan_backend.collaboration.presence import PresenceManager
 
 
@@ -69,4 +68,3 @@ async def test_session_token_broadcaster():
         payload = json.loads(args[1])
         assert payload["event"] == "token"
         assert payload["data"]["text"] == "Hello world"
-

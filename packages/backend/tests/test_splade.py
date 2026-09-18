@@ -1,5 +1,4 @@
 from qdrant_client.http import models as qmodels
-
 from titan_backend.retrieval.multi_sparse_fusion import MultiSparseHybridFusion
 from titan_backend.retrieval.splade import SpladeSparseEmbedder
 

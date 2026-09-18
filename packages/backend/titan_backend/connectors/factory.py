@@ -26,6 +26,7 @@ class ConnectorFactory:
     """Factory helper class for creating enterprise SaaS connectors."""
 
     @staticmethod
-    def create_connector(connector_type: str, credentials: dict[str, Any], config: dict[str, Any] | None = None) -> BaseConnector:
+    def create_connector(
+        connector_type: str, credentials: dict[str, Any], config: dict[str, Any] | None = None
+    ) -> BaseConnector:
         return get_connector(connector_type, config or {}, credentials)
-

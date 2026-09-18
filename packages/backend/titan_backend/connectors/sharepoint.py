@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
+
 import httpx
 import structlog
-
 from titan_backend.connectors.base import BaseConnector, ConnectorChange, ConnectorFile
 
 logger = structlog.get_logger("titanrag.connectors.sharepoint")
@@ -25,7 +25,7 @@ class SharePointConnector(BaseConnector):
 
     async def _get_access_token(self, client: httpx.AsyncClient) -> str:
         if self.access_token:
-            return self.access_token
+            return str(self.access_token)
 
         if not (self.tenant_id_azure and self.client_id and self.client_secret):
             return ""
@@ -40,10 +40,10 @@ class SharePointConnector(BaseConnector):
         try:
             resp = await client.post(url, data=data)
             if resp.status_code == 200:
-                self.access_token = resp.json().get("access_token", "")
+                self.access_token = str(resp.json().get("access_token", ""))
         except Exception as e:
             logger.error("sharepoint_token_request_error", error=str(e))
-        return self.access_token
+        return str(self.access_token)
 
     def _get_base_drive_url(self) -> str:
         if self.drive_id:
@@ -95,9 +95,7 @@ class SharePointConnector(BaseConnector):
 
                 mod_time_str = item.get("lastModifiedDateTime")
                 mod_time = (
-                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
-                    if mod_time_str
-                    else datetime.now(timezone.utc)
+                    datetime.fromisoformat(mod_time_str.replace("Z", "+00:00")) if mod_time_str else datetime.now(UTC)
                 )
 
                 results.append(
@@ -113,9 +111,7 @@ class SharePointConnector(BaseConnector):
                 )
             return results, next_link
 
-    async def fetch_changes(
-        self, cursor: dict[str, Any]
-    ) -> tuple[list[ConnectorChange], dict[str, Any]]:
+    async def fetch_changes(self, cursor: dict[str, Any]) -> tuple[list[ConnectorChange], dict[str, Any]]:
         delta_link = cursor.get("delta_link")
         async with httpx.AsyncClient(timeout=20.0) as client:
             token = await self._get_access_token(client)
@@ -131,7 +127,7 @@ class SharePointConnector(BaseConnector):
             new_delta_link = data.get("@odata.deltaLink") or data.get("@odata.nextLink", url)
             new_cursor = {
                 "delta_link": new_delta_link,
-                "synced_at": datetime.now(timezone.utc).isoformat(),
+                "synced_at": datetime.now(UTC).isoformat(),
             }
 
             changes: list[ConnectorChange] = []
@@ -147,7 +143,7 @@ class SharePointConnector(BaseConnector):
                     mod_time = (
                         datetime.fromisoformat(mod_time_str.replace("Z", "+00:00"))
                         if mod_time_str
-                        else datetime.now(timezone.utc)
+                        else datetime.now(UTC)
                     )
                     conn_file = ConnectorFile(
                         file_id=file_id,
@@ -199,7 +195,9 @@ class SharePointConnector(BaseConnector):
             perms = resp.json().get("value", [])
             acl_users: list[str] = []
             for p in perms:
-                user_email = p.get("grantedToV2", {}).get("user", {}).get("email") or p.get("grantedTo", {}).get("user", {}).get("email")
+                user_email = p.get("grantedToV2", {}).get("user", {}).get("email") or p.get("grantedTo", {}).get(
+                    "user", {}
+                ).get("email")
                 if user_email:
                     acl_users.append(user_email)
             return acl_users

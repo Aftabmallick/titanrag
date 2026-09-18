@@ -15,11 +15,9 @@ Validates all 12 enterprise intelligence and advanced retrieval subsystems:
 """
 
 import asyncio
-import base64
 import json
-import sys
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 # Terminal color codes
 GREEN = "\033[92m"
@@ -45,19 +43,25 @@ def log_info(msg: str):
 
 async def test_subsystem_1_connectors_and_cdc():
     log_step("Subsystem 1: Enterprise SaaS Connectors & CDC Delta Engine")
-    from titan_backend.connectors.google_drive import GoogleDriveConnector
-    from titan_backend.connectors.sharepoint import SharePointConnector
-    from titan_backend.connectors.confluence import ConfluenceConnector
-    from titan_backend.connectors.notion import NotionConnector
-    from titan_backend.connectors.factory import ConnectorFactory
     from titan_backend.connectors.cdc_manager import CdcDeltaSyncManager
+    from titan_backend.connectors.confluence import ConfluenceConnector
+    from titan_backend.connectors.factory import ConnectorFactory
+    from titan_backend.connectors.google_drive import GoogleDriveConnector
+    from titan_backend.connectors.notion import NotionConnector
+    from titan_backend.connectors.sharepoint import SharePointConnector
 
     # 1. Factory verification
-    gdrive = ConnectorFactory.create_connector("google_drive", {"client_id": "cid", "client_secret": "sec", "refresh_token": "tok"})
+    gdrive = ConnectorFactory.create_connector(
+        "google_drive", {"client_id": "cid", "client_secret": "sec", "refresh_token": "tok"}
+    )
     assert isinstance(gdrive, GoogleDriveConnector)
-    sp = ConnectorFactory.create_connector("sharepoint", {"tenant_id": "t", "client_id": "c", "client_secret": "s", "site_id": "site"})
+    sp = ConnectorFactory.create_connector(
+        "sharepoint", {"tenant_id": "t", "client_id": "c", "client_secret": "s", "site_id": "site"}
+    )
     assert isinstance(sp, SharePointConnector)
-    conf = ConnectorFactory.create_connector("confluence", {"base_url": "https://corp.atlassian.net/wiki", "user_email": "u@c.com", "api_token": "tok"})
+    conf = ConnectorFactory.create_connector(
+        "confluence", {"base_url": "https://corp.atlassian.net/wiki", "user_email": "u@c.com", "api_token": "tok"}
+    )
     assert isinstance(conf, ConfluenceConnector)
     notion = ConnectorFactory.create_connector("notion", {"api_key": "secret_notion_key"})
     assert isinstance(notion, NotionConnector)
@@ -65,7 +69,7 @@ async def test_subsystem_1_connectors_and_cdc():
 
     # 2. CDC Sync Manager verification
     mock_db = AsyncMock()
-    cdc_mgr = CdcDeltaSyncManager(mock_db)
+    _ = CdcDeltaSyncManager(mock_db)
     log_success("CdcDeltaSyncManager operational with deletion tombstones & source ACL mirroring")
 
 
@@ -100,10 +104,10 @@ async def test_subsystem_2_saml_sso():
 
 async def test_subsystem_3_integrations_and_bot():
     log_step("Subsystem 3: External Integrations & Bot Framework")
-    from titan_backend.integrations.webhook_dispatcher import WebhookDispatcher
-    from titan_backend.integrations.slack import build_slack_rag_response, verify_slack_signature
-    from titan_backend.integrations.teams import build_teams_adaptive_card
     from titan_backend.integrations.agent_actions import AgentActionManager
+    from titan_backend.integrations.slack import build_slack_rag_response
+    from titan_backend.integrations.teams import build_teams_adaptive_card
+    from titan_backend.integrations.webhook_dispatcher import WebhookDispatcher
 
     # 1. HMAC Webhook Dispatcher
     payload_bytes = json.dumps({"event": "document.indexed", "document_id": "doc-123"}).encode("utf-8")
@@ -139,9 +143,10 @@ async def test_subsystem_3_integrations_and_bot():
 async def test_subsystem_4_graph_rag():
     log_step("Subsystem 4: Graph RAG & Neo4j Knowledge Graph Engine")
     import uuid
-    from titan_backend.graph.store import Neo4jGraphStore
+
     from titan_backend.graph.extractor import KnowledgeGraphExtractor
     from titan_backend.graph.retriever import GraphHybridRetriever
+    from titan_backend.graph.store import Neo4jGraphStore
 
     # 1. Extractor
     sample_text = "In 2024, TitanCorp acquired DataSystems LLC. Integrates with PostgreSQL and Docker."
@@ -209,9 +214,8 @@ async def test_subsystem_5_whisper_and_chunker():
 
 async def test_subsystem_6_colpali_visual_ingestion():
     log_step("Subsystem 6: Gated ColPali Visual Ingestion & MaxSim Ranking")
-    from titan_backend.colpali.entropy_classifier import VisualEntropyClassifier
     from titan_backend.colpali.embedder import ColPaliMultiVectorEmbedder
-    from titan_backend.colpali.retriever import ColPaliVisualRetriever
+    from titan_backend.colpali.entropy_classifier import VisualEntropyClassifier
 
     # 1. Visual Entropy Gating
     text_page = VisualEntropyClassifier.evaluate_page(
@@ -244,8 +248,8 @@ async def test_subsystem_6_colpali_visual_ingestion():
 
 async def test_subsystem_7_splade_and_multi_sparse():
     log_step("Subsystem 7: SPLADE Neural Sparse Vectors & Multi-Sparse RRF Fusion")
-    from titan_backend.retrieval.splade import SpladeSparseEmbedder
     from titan_backend.retrieval.multi_sparse_fusion import MultiSparseHybridFusion
+    from titan_backend.retrieval.splade import SpladeSparseEmbedder
 
     sparse_vec = SpladeSparseEmbedder.embed_text("cybersecurity zero trust architecture")
     assert len(sparse_vec.indices) > 0
@@ -264,8 +268,8 @@ async def test_subsystem_7_splade_and_multi_sparse():
 
 async def test_subsystem_8_collaboration_and_presence():
     log_step("Subsystem 8: Real-Time Multi-User Collaboration & Presence Engine")
-    from titan_backend.collaboration.presence import PresenceManager
     from titan_backend.collaboration.broadcaster import SessionTokenBroadcaster
+    from titan_backend.collaboration.presence import PresenceManager
 
     mock_redis = AsyncMock()
     mock_redis.hset.return_value = 1
@@ -289,8 +293,8 @@ async def test_subsystem_8_collaboration_and_presence():
 
 async def test_subsystem_9_multilingual_and_cross_lingual():
     log_step("Subsystem 9: Multilingual OCR & Cross-Lingual RAG")
-    from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
     from titan_backend.retrieval.cross_lingual import CrossLingualRetriever
+    from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
 
     ocr = MultilingualOCREngine()
     assert ocr.detect_dominant_script("TitanRAG ドキュメント") == "jpn"
@@ -315,12 +319,14 @@ async def test_subsystem_10_multimodal_and_tei():
         "choices": [
             {
                 "message": {
-                    "content": json.dumps({
-                        "visual_summary": "High availability cluster diagram",
-                        "extracted_entities": ["Kubernetes", "PostgreSQL", "MinIO"],
-                        "search_expansion_query": "Kubernetes PostgreSQL MinIO cluster HA architecture",
-                        "suggested_filters": {"doc_type": "architecture"},
-                    })
+                    "content": json.dumps(
+                        {
+                            "visual_summary": "High availability cluster diagram",
+                            "extracted_entities": ["Kubernetes", "PostgreSQL", "MinIO"],
+                            "search_expansion_query": "Kubernetes PostgreSQL MinIO cluster HA architecture",
+                            "suggested_filters": {"doc_type": "architecture"},
+                        }
+                    )
                 }
             }
         ]
@@ -340,7 +346,9 @@ async def test_subsystem_10_multimodal_and_tei():
     bench = await suite.benchmark(batch_size=16, num_batches=3)
     assert bench["p50_ms"] > 0
     assert bench["throughput_samples_per_sec"] > 0
-    log_success(f"TEI benchmark completed: p50={bench['p50_ms']}ms, throughput={bench['throughput_samples_per_sec']} samples/sec")
+    log_success(
+        f"TEI benchmark completed: p50={bench['p50_ms']}ms, throughput={bench['throughput_samples_per_sec']} samples/sec"
+    )
 
 
 async def main():

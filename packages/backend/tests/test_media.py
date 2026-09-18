@@ -22,8 +22,12 @@ def test_media_transcription_engine_fallback():
 def test_media_semantic_chunker():
     segments = [
         TranscriptionSegment(start_sec=0.0, end_sec=20.0, text="First point regarding architecture.", speaker="Alice"),
-        TranscriptionSegment(start_sec=20.0, end_sec=40.0, text="Second point covering PostgreSQL and Qdrant.", speaker="Alice"),
-        TranscriptionSegment(start_sec=40.0, end_sec=65.0, text="Third point from Bob discussing media.", speaker="Bob"),
+        TranscriptionSegment(
+            start_sec=20.0, end_sec=40.0, text="Second point covering PostgreSQL and Qdrant.", speaker="Alice"
+        ),
+        TranscriptionSegment(
+            start_sec=40.0, end_sec=65.0, text="Third point from Bob discussing media.", speaker="Bob"
+        ),
     ]
 
     chunks = MediaSemanticChunker.chunk_segments(segments, target_chunk_duration_sec=35.0)
