@@ -20,10 +20,10 @@ class Neo4jGraphStore:
         user: str | None = None,
         password: str | None = None,
     ):
-        self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
-        self.user = user or os.getenv("NEO4J_USER", "neo4j")
-        self.password = password or os.getenv("NEO4J_PASSWORD", "titan_dev_password")
-        self._driver = None
+        self.uri: str = uri or os.getenv("NEO4J_URI") or "bolt://localhost:7687"
+        self.user: str = user or os.getenv("NEO4J_USER") or "neo4j"
+        self.password: str = password or os.getenv("NEO4J_PASSWORD") or "titan_dev_password"
+        self._driver: Any = None
 
     async def get_driver(self) -> Any:
         if self._driver is None:
