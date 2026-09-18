@@ -1,6 +1,6 @@
 """Phase 8 Enterprise Intelligence Schema (SAML, Webhooks, Media Transcriptions, Visual Pages, CDC Connectors)
 
-Revision ID: 0007_phase8_enterprise_intelligence
+Revision ID: 0007_phase8_intelligence
 Revises: 0006_phase7_plugins_tables
 Create Date: 2026-09-18 18:00:00.000000
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "0007_phase8_enterprise_intelligence"
+revision: str = "0007_phase8_intelligence"
 down_revision: str | None = "0006_phase7_plugins_tables"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
