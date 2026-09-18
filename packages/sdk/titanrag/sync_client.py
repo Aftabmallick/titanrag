@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import builtins
+import json
 import os
 import time
 from collections.abc import Generator
 from pathlib import Path
+from random import uniform as _rand_uniform
 from typing import Any, cast
 from uuid import UUID
 
@@ -14,10 +16,15 @@ from titanrag.exceptions import TitanRAGError, raise_for_status_code
 from titanrag.models import (
     ChatEvent,
     ChatResponse,
+    Citation,
+    CitationEvent,
     Document,
     DocumentUploadResponse,
+    DoneEvent,
+    ErrorEvent,
     PluginConfig,
     RAGSettingsConfig,
+    TokenEvent,
     Workspace,
 )
 from titanrag.streaming import iter_sse_events
@@ -113,7 +120,7 @@ class TitanClient:
                 resp = client.request(method, url, headers=req_headers, **kwargs)
                 if resp.is_error:
                     if resp.status_code in (429, 503, 504) and attempt < self.max_retries:
-                        time.sleep(0.5 * (2**attempt))
+                        time.sleep(0.5 * (2**attempt) + _rand_uniform(0, 0.25))
                         continue
                     try:
                         err_body = resp.json().get("error", {})
@@ -125,7 +132,7 @@ class TitanClient:
             except (httpx.ConnectError, httpx.TimeoutException) as exc:
                 last_exc = exc
                 if attempt < self.max_retries:
-                    time.sleep(0.5 * (2**attempt))
+                    time.sleep(0.5 * (2**attempt) + _rand_uniform(0, 0.25))
                     continue
                 raise TitanRAGError(f"Connection failed to {url}: {exc}") from exc
 
@@ -246,28 +253,63 @@ class _ChatResource:
         workspace_id: UUID | str,
         query: str,
         session_id: UUID | str | None = None,
-        grounding_mode: str = "Balanced",
+        grounding_mode: str = "balanced",
     ) -> ChatResponse:
         payload = {
             "query": query,
-            "grounding_mode": grounding_mode,
+            "grounding_mode": grounding_mode.lower() if isinstance(grounding_mode, str) else grounding_mode,
         }
         if session_id:
             payload["session_id"] = str(session_id)
 
-        resp = self._c.request("POST", f"/workspaces/{workspace_id}/chat", json=payload)
-        return ChatResponse.model_validate(resp.json())
+        client = self._c._get_client()
+        url = f"{self._c.api_v1_url}/workspaces/{workspace_id}/chat"
+        headers = {"Accept": "application/json, text/event-stream"}
+        with client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.is_error:
+                raise_for_status_code(response.status_code, response.read().decode())
+
+            content_type = response.headers.get("content-type", "")
+            if "application/json" in content_type:
+                return ChatResponse.model_validate(json.loads(response.read().decode()))
+
+            answer_parts: list[str] = []
+            citations: list[Citation] = []
+            follow_ups: list[str] = []
+            last_session_id = session_id
+
+            for event in iter_sse_events(response.iter_lines()):
+                if isinstance(event, TokenEvent):
+                    answer_parts.append(event.token)
+                elif isinstance(event, CitationEvent):
+                    citations.append(event.citation)
+                elif isinstance(event, DoneEvent):
+                    if event.session_id:
+                        last_session_id = event.session_id
+                    if event.full_answer and not answer_parts:
+                        answer_parts.append(event.full_answer)
+                    if event.follow_up_questions:
+                        follow_ups.extend(event.follow_up_questions)
+                elif isinstance(event, ErrorEvent):
+                    raise TitanRAGError(f"Chat error: {event.error}")
+
+            return ChatResponse(
+                session_id=last_session_id,
+                answer="".join(answer_parts),
+                citations=citations,
+                follow_up_questions=follow_ups,
+            )
 
     def stream(
         self,
         workspace_id: UUID | str,
         query: str,
         session_id: UUID | str | None = None,
-        grounding_mode: str = "Balanced",
+        grounding_mode: str = "balanced",
     ) -> Generator[ChatEvent, None, None]:
         payload = {
             "query": query,
-            "grounding_mode": grounding_mode,
+            "grounding_mode": grounding_mode.lower() if isinstance(grounding_mode, str) else grounding_mode,
         }
         if session_id:
             payload["session_id"] = str(session_id)

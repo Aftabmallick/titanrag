@@ -95,6 +95,7 @@ async def get_or_create_workspace_settings(db: AsyncSession, tenant_id: UUID, wo
 
 
 @router.post("/chat", response_class=StreamingResponse)
+@router.post("/chat/stream", response_class=StreamingResponse)
 async def chat_endpoint(
     workspace_id: UUID,
     payload: ChatQueryRequest,
@@ -329,6 +330,40 @@ async def chat_endpoint(
         candidates=fused_validated_objects,
         top_n=rag_settings.rerank_top_k,
     )
+
+    # 13b. External Webhook ON_RERANK Plugin Hook
+    try:
+        from titan_backend.db.models.plugin import HookType
+        from titan_backend.services.plugins.dispatcher import PluginDispatcher
+
+        plugin_disp = PluginDispatcher(db=db)
+        rerank_plugins = await plugin_disp.get_active_plugins_for_hook(workspace_id, HookType.ON_RERANK)
+        for p_hook in rerank_plugins:
+            rerank_payload = {
+                "workspace_id": str(workspace_id),
+                "query": search_query,
+                "candidates": [
+                    {
+                        "chunk_id": str(getattr(r, "chunk_id", "")),
+                        "score": getattr(r, "relevance_score", 0.0),
+                        "text": (getattr(r, "text", "") or "")[:500],
+                    }
+                    for r in reranked
+                ],
+            }
+            hook_res = await plugin_disp.dispatch_single(
+                plugin=p_hook,
+                hook_type=HookType.ON_RERANK,
+                payload=rerank_payload,
+                request_id=trace.trace_id,
+            )
+            if hook_res.success and hook_res.data and "reranked_ids" in hook_res.data:
+                id_order = hook_res.data["reranked_ids"]
+                id_to_candidate = {str(getattr(r, "chunk_id", "")): r for r in reranked}
+                reranked = [id_to_candidate[cid] for cid in id_order if cid in id_to_candidate]
+                logger.info("plugin_on_rerank_applied", plugin_id=str(p_hook.id))
+    except Exception as hook_err:
+        logger.warning("plugin_on_rerank_failed", error=str(hook_err))
 
     # 14. CRAG Confidence Gate
     crag_decision = crag_gate.evaluate(reranked, threshold=rag_settings.score_threshold)

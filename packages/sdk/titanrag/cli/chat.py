@@ -48,20 +48,31 @@ def _render_citations(citations: list[Citation]) -> None:
 
 @chat_app.command("query")
 def query(
-    prompt: Annotated[str, typer.Argument(help="Question or prompt to submit to RAG pipeline")],
+    prompt: Annotated[
+        str | None,
+        typer.Argument(help="Question or prompt to submit to RAG pipeline (or read from stdin pipe)"),
+    ] = None,
     workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w", help="Workspace ID")] = None,
     grounding_mode: Annotated[
         str, typer.Option("--mode", "-m", help="Grounding mode: Strict, Balanced, Creative")
     ] = "Balanced",
     no_stream: Annotated[bool, typer.Option("--no-stream", help="Wait for full response instead of streaming")] = False,
     as_json: Annotated[bool, typer.Option("--json", help="Output raw JSON response")] = False,
+    quiet: Annotated[bool, typer.Option("--quiet", "-q", help="Output only the raw answer text")] = False,
     session_id: Annotated[str | None, typer.Option("--session-id", "-s", help="Existing chat session ID")] = None,
 ) -> None:
     """Submit a query to the TitanRAG knowledge engine with streaming terminal output."""
+    if not prompt:
+        if not sys.stdin.isatty():
+            prompt = sys.stdin.read().strip()
+        if not prompt:
+            console.print("[bold red]No prompt provided via argument or stdin.[/bold red]")
+            raise typer.Exit(code=1)
+
     wid = _resolve_workspace_id(workspace_id)
     client = get_active_client()
 
-    if no_stream or as_json:
+    if no_stream or as_json or quiet:
         try:
             resp = client.query(
                 query=prompt,
@@ -71,11 +82,16 @@ def query(
             )
             if as_json:
                 typer.echo(json.dumps(resp.model_dump(mode="json"), indent=2))
+            elif quiet:
+                typer.echo(resp.answer)
             else:
                 console.print(Markdown(resp.answer))
                 _render_citations(resp.citations)
         except TitanRAGError as e:
-            console.print(f"[bold red]Query failed:[/bold red] {e}")
+            if quiet:
+                sys.stderr.write(f"Query failed: {e}\n")
+            else:
+                console.print(f"[bold red]Query failed:[/bold red] {e}")
             raise typer.Exit(code=1) from None
         return
 

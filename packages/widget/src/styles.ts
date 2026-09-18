@@ -65,6 +65,32 @@ export const WIDGET_CSS = `
   left: 24px;
 }
 
+:host([position="inline"]) {
+  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+:host([position="inline"]) .launcher-btn {
+  display: none !important;
+}
+
+:host([position="inline"]) .chat-window {
+  position: relative;
+  bottom: auto;
+  right: auto;
+  left: auto;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  border-radius: var(--titan-radius);
+}
+
 .launcher-btn:hover {
   transform: scale(1.08);
   background: var(--titan-primary-hover);

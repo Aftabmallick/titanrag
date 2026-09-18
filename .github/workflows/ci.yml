@@ -57,6 +57,13 @@ jobs:
           npm run lint
           npm run build
 
+      - name: Widget Build Check
+        working-directory: packages/widget
+        run: |
+          npm ci
+          npm run build
+          npm test
+
   integration-test:
     name: Integration & Migration Tests
     runs-on: ubuntu-latest

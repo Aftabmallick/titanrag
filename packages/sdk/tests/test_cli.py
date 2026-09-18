@@ -84,3 +84,37 @@ def test_cli_query_json(tmp_path, monkeypatch):
         parsed = json.loads(result.stdout)
         assert "reciprocal rank fusion" in parsed["answer"]
         assert len(parsed["citations"]) == 1
+
+
+def test_cli_query_quiet(monkeypatch):
+    ws_id = str(uuid4())
+    monkeypatch.setattr("titanrag.cli.chat.get_active_workspace_id", lambda _: ws_id)
+
+    mock_client = MagicMock()
+    mock_client.query.return_value = ChatResponse(
+        answer="TitanRAG uses reciprocal rank fusion.",
+        citations=[],
+    )
+
+    with patch("titanrag.cli.chat.get_active_client", return_value=mock_client):
+        result = runner.invoke(app, ["query", "Explain retrieval", "--quiet"])
+        assert result.exit_code == 0
+        assert result.stdout.strip() == "TitanRAG uses reciprocal rank fusion."
+
+
+def test_cli_query_stdin(monkeypatch):
+    ws_id = str(uuid4())
+    monkeypatch.setattr("titanrag.cli.chat.get_active_workspace_id", lambda _: ws_id)
+
+    mock_client = MagicMock()
+    mock_client.query.return_value = ChatResponse(
+        answer="Piped query answered.",
+        citations=[],
+    )
+
+    with patch("titanrag.cli.chat.get_active_client", return_value=mock_client):
+        result = runner.invoke(app, ["query", "--quiet"], input="Piped prompt question")
+        assert result.exit_code == 0
+        assert result.stdout.strip() == "Piped query answered."
+        mock_client.query.assert_called_once()
+        assert mock_client.query.call_args.kwargs["query"] == "Piped prompt question"

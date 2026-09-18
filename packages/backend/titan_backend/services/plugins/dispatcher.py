@@ -1,3 +1,4 @@
+import asyncio
 import json
 import time
 from typing import Any
@@ -120,31 +121,46 @@ class PluginDispatcher:
         success = False
         tripped = False
 
-        try:
-            client = self._external_client or httpx.AsyncClient(timeout=timeout_sec)
+        retries = max(1, int(getattr(plugin, "retry_count", 1) or 1))
+        for attempt in range(retries):
             try:
-                resp = await client.post(
-                    plugin.endpoint_url,
-                    content=payload_bytes,
-                    headers=headers,
-                )
-                status_code = resp.status_code
-                if resp.is_success:
-                    success = True
-                    try:
-                        response_data = resp.json()
-                    except Exception:
-                        response_data = {"raw_text": resp.text}
-                else:
-                    error_msg = f"HTTP {resp.status_code}: {resp.text[:500]}"
-            finally:
-                if self._external_client is None:
-                    await client.aclose()
+                client = self._external_client or httpx.AsyncClient(timeout=timeout_sec)
+                try:
+                    resp = await client.post(
+                        plugin.endpoint_url,
+                        content=payload_bytes,
+                        headers=headers,
+                    )
+                    status_code = resp.status_code
+                    if resp.is_success:
+                        success = True
+                        try:
+                            response_data = resp.json()
+                        except Exception:
+                            response_data = {"raw_text": resp.text}
+                        error_msg = None
+                        break
+                    else:
+                        error_msg = f"HTTP {resp.status_code}: {resp.text[:500]}"
+                        if attempt < retries - 1 and resp.status_code in (429, 502, 503, 504):
+                            await asyncio.sleep(0.3 * (attempt + 1))
+                            continue
+                        elif resp.status_code < 500 and resp.status_code != 429:
+                            break
+                finally:
+                    if self._external_client is None:
+                        await client.aclose()
 
-        except httpx.TimeoutException:
-            error_msg = f"Webhook timeout exceeded ({plugin.timeout_ms}ms)"
-        except Exception as e:
-            error_msg = f"Webhook connection error: {str(e)}"
+            except httpx.TimeoutException:
+                error_msg = f"Webhook timeout exceeded ({plugin.timeout_ms}ms)"
+                if attempt < retries - 1:
+                    await asyncio.sleep(0.2 * (attempt + 1))
+                    continue
+            except Exception as e:
+                error_msg = f"Webhook connection error: {str(e)}"
+                if attempt < retries - 1:
+                    await asyncio.sleep(0.2 * (attempt + 1))
+                    continue
 
         latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
 

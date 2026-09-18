@@ -23,8 +23,21 @@ export class TitanChatElement extends HTMLElement {
   private inputEl!: HTMLInputElement;
   private sendBtn!: HTMLButtonElement;
 
+  private mediaQueryList?: MediaQueryList;
+  private themeListener?: (e: MediaQueryListEvent) => void;
+
   static get observedAttributes() {
-    return ["workspace", "api-key", "base-url", "theme", "position", "accent-color", "bot-name"];
+    return [
+      "workspace",
+      "api-key",
+      "base-url",
+      "theme",
+      "position",
+      "accent-color",
+      "bot-name",
+      "greeting-message",
+      "placeholder",
+    ];
   }
 
   constructor() {
@@ -36,6 +49,15 @@ export class TitanChatElement extends HTMLElement {
     this.initDOM();
     this.initEngine();
     this.applyTheme();
+    if (this.getAttribute("position") === "inline") {
+      this.toggleChat(true);
+    }
+  }
+
+  disconnectedCallback() {
+    if (this.mediaQueryList && this.themeListener) {
+      this.mediaQueryList.removeEventListener("change", this.themeListener);
+    }
   }
 
   attributeChangedCallback(name: string, oldValue: string, newValue: string) {
@@ -44,6 +66,8 @@ export class TitanChatElement extends HTMLElement {
       this.initEngine();
     } else if (name === "theme" || name === "accent-color") {
       this.applyTheme();
+    } else if (name === "position" && newValue === "inline") {
+      this.toggleChat(true);
     }
   }
 
@@ -63,8 +87,21 @@ export class TitanChatElement extends HTMLElement {
 
   private applyTheme() {
     const theme = this.getAttribute("theme") || "dark";
+    if (this.mediaQueryList && this.themeListener) {
+      this.mediaQueryList.removeEventListener("change", this.themeListener);
+      this.mediaQueryList = undefined;
+      this.themeListener = undefined;
+    }
+
     if (theme === "light") {
       this.classList.add("theme-light");
+    } else if (theme === "auto" && typeof window !== "undefined" && window.matchMedia) {
+      this.mediaQueryList = window.matchMedia("(prefers-color-scheme: dark)");
+      this.classList.toggle("theme-light", !this.mediaQueryList.matches);
+      this.themeListener = (e: MediaQueryListEvent) => {
+        this.classList.toggle("theme-light", !e.matches);
+      };
+      this.mediaQueryList.addEventListener("change", this.themeListener);
     } else {
       this.classList.remove("theme-light");
     }
@@ -77,6 +114,9 @@ export class TitanChatElement extends HTMLElement {
 
   private initDOM() {
     const botName = this.getAttribute("bot-name") || "Titan Assistant";
+    const greetingMessage =
+      this.getAttribute("greeting-message") || "Hello! How can I assist you with this workspace today?";
+    const placeholder = this.getAttribute("placeholder") || "Ask a question...";
 
     this.shadow.innerHTML = `
       <style>${WIDGET_CSS}</style>
@@ -98,13 +138,13 @@ export class TitanChatElement extends HTMLElement {
         <div class="messages-container">
           <div class="message-row bot">
             <div class="message-bubble">
-              <p>Hello! How can I assist you with this workspace today?</p>
+              <p>${escapeHtml(greetingMessage)}</p>
             </div>
           </div>
         </div>
 
         <div class="chat-input-area">
-          <input type="text" class="chat-input" placeholder="Ask a question..." />
+          <input type="text" class="chat-input" placeholder="${escapeHtml(placeholder)}" />
           <button class="send-btn" aria-label="Send Message">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>

@@ -81,3 +81,25 @@ async def test_mcp_server_prompts(mock_client):
     prompts = await server.list_prompts()
     prompt_names = [p.name for p in prompts]
     assert "titan_synthesis_prompt" in prompt_names
+
+
+@pytest.mark.asyncio
+async def test_mcp_server_call_search_documents(mock_client):
+    server = create_mcp_server(client=mock_client)
+    res = await server.call_tool("search_documents", {"query": "vector retrieval", "workspace_id": "test-ws-id"})
+    assert res is not None
+    text_content = str(res)
+    assert "architecture.pdf" in text_content
+    assert "Dense + BM25" in text_content
+
+
+@pytest.mark.asyncio
+async def test_mcp_server_resources(mock_client):
+    server = create_mcp_server(client=mock_client)
+    templates = await server.list_resource_templates()
+    assert templates is not None
+    assert len(templates) == 3
+    uri_templates = [t.uri_template for t in templates]
+    assert "workspace://{workspace_id}" in uri_templates
+    assert "document://{workspace_id}/{document_id}" in uri_templates
+    assert "config://rag-settings/{workspace_id}" in uri_templates
