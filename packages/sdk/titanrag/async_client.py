@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import builtins
+import json
 import os
+import random
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any, cast
@@ -13,10 +16,15 @@ from titanrag.exceptions import TitanRAGError, raise_for_status_code
 from titanrag.models import (
     ChatEvent,
     ChatResponse,
+    Citation,
+    CitationEvent,
     Document,
     DocumentUploadResponse,
+    DoneEvent,
+    ErrorEvent,
     PluginConfig,
     RAGSettingsConfig,
+    TokenEvent,
     Workspace,
 )
 from titanrag.streaming import aiter_sse_events
@@ -35,6 +43,7 @@ class AsyncTitanClient:
         api_key: str | None = None,
         token: str | None = None,
         timeout: float = 30.0,
+        max_retries: int = 3,
     ):
         raw_url = base_url or os.getenv("TITANRAG_BASE_URL") or "http://localhost:8000"
         self.base_url = raw_url.rstrip("/")
@@ -48,6 +57,7 @@ class AsyncTitanClient:
         self.api_key = api_key or os.getenv("TITANRAG_API_KEY")
         self.token = token or os.getenv("TITANRAG_TOKEN")
         self.timeout = timeout
+        self.max_retries = max_retries
 
         self._headers: dict[str, str] = {
             "Accept": "application/json",
@@ -106,19 +116,32 @@ class AsyncTitanClient:
         if headers:
             req_headers.update(headers)
 
-        try:
-            resp = await client.request(method, url, headers=req_headers, **kwargs)
-            if resp.is_error:
-                try:
-                    err_body = resp.json().get("error", {})
-                    msg = err_body.get("message", resp.text)
-                except Exception:
-                    err_body = {}
-                    msg = resp.text
-                raise_for_status_code(resp.status_code, msg, details=err_body)
-            return resp
-        except (httpx.ConnectError, httpx.TimeoutException) as exc:
-            raise TitanRAGError(f"Connection failed to {url}: {exc}") from exc
+        last_exc: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                resp = await client.request(method, url, headers=req_headers, **kwargs)
+                if resp.is_error:
+                    if resp.status_code in (429, 503, 504) and attempt < self.max_retries:
+                        jitter = random.uniform(0, 0.25)
+                        await asyncio.sleep(0.5 * (2**attempt) + jitter)
+                        continue
+                    try:
+                        err_body = resp.json().get("error", {})
+                        msg = err_body.get("message", resp.text)
+                    except Exception:
+                        err_body = {}
+                        msg = resp.text
+                    raise_for_status_code(resp.status_code, msg, details=err_body)
+                return resp
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                last_exc = exc
+                if attempt < self.max_retries:
+                    jitter = random.uniform(0, 0.25)
+                    await asyncio.sleep(0.5 * (2**attempt) + jitter)
+                    continue
+                raise TitanRAGError(f"Connection failed to {url}: {exc}") from exc
+
+        raise TitanRAGError(f"Request failed after {self.max_retries} retries: {last_exc}")
 
     async def get_health_live(self) -> dict[str, Any]:
         """Query unversioned liveness probe."""
@@ -234,28 +257,65 @@ class _AsyncChatResource:
         workspace_id: UUID | str,
         query: str,
         session_id: UUID | str | None = None,
-        grounding_mode: str = "Balanced",
+        grounding_mode: str = "balanced",
     ) -> ChatResponse:
         payload = {
             "query": query,
-            "grounding_mode": grounding_mode,
+            "grounding_mode": grounding_mode.lower() if isinstance(grounding_mode, str) else grounding_mode,
         }
         if session_id:
             payload["session_id"] = str(session_id)
 
-        resp = await self._c.request("POST", f"/workspaces/{workspace_id}/chat", json=payload)
-        return ChatResponse.model_validate(resp.json())
+        client = self._c._get_client()
+        url = f"{self._c.api_v1_url}/workspaces/{workspace_id}/chat"
+        headers = {"Accept": "application/json, text/event-stream"}
+        async with client.stream("POST", url, json=payload, headers=headers) as response:
+            if response.is_error:
+                err_text = await response.aread()
+                raise_for_status_code(response.status_code, err_text.decode())
+
+            content_type = response.headers.get("content-type", "")
+            if "application/json" in content_type:
+                body = await response.aread()
+                return ChatResponse.model_validate(json.loads(body.decode()))
+
+            answer_parts: list[str] = []
+            citations: list[Citation] = []
+            follow_ups: list[str] = []
+            last_session_id = session_id
+
+            async for event in aiter_sse_events(response.aiter_lines()):
+                if isinstance(event, TokenEvent):
+                    answer_parts.append(event.token)
+                elif isinstance(event, CitationEvent):
+                    citations.append(event.citation)
+                elif isinstance(event, DoneEvent):
+                    if event.session_id:
+                        last_session_id = event.session_id
+                    if event.full_answer and not answer_parts:
+                        answer_parts.append(event.full_answer)
+                    if event.follow_up_questions:
+                        follow_ups.extend(event.follow_up_questions)
+                elif isinstance(event, ErrorEvent):
+                    raise TitanRAGError(f"Chat error: {event.error}")
+
+            return ChatResponse(
+                session_id=last_session_id,
+                answer="".join(answer_parts),
+                citations=citations,
+                follow_up_questions=follow_ups,
+            )
 
     async def stream(
         self,
         workspace_id: UUID | str,
         query: str,
         session_id: UUID | str | None = None,
-        grounding_mode: str = "Balanced",
+        grounding_mode: str = "balanced",
     ) -> AsyncGenerator[ChatEvent, None]:
         payload = {
             "query": query,
-            "grounding_mode": grounding_mode,
+            "grounding_mode": grounding_mode.lower() if isinstance(grounding_mode, str) else grounding_mode,
         }
         if session_id:
             payload["session_id"] = str(session_id)

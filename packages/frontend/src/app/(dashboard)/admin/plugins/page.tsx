@@ -15,6 +15,7 @@ import {
   Clock,
   Shield,
   Zap,
+  Edit2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/components/ui/Toast";
@@ -64,6 +65,15 @@ export default function PluginsAdminPage() {
   const [formTimeout, setFormTimeout] = useState(2000);
   const [formHooks, setFormHooks] = useState<string[]>(["ON_PARSE", "ON_POST_GENERATE"]);
   const [submitting, setSubmitting] = useState(false);
+
+  // Edit plugin modal state
+  const [editingPlugin, setEditingPlugin] = useState<PluginRecord | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUrl, setEditUrl] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTimeout, setEditTimeout] = useState(2000);
+  const [editHooks, setEditHooks] = useState<string[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Ping probe state
   const [pingingId, setPingingId] = useState<string | null>(null);
@@ -126,6 +136,48 @@ export default function PluginsAdminPage() {
       error(err.message || "Failed to register plugin");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const openEditModal = (plugin: PluginRecord) => {
+    setEditingPlugin(plugin);
+    setEditName(plugin.name);
+    setEditUrl(plugin.endpoint_url);
+    setEditDescription(plugin.description || "");
+    setEditTimeout(plugin.timeout_ms);
+    setEditHooks(plugin.hooks || []);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeWorkspace || !editingPlugin || !editName.trim() || !editUrl.trim()) return;
+
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/v1/workspaces/${activeWorkspace.id}/plugins/${editingPlugin.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          endpoint_url: editUrl.trim(),
+          description: editDescription.trim() || null,
+          timeout_ms: editTimeout,
+          hooks: editHooks,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json();
+        throw new Error(errJson.detail || "Failed to update plugin");
+      }
+
+      success("Plugin configuration updated successfully!");
+      setEditingPlugin(null);
+      fetchPlugins();
+    } catch (err: any) {
+      error(err.message || "Failed to update plugin");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -337,6 +389,14 @@ export default function PluginsAdminPage() {
                 </button>
 
                 <button
+                  onClick={() => openEditModal(plugin)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-sky-400 hover:bg-slate-800 transition-colors"
+                  title="Edit Plugin Configuration"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+
+                <button
                   onClick={() => handleToggleActive(plugin)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
                     plugin.is_active
@@ -501,6 +561,108 @@ export default function PluginsAdminPage() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Plugin Modal */}
+      {editingPlugin && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+              <Edit2 className="w-5 h-5 text-sky-400" />
+              Edit Plugin Configuration
+            </h2>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4 text-xs">
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Plugin Name</label>
+                <input
+                  type="text"
+                  required
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Endpoint URL</label>
+                <input
+                  type="url"
+                  required
+                  value={editUrl}
+                  onChange={(e) => setEditUrl(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Description</label>
+                <input
+                  type="text"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-slate-300 font-semibold">Timeout (ms)</label>
+                <input
+                  type="number"
+                  min={100}
+                  max={30000}
+                  value={editTimeout}
+                  onChange={(e) => setEditTimeout(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-sky-500 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-slate-300 font-semibold">Enabled Hooks</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {["ON_PARSE", "ON_CHUNK", "ON_EMBED", "ON_RERANK", "ON_POST_GENERATE"].map((hook) => (
+                    <label
+                      key={hook}
+                      className="flex items-center gap-2 p-2 bg-slate-950 border border-slate-800 rounded-xl cursor-pointer hover:border-slate-700"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editHooks.includes(hook)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setEditHooks([...editHooks, hook]);
+                          } else {
+                            setEditHooks(editHooks.filter((h) => h !== hook));
+                          }
+                        }}
+                        className="rounded border-slate-700 text-sky-500 focus:ring-0"
+                      />
+                      <span className="font-mono text-[11px] text-slate-300">{hook}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingPlugin(null)}
+                  className="px-4 py-2 rounded-xl text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-white font-semibold text-xs disabled:opacity-50"
+                >
+                  {savingEdit && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{savingEdit ? "Saving..." : "Save Changes"}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

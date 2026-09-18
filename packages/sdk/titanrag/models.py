@@ -11,7 +11,7 @@ class Workspace(BaseModel):
     id: UUID
     tenant_id: UUID
     name: str
-    slug: str
+    slug: str | None = None
     description: str | None = None
     created_at: datetime | None = None
 

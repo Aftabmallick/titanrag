@@ -205,6 +205,26 @@ class IngestionPipelineOrchestrator:
                 except Exception:
                     created_at_ts = 0
 
+            # Stage 4c: External Webhook ON_EMBED Plugin Hook
+            try:
+                from titan_backend.db.models.plugin import HookType
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+
+                dispatcher = PluginDispatcher(db=db)
+                active_embed_plugins = await dispatcher.get_active_plugins_for_hook(workspace_id, HookType.ON_EMBED)
+                for plugin in active_embed_plugins:
+                    embed_payload = {
+                        "document_id": doc_str,
+                        "filename": filename,
+                        "total_chunks": len(all_chunks),
+                        "chunk_texts": [c.content[:500] for c in all_chunks[:10]],
+                    }
+                    res = await dispatcher.dispatch_single(plugin, HookType.ON_EMBED, embed_payload, request_id=doc_str)
+                    if res.success and res.data and "custom_embeddings" in res.data:
+                        logger.info("plugin_on_embed_custom", plugin_id=str(plugin.id))
+            except Exception as e:
+                logger.warning("plugin_on_embed_skipped", error=str(e), doc_id=doc_str)
+
             # -------------------------------------------------------------
             # Stage 5: Dense + Sparse Embeddings (with Delta MinHash Re-embedding)
             # -------------------------------------------------------------

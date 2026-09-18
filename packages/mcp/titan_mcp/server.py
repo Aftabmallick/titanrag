@@ -83,9 +83,9 @@ def create_mcp_server(client: TitanClient | None = None) -> MCPServer:
         :param alpha: Hybrid search weight (0.0 = BM25 keyword only, 1.0 = dense semantic only).
         """
         try:
-            # Execute search query via client chat API in concise mode or retrieve direct documents
+            # Query workspace retrieval in Strict grounding mode to obtain verified citations
             resp = sdk_client.query(
-                query=f"[Search only] {query}",
+                query=query,
                 workspace_id=workspace_id,
                 grounding_mode="Strict",
             )
@@ -152,18 +152,12 @@ def create_mcp_server(client: TitanClient | None = None) -> MCPServer:
         except Exception as e:
             return f"Workspace resource unavailable: {e}"
 
-    @mcp.resource("document://{document_id}")
-    def get_document_resource(document_id: str) -> str:
+    @mcp.resource("document://{workspace_id}/{document_id}")
+    def get_document_resource(workspace_id: str, document_id: str) -> str:
         """Resource exposing document content, chunk breakdown, and ingestion status."""
         try:
-            workspaces = sdk_client.workspaces.list()
-            for w in workspaces:
-                try:
-                    doc = sdk_client.documents.get_status(workspace_id=w.id, document_id=document_id)
-                    return json.dumps(doc.model_dump(mode="json"), indent=2)
-                except Exception:
-                    continue
-            return f"Document {document_id} not found in accessible workspaces"
+            doc = sdk_client.documents.get_status(workspace_id=workspace_id, document_id=document_id)
+            return json.dumps(doc.model_dump(mode="json"), indent=2)
         except Exception as e:
             return f"Document resource unavailable: {e}"
 

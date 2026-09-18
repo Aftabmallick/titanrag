@@ -211,3 +211,75 @@ async def test_async_client_workspaces_and_streaming():
             accumulated += event.token
 
     assert accumulated == "TitanRAG is fast."
+
+
+@pytest.mark.asyncio
+async def test_async_client_retry_on_429_and_503():
+    attempts = 0
+
+    def retry_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            return httpx.Response(429, json={"error": "Rate limit exceeded"})
+        return httpx.Response(
+            200, json=[{"id": str(uuid4()), "tenant_id": str(uuid4()), "name": "Recovered WS", "slug": "rec-ws"}]
+        )
+
+    transport = httpx.MockTransport(retry_handler)
+    client = AsyncTitanClient(base_url="http://testserver", api_key="tr_valid_key", max_retries=3)
+    client._client = httpx.AsyncClient(transport=transport, headers=client._headers)
+
+    ws_list = await client.workspaces.list()
+    assert len(ws_list) == 1
+    assert ws_list[0].name == "Recovered WS"
+    assert attempts == 3
+
+
+def test_sync_client_retry_on_503():
+    attempts = 0
+
+    def retry_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 2:
+            return httpx.Response(503, json={"error": "Service temporarily overloaded"})
+        return httpx.Response(
+            200, json=[{"id": str(uuid4()), "tenant_id": str(uuid4()), "name": "Sync Recovered", "slug": "sync-rec"}]
+        )
+
+    transport = httpx.MockTransport(retry_handler)
+    client = TitanClient(base_url="http://testserver", api_key="tr_valid_key", max_retries=2)
+    client._client = httpx.Client(transport=transport, headers=client._headers)
+
+    ws_list = client.workspaces.list()
+    assert len(ws_list) == 1
+    assert ws_list[0].name == "Sync Recovered"
+    assert attempts == 2
+
+
+def test_sync_client_sse_streaming_edge_cases():
+    def edge_case_sse_handler(request: httpx.Request) -> httpx.Response:
+        sse_lines = [
+            ": keep-alive comment\n\n",
+            'data: {"type": "unknown_future_event", "meta": "test"}\n\n',
+            "data: not_json_plain_text\n\n",
+            'data: {"type": "token", "token": "Chunk1"}\n\n',
+            'data: {"type": "token", "token": ""}\n\n',
+            'data: {"type": "token", "token": "Chunk2"}\n\n',
+            "data: [DONE]\n\n",
+        ]
+        return httpx.Response(
+            200,
+            headers={"Content-Type": "text/event-stream"},
+            content="".join(sse_lines).encode("utf-8"),
+        )
+
+    transport = httpx.MockTransport(edge_case_sse_handler)
+    client = TitanClient(base_url="http://testserver", api_key="tr_valid_key")
+    client._client = httpx.Client(transport=transport, headers=client._headers)
+
+    events = list(client.chat_stream("Edge cases", workspace_id=str(uuid4())))
+    token_events = [e for e in events if isinstance(e, TokenEvent)]
+    assert len(token_events) == 4
+    assert "".join(t.token for t in token_events) == "not_json_plain_textChunk1Chunk2"

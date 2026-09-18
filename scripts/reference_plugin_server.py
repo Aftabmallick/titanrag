@@ -98,6 +98,23 @@ async def handle_titan_hook(
             "audit_tag": "legal_egress_verified",
         }
 
+    # 4. Reranking Hook (ON_RERANK)
+    elif x_titan_hook == "ON_RERANK":
+        candidates = payload.get("candidates", [])
+        return {
+            "handled": True,
+            "reranked_ids": [c.get("chunk_id") for c in candidates if "chunk_id" in c],
+            "audit_tag": "reference_rerank_applied",
+        }
+
+    # 5. Embedding Hook (ON_EMBED)
+    elif x_titan_hook == "ON_EMBED":
+        return {
+            "handled": True,
+            "total_chunks": payload.get("total_chunks", 0),
+            "audit_tag": "reference_embed_verified",
+        }
+
     # Fallback
     return {
         "handled": True,

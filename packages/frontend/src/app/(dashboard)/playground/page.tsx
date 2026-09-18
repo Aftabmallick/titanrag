@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Play, Copy, Check, Terminal, Zap, Shield, RefreshCw, Layers } from "lucide-react";
+import { Play, Copy, Check, Terminal, Zap, Shield, RefreshCw, Layers, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ENDPOINT_CATALOG, EndpointSpec, fetchDynamicEndpointsFromOpenApi } from "@/components/playground/endpointCatalog";
 import { CodeSnippetGenerator } from "@/components/playground/CodeSnippetGenerator";
@@ -11,6 +11,7 @@ export default function PlaygroundPage() {
 
   const [catalog, setCatalog] = useState<EndpointSpec[]>(ENDPOINT_CATALOG);
   const [selectedEndpoint, setSelectedEndpoint] = useState<EndpointSpec>(ENDPOINT_CATALOG[0]);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState("http://localhost:8000");
   const [refreshingCatalog, setRefreshingCatalog] = useState(false);
@@ -185,25 +186,64 @@ export default function PlaygroundPage() {
       {/* Main Studio Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Sidebar: Endpoint Directory */}
-        <div className="lg:col-span-4 bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              API Endpoints ({catalog.length})
-            </span>
-            <button
-              onClick={loadOpenApiCatalog}
-              disabled={refreshingCatalog}
-              className="text-[11px] text-slate-400 hover:text-sky-400 flex items-center gap-1 transition-colors"
-              title="Refresh endpoints from OpenAPI schema"
-            >
-              <RefreshCw className={`w-3 h-3 ${refreshingCatalog ? "animate-spin text-sky-400" : ""}`} />
-              <span>Sync</span>
-            </button>
+        <div
+          className={`${
+            sidebarCollapsed ? "lg:col-span-1 p-2" : "lg:col-span-4 p-4"
+          } bg-slate-900/60 border border-slate-800/80 rounded-2xl space-y-4 transition-all`}
+        >
+          <div className="flex items-center justify-between px-1">
+            {!sidebarCollapsed && (
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">
+                Endpoints ({catalog.length})
+              </span>
+            )}
+            <div className={`flex items-center gap-1 ${sidebarCollapsed ? "w-full justify-center" : ""}`}>
+              {!sidebarCollapsed && (
+                <button
+                  onClick={loadOpenApiCatalog}
+                  disabled={refreshingCatalog}
+                  className="text-[11px] text-slate-400 hover:text-sky-400 flex items-center gap-1 transition-colors p-1"
+                  title="Refresh endpoints from OpenAPI schema"
+                >
+                  <RefreshCw className={`w-3 h-3 ${refreshingCatalog ? "animate-spin text-sky-400" : ""}`} />
+                  <span>Sync</span>
+                </button>
+              )}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                title={sidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+              >
+                {sidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1 overflow-y-auto max-h-[calc(100vh-280px)] pr-1">
             {catalog.map((ep) => {
               const isSelected = selectedEndpoint.id === ep.id;
+              if (sidebarCollapsed) {
+                return (
+                  <button
+                    key={ep.id}
+                    onClick={() => setSelectedEndpoint(ep)}
+                    title={`${ep.method} ${ep.name} - ${ep.path}`}
+                    className={`w-full py-2 px-1 rounded-xl text-xs transition-all flex items-center justify-center border ${
+                      isSelected
+                        ? "bg-slate-800/90 border-sky-500/50 shadow-md shadow-sky-500/5"
+                        : "bg-slate-900/30 border-transparent hover:bg-slate-800/50 hover:border-slate-700/50"
+                    }`}
+                  >
+                    <span
+                      className={`font-mono text-[9px] font-bold px-1 py-0.5 rounded border ${methodColor(
+                        ep.method
+                      )}`}
+                    >
+                      {ep.method.slice(0, 3)}
+                    </span>
+                  </button>
+                );
+              }
               return (
                 <button
                   key={ep.id}
@@ -232,7 +272,7 @@ export default function PlaygroundPage() {
         </div>
 
         {/* Right Panel: Request Builder & Live Response */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className={`${sidebarCollapsed ? "lg:col-span-11" : "lg:col-span-8"} space-y-6 transition-all`}>
           {/* Active Endpoint Banner */}
           <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-5 space-y-4">
             <div className="flex items-center justify-between">
@@ -328,6 +368,12 @@ export default function PlaygroundPage() {
                   <span className="text-xs font-mono text-slate-400 flex items-center gap-1">
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                     {responseLatency} ms
+                  </span>
+                )}
+                {responseData && responseLatency !== null && (
+                  <span className="text-xs font-mono text-emerald-400 flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                    <Shield className="w-3.5 h-3.5" />
+                    ~{(responseLatency * 0.002).toFixed(3)} CU
                   </span>
                 )}
               </div>
