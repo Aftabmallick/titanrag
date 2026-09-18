@@ -118,7 +118,6 @@ def upgrade() -> None:
         sa.Column("delivered_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now(), index=True),
     )
     op.create_index("ix_webhook_delivery_logs_webhook_event", "webhook_delivery_logs", ["webhook_id", "event_type"])
-    op.create_index("ix_webhook_delivery_logs_delivered_at", "webhook_delivery_logs", ["delivered_at"])
 
     # 6. Create media_transcriptions table
     op.create_table(
@@ -231,4 +230,4 @@ def downgrade() -> None:
     op.drop_column("connectors", "last_sync_error")
     op.drop_column("connectors", "cdc_cursor")
 
-    op.execute("DROP TYPE IF EXISTS mediatranscriptionstatus")
+    op.execute("DROP TYPE IF EXISTS mediatranscriptionstatus CASCADE")
