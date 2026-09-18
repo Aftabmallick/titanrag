@@ -19,8 +19,11 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    health_status_enum = sa.Enum("HEALTHY", "DEGRADED", "OFFLINE", name="pluginhealthstatus")
-    health_status_enum.create(op.get_bind(), checkfirst=True)
+    health_status_enum = postgresql.ENUM("HEALTHY", "DEGRADED", "OFFLINE", name="pluginhealthstatus", create_type=False)
+    op.execute(
+        "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'pluginhealthstatus') THEN "
+        "CREATE TYPE pluginhealthstatus AS ENUM ('HEALTHY', 'DEGRADED', 'OFFLINE'); END IF; END $$;"
+    )
 
     # 1. Create plugins table
     op.create_table(
