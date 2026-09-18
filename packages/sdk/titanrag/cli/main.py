@@ -1,4 +1,3 @@
-
 import typer
 from rich.console import Console
 
@@ -38,6 +37,7 @@ app.command("repl", help="Start interactive terminal chat session")(interactive_
 def version() -> None:
     """Print TitanRAG CLI and SDK version."""
     from titanrag import __version__
+
     console.print(f"[bold cyan]TitanRAG CLI[/bold cyan] version [bold white]{__version__}[/bold white]")
 
 

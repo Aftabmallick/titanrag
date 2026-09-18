@@ -61,12 +61,9 @@ class PluginDispatcher:
     ) -> list[Plugin]:
         """Fetch all active, non-tripped plugins registered for a specific hook type."""
         hook_str = hook_type.value if isinstance(hook_type, HookType) else str(hook_type)
-        stmt = (
-            select(Plugin)
-            .where(
-                Plugin.workspace_id == workspace_id,
-                Plugin.is_active.is_(True),
-            )
+        stmt = select(Plugin).where(
+            Plugin.workspace_id == workspace_id,
+            Plugin.is_active.is_(True),
         )
         res = await self.db.execute(stmt)
         plugins = res.scalars().all()

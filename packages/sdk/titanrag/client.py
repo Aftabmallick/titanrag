@@ -1,4 +1,5 @@
 """Backwards compatibility shim for titanrag.client."""
+
 from titanrag.async_client import AsyncTitanClient
 from titanrag.exceptions import TitanRAGError
 from titanrag.sync_client import TitanClient

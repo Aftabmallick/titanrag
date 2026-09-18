@@ -36,13 +36,15 @@ def login(
             cfg["active_workspace_id"] = str(workspaces[0].id)
         save_config(cfg)
 
-        console.print(Panel(
-            f"[bold green]Authentication Successful![/bold green]\n"
-            f"Server: [cyan]{target_url}[/cyan]\n"
-            f"Accessible Workspaces: [yellow]{len(workspaces)}[/yellow]\n"
-            f"Default Workspace: [white]{cfg.get('active_workspace_id', 'None')}[/white]",
-            title="TitanRAG Login",
-        ))
+        console.print(
+            Panel(
+                f"[bold green]Authentication Successful![/bold green]\n"
+                f"Server: [cyan]{target_url}[/cyan]\n"
+                f"Accessible Workspaces: [yellow]{len(workspaces)}[/yellow]\n"
+                f"Default Workspace: [white]{cfg.get('active_workspace_id', 'None')}[/white]",
+                title="TitanRAG Login",
+            )
+        )
     except TitanRAGError as e:
         console.print(f"[bold red]Login Failed:[/bold red] {e}")
         raise typer.Exit(code=1) from None
@@ -58,12 +60,14 @@ def whoami() -> None:
 
     key_masked = cfg["api_key"][:6] + "..." + cfg["api_key"][-4:] if cfg.get("api_key") else "None"
 
-    console.print(Panel(
-        f"Server: [cyan]{cfg.get('base_url', 'http://localhost:8000')}[/cyan]\n"
-        f"API Key: [white]{key_masked}[/white]\n"
-        f"Active Workspace: [yellow]{cfg.get('active_workspace_id', 'None selected')}[/yellow]",
-        title="Active Profile",
-    ))
+    console.print(
+        Panel(
+            f"Server: [cyan]{cfg.get('base_url', 'http://localhost:8000')}[/cyan]\n"
+            f"API Key: [white]{key_masked}[/white]\n"
+            f"Active Workspace: [yellow]{cfg.get('active_workspace_id', 'None selected')}[/yellow]",
+            title="Active Profile",
+        )
+    )
 
 
 @auth_app.command("logout")

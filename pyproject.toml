@@ -16,6 +16,12 @@ members = [
     "packages/mcp",
 ]
 
+[tool.uv.sources]
+titanrag = { workspace = true }
+titan-backend = { workspace = true }
+titan-workers = { workspace = true }
+titan-mcp = { workspace = true }
+
 [tool.ruff]
 line-length = 120
 target-version = "py312"

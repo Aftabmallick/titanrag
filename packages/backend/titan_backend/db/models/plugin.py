@@ -30,6 +30,7 @@ class Plugin(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin):
     Registered external webhook micro-hook extension for TitanRAG.
     Enables safe out-of-process custom parsers, chunkers, rerankers, and egress filters.
     """
+
     __tablename__ = "plugins"
 
     workspace_id: Mapped[UUID] = mapped_column(
@@ -42,21 +43,21 @@ class Plugin(Base, UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin):
     slug: Mapped[str] = mapped_column(String(100), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     version: Mapped[str] = mapped_column(String(50), default="1.0.0", nullable=False)
-    
+
     # HTTPS endpoint where hook payloads will be dispatched via POST
     endpoint_url: Mapped[str] = mapped_column(String(1024), nullable=False)
-    
+
     # 256-bit hexadecimal secret for HMAC-SHA256 request signing (never exposed in public API)
     webhook_secret: Mapped[str] = mapped_column(String(255), nullable=False)
-    
+
     # Array of HookType strings enabled for this plugin, e.g. ["ON_PARSE", "ON_POST_GENERATE"]
     hooks: Mapped[list[str]] = mapped_column(JSONB, default=list, nullable=False)
-    
+
     # Per-hook execution timeout budget in milliseconds (default 2000ms)
     timeout_ms: Mapped[int] = mapped_column(Integer, default=2000, nullable=False)
     retry_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    
+
     # Operational health tracking
     health_status: Mapped[PluginHealthStatus] = mapped_column(
         Enum(PluginHealthStatus), default=PluginHealthStatus.HEALTHY, nullable=False
@@ -85,6 +86,7 @@ class PluginExecutionLog(Base, UUIDPrimaryKeyMixin, TenantScopedMixin):
     Granular audit log of an external micro-hook execution.
     Captures status code, latency, and sample payload digests.
     """
+
     __tablename__ = "plugin_execution_logs"
 
     plugin_id: Mapped[UUID] = mapped_column(
@@ -106,9 +108,7 @@ class PluginExecutionLog(Base, UUIDPrimaryKeyMixin, TenantScopedMixin):
     request_payload_sample: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     response_payload_sample: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=utc_now, nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
     plugin: Mapped["Plugin"] = relationship("Plugin", back_populates="execution_logs")
 

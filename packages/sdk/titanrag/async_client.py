@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import builtins
 import os
 from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import Any, List, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
@@ -74,7 +75,7 @@ class AsyncTitanClient:
             )
         return self._client
 
-    async def __aenter__(self) -> "AsyncTitanClient":
+    async def __aenter__(self) -> AsyncTitanClient:
         self._get_client()
         return self
 
@@ -194,7 +195,7 @@ class _AsyncDocumentsResource:
         workspace_id: UUID | str,
         file_path_or_bytes: str | Path | bytes,
         filename: str | None = None,
-        acl_groups: List[str] | None = None,
+        acl_groups: builtins.list[str] | None = None,
     ) -> DocumentUploadResponse:
         if isinstance(file_path_or_bytes, (str, Path)):
             path = Path(file_path_or_bytes)
@@ -296,7 +297,7 @@ class _AsyncPluginsResource:
         workspace_id: UUID | str,
         name: str,
         endpoint_url: str,
-        hooks: List[str],
+        hooks: builtins.list[str],
         timeout_ms: int = 2000,
         is_active: bool = True,
         description: str | None = None,

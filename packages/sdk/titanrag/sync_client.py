@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import builtins
 import os
 import time
 from collections.abc import Generator
 from pathlib import Path
-from typing import Any, List, cast
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
@@ -78,7 +79,7 @@ class TitanClient:
             )
         return self._client
 
-    def __enter__(self) -> "TitanClient":
+    def __enter__(self) -> TitanClient:
         self._get_client()
         return self
 
@@ -206,7 +207,7 @@ class _DocumentsResource:
         workspace_id: UUID | str,
         file_path_or_bytes: str | Path | bytes,
         filename: str | None = None,
-        acl_groups: List[str] | None = None,
+        acl_groups: builtins.list[str] | None = None,
     ) -> DocumentUploadResponse:
         if isinstance(file_path_or_bytes, (str, Path)):
             path = Path(file_path_or_bytes)
@@ -307,7 +308,7 @@ class _PluginsResource:
         workspace_id: UUID | str,
         name: str,
         endpoint_url: str,
-        hooks: List[str],
+        hooks: builtins.list[str],
         timeout_ms: int = 2000,
         is_active: bool = True,
         description: str | None = None,

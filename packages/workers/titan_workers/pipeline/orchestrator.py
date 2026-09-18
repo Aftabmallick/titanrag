@@ -96,8 +96,9 @@ class IngestionPipelineOrchestrator:
 
             # Stage 1b: External Webhook ON_PARSE Plugin Hook
             try:
-                from titan_backend.services.plugins.dispatcher import PluginDispatcher
                 from titan_backend.db.models.plugin import HookType
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+
                 dispatcher = PluginDispatcher(db=db)
                 active_parse_plugins = await dispatcher.get_active_plugins_for_hook(workspace_id, HookType.ON_PARSE)
                 for plugin in active_parse_plugins:
@@ -139,8 +140,9 @@ class IngestionPipelineOrchestrator:
 
             # Stage 3b: External Webhook ON_CHUNK Plugin Hook
             try:
-                from titan_backend.services.plugins.dispatcher import PluginDispatcher
                 from titan_backend.db.models.plugin import HookType
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+
                 dispatcher = PluginDispatcher(db=db)
                 active_chunk_plugins = await dispatcher.get_active_plugins_for_hook(workspace_id, HookType.ON_CHUNK)
                 for plugin in active_chunk_plugins:
@@ -148,7 +150,7 @@ class IngestionPipelineOrchestrator:
                         "document_id": doc_str,
                         "filename": filename,
                         "total_chunks": len(all_chunks),
-                        "sample_chunks": [c.text[:200] for c in all_chunks[:5]],
+                        "sample_chunks": [c.content[:200] for c in all_chunks[:5]],
                     }
                     await dispatcher.dispatch_single(plugin, HookType.ON_CHUNK, chunk_payload, request_id=doc_str)
             except Exception as e:

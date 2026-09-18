@@ -31,7 +31,11 @@ def mock_client():
 
     client.query.return_value = ChatResponse(
         answer="TitanRAG uses dense and sparse retrieval.",
-        citations=[Citation(citation_id="c1", document_id=str(doc.id), filename="architecture.pdf", snippet="Dense + BM25", page=1)],
+        citations=[
+            Citation(
+                citation_id="c1", document_id=str(doc.id), filename="architecture.pdf", snippet="Dense + BM25", page=1
+            )
+        ],
     )
     return client
 

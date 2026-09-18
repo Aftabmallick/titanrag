@@ -86,15 +86,17 @@ def handle_app_mention(event, say, client):
                 score = round(float(c.get("score", 0)) * 100)
                 source_lines.append(f"• *{title}* (Relevance: {score}%)")
 
-            blocks.append({
-                "type": "context",
-                "elements": [
-                    {
-                        "type": "mrkdwn",
-                        "text": "📚 *Sources:*\n" + "\n".join(source_lines),
-                    }
-                ],
-            })
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": "📚 *Sources:*\n" + "\n".join(source_lines),
+                        }
+                    ],
+                }
+            )
 
         # Update message in place
         client.chat_update(

@@ -19,7 +19,9 @@ chat_app = typer.Typer(help="Chat and query commands")
 def _resolve_workspace_id(override_id: str | None) -> str:
     wid = get_active_workspace_id(override_id)
     if not wid:
-        console.print("[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]")
+        console.print(
+            "[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]"
+        )
         raise typer.Exit(code=1)
     return wid
 
@@ -48,7 +50,9 @@ def _render_citations(citations: list[Citation]) -> None:
 def query(
     prompt: Annotated[str, typer.Argument(help="Question or prompt to submit to RAG pipeline")],
     workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w", help="Workspace ID")] = None,
-    grounding_mode: Annotated[str, typer.Option("--mode", "-m", help="Grounding mode: Strict, Balanced, Creative")] = "Balanced",
+    grounding_mode: Annotated[
+        str, typer.Option("--mode", "-m", help="Grounding mode: Strict, Balanced, Creative")
+    ] = "Balanced",
     no_stream: Annotated[bool, typer.Option("--no-stream", help="Wait for full response instead of streaming")] = False,
     as_json: Annotated[bool, typer.Option("--json", help="Output raw JSON response")] = False,
     session_id: Annotated[str | None, typer.Option("--session-id", "-s", help="Existing chat session ID")] = None,
@@ -121,18 +125,22 @@ def query(
 @chat_app.command("chat")
 def interactive_chat(
     workspace_id: Annotated[str | None, typer.Option("--workspace-id", "-w", help="Workspace ID")] = None,
-    grounding_mode: Annotated[str, typer.Option("--mode", "-m", help="Grounding mode: Strict, Balanced, Creative")] = "Balanced",
+    grounding_mode: Annotated[
+        str, typer.Option("--mode", "-m", help="Grounding mode: Strict, Balanced, Creative")
+    ] = "Balanced",
 ) -> None:
     """Launch an interactive multi-turn terminal chat session with TitanRAG."""
     wid = _resolve_workspace_id(workspace_id)
     client = get_active_client()
 
-    console.print(Panel(
-        f"[bold]TitanRAG Interactive REPL[/bold]\n"
-        f"Workspace: [cyan]{wid}[/cyan] | Mode: [yellow]{grounding_mode}[/yellow]\n"
-        f"Type [bold red]exit[/bold red] or [bold red]quit[/bold red] to end session.",
-        title="Interactive Session",
-    ))
+    console.print(
+        Panel(
+            f"[bold]TitanRAG Interactive REPL[/bold]\n"
+            f"Workspace: [cyan]{wid}[/cyan] | Mode: [yellow]{grounding_mode}[/yellow]\n"
+            f"Type [bold red]exit[/bold red] or [bold red]quit[/bold red] to end session.",
+            title="Interactive Session",
+        )
+    )
 
     session_id: str | None = None
 

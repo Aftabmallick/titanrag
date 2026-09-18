@@ -28,21 +28,25 @@ class TitanRAGError(Exception):
 
 class AuthenticationError(TitanRAGError):
     """Raised when API key or JWT credentials are missing, invalid, or expired (HTTP 401)."""
+
     pass
 
 
 class PermissionDeniedError(TitanRAGError):
     """Raised when tenant/user lacks permissions for the requested resource (HTTP 403)."""
+
     pass
 
 
 class NotFoundError(TitanRAGError):
     """Raised when a workspace, document, or plugin is not found (HTTP 404)."""
+
     pass
 
 
 class ConflictError(TitanRAGError):
     """Raised when an object with duplicate slug, name, or hash already exists (HTTP 409)."""
+
     pass
 
 
@@ -62,6 +66,7 @@ class RateLimitError(TitanRAGError):
 
 class ServerError(TitanRAGError):
     """Raised when the TitanRAG server returns a 5xx internal error."""
+
     pass
 
 

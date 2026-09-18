@@ -18,14 +18,16 @@ def mock_sdk_backend(request: httpx.Request) -> httpx.Response:
     if url.endswith("/api/v1/workspaces") and request.method == "GET":
         return httpx.Response(
             200,
-            json=[{
-                "id": str(uuid4()),
-                "tenant_id": str(uuid4()),
-                "name": "Engineering Workspace",
-                "slug": "engineering",
-                "description": "Tech docs",
-                "created_at": "2026-09-18T10:00:00Z",
-            }],
+            json=[
+                {
+                    "id": str(uuid4()),
+                    "tenant_id": str(uuid4()),
+                    "name": "Engineering Workspace",
+                    "slug": "engineering",
+                    "description": "Tech docs",
+                    "created_at": "2026-09-18T10:00:00Z",
+                }
+            ],
         )
     elif url.endswith("/api/v1/workspaces") and request.method == "POST":
         body = json.loads(request.content)
@@ -54,15 +56,17 @@ def mock_sdk_backend(request: httpx.Request) -> httpx.Response:
     elif "/documents" in url and request.method == "GET":
         return httpx.Response(
             200,
-            json=[{
-                "id": str(uuid4()),
-                "tenant_id": str(uuid4()),
-                "workspace_id": str(uuid4()),
-                "filename": "handbook.pdf",
-                "status": "READY",
-                "chunk_count": 42,
-                "file_size_bytes": 1048576,
-            }],
+            json=[
+                {
+                    "id": str(uuid4()),
+                    "tenant_id": str(uuid4()),
+                    "workspace_id": str(uuid4()),
+                    "filename": "handbook.pdf",
+                    "status": "READY",
+                    "chunk_count": 42,
+                    "file_size_bytes": 1048576,
+                }
+            ],
         )
 
     # Chat non-stream
@@ -72,14 +76,16 @@ def mock_sdk_backend(request: httpx.Request) -> httpx.Response:
             json={
                 "session_id": str(uuid4()),
                 "answer": "TitanRAG provides high-performance vector retrieval.",
-                "citations": [{
-                    "citation_id": "cite-1",
-                    "document_id": str(uuid4()),
-                    "filename": "handbook.pdf",
-                    "page": 3,
-                    "snippet": "TitanRAG provides high-performance vector retrieval.",
-                    "relevance_score": 0.95,
-                }],
+                "citations": [
+                    {
+                        "citation_id": "cite-1",
+                        "document_id": str(uuid4()),
+                        "filename": "handbook.pdf",
+                        "page": 3,
+                        "snippet": "TitanRAG provides high-performance vector retrieval.",
+                        "relevance_score": 0.95,
+                    }
+                ],
                 "follow_up_questions": ["What vector database is used?"],
             },
         )

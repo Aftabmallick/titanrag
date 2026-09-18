@@ -56,7 +56,7 @@ def create_mcp_server(client: TitanClient | None = None) -> MCPServer:
             citations_text = ""
             if resp.citations:
                 citations_text = "\n\nSources:\n" + "\n".join(
-                    f"[{idx}] {c.filename or c.document_id} (p.{c.page or 1}): \"{c.snippet[:120]}...\""
+                    f'[{idx}] {c.filename or c.document_id} (p.{c.page or 1}): "{c.snippet[:120]}..."'
                     for idx, c in enumerate(resp.citations, 1)
                 )
             return f"{resp.answer}{citations_text}"
@@ -91,14 +91,16 @@ def create_mcp_server(client: TitanClient | None = None) -> MCPServer:
             )
             chunks = []
             for idx, c in enumerate(resp.citations[:top_k], 1):
-                chunks.append({
-                    "rank": idx,
-                    "document_id": str(c.document_id),
-                    "filename": c.filename,
-                    "page": c.page,
-                    "relevance_score": c.relevance_score,
-                    "snippet": c.snippet,
-                })
+                chunks.append(
+                    {
+                        "rank": idx,
+                        "document_id": str(c.document_id),
+                        "filename": c.filename,
+                        "page": c.page,
+                        "relevance_score": c.relevance_score,
+                        "snippet": c.snippet,
+                    }
+                )
             return json.dumps(chunks, indent=2)
         except TitanRAGError as e:
             return f"Error searching TitanRAG documents: {e}"

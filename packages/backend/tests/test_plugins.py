@@ -21,12 +21,15 @@ def test_webhook_signer_generation_and_signing():
     assert sig_header.startswith(f"t={now},v1=")
 
     # Verify signature
-    assert WebhookSigner.verify_signature(
-        secret=secret,
-        payload_bytes=payload,
-        header_value=sig_header,
-        current_time=now,
-    ) is True
+    assert (
+        WebhookSigner.verify_signature(
+            secret=secret,
+            payload_bytes=payload,
+            header_value=sig_header,
+            current_time=now,
+        )
+        is True
+    )
 
 
 def test_webhook_signer_tamper_detection():
@@ -36,21 +39,27 @@ def test_webhook_signer_tamper_detection():
 
     # Tampered payload
     tampered = b'{"amount":1000000}'
-    assert WebhookSigner.verify_signature(
-        secret=secret,
-        payload_bytes=tampered,
-        header_value=sig_header,
-        current_time=now,
-    ) is False
+    assert (
+        WebhookSigner.verify_signature(
+            secret=secret,
+            payload_bytes=tampered,
+            header_value=sig_header,
+            current_time=now,
+        )
+        is False
+    )
 
     # Tampered secret
     other_secret = WebhookSigner.generate_secret()
-    assert WebhookSigner.verify_signature(
-        secret=other_secret,
-        payload_bytes=payload,
-        header_value=sig_header,
-        current_time=now,
-    ) is False
+    assert (
+        WebhookSigner.verify_signature(
+            secret=other_secret,
+            payload_bytes=payload,
+            header_value=sig_header,
+            current_time=now,
+        )
+        is False
+    )
 
 
 def test_webhook_signer_replay_drift_rejection():
@@ -61,24 +70,30 @@ def test_webhook_signer_replay_drift_rejection():
     sig_header, _ = WebhookSigner.sign_payload(secret, payload, timestamp=past_timestamp)
 
     # Should be rejected because drift > max_drift_seconds (300s)
-    assert WebhookSigner.verify_signature(
-        secret=secret,
-        payload_bytes=payload,
-        header_value=sig_header,
-        max_drift_seconds=300,
-        current_time=int(time.time()),
-    ) is False
+    assert (
+        WebhookSigner.verify_signature(
+            secret=secret,
+            payload_bytes=payload,
+            header_value=sig_header,
+            max_drift_seconds=300,
+            current_time=int(time.time()),
+        )
+        is False
+    )
 
     # Within drift limit (e.g. 100 seconds ago) -> valid
     valid_past = int(time.time()) - 100
     valid_header, _ = WebhookSigner.sign_payload(secret, payload, timestamp=valid_past)
-    assert WebhookSigner.verify_signature(
-        secret=secret,
-        payload_bytes=payload,
-        header_value=valid_header,
-        max_drift_seconds=300,
-        current_time=int(time.time()),
-    ) is True
+    assert (
+        WebhookSigner.verify_signature(
+            secret=secret,
+            payload_bytes=payload,
+            header_value=valid_header,
+            max_drift_seconds=300,
+            current_time=int(time.time()),
+        )
+        is True
+    )
 
 
 @pytest.mark.asyncio

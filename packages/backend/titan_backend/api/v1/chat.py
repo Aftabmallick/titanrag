@@ -435,8 +435,9 @@ async def chat_endpoint(
         try:
             # External Webhook ON_POST_GENERATE Plugin Hook (egress compliance / redaction)
             try:
-                from titan_backend.services.plugins.dispatcher import PluginDispatcher
                 from titan_backend.db.models.plugin import HookType
+                from titan_backend.services.plugins.dispatcher import PluginDispatcher
+
                 plugin_disp = PluginDispatcher(db=db)
                 post_plugins = await plugin_disp.get_active_plugins_for_hook(workspace_id, HookType.ON_POST_GENERATE)
                 for p_hook in post_plugins:

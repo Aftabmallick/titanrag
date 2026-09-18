@@ -74,6 +74,7 @@ class ChatResponse(BaseModel):
 
 # --- SSE Streaming Event Models ---
 
+
 class BaseChatEvent(BaseModel):
     model_config = ConfigDict(extra="ignore")
     event_type: str

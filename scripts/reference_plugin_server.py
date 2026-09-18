@@ -39,7 +39,9 @@ def verify_titan_signature(body: bytes, sig_header: str | None, max_drift_second
 
     now = int(time.time())
     if abs(now - ts) > max_drift_seconds:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Signature timestamp drift exceeded (replay rejected)")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Signature timestamp drift exceeded (replay rejected)"
+        )
 
     msg = f"{ts}.".encode() + body
     expected = hmac.new(WEBHOOK_SECRET.encode("utf-8"), msg, hashlib.sha256).hexdigest()

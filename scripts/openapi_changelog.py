@@ -133,10 +133,14 @@ def compare_specs(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="TitanRAG OpenAPI Changelog & Breaking Change Detector")
-    parser.add_argument("--baseline", type=str, default="docs/openapi_baseline.json", help="Path to baseline OpenAPI JSON")
+    parser.add_argument(
+        "--baseline", type=str, default="docs/openapi_baseline.json", help="Path to baseline OpenAPI JSON"
+    )
     parser.add_argument("--current", type=str, default=None, help="Path to current OpenAPI JSON (defaults to live app)")
     parser.add_argument("--save-baseline", action="store_true", help="Save live app OpenAPI schema as new baseline")
-    parser.add_argument("--strict", action="store_true", default=True, help="Exit with code 1 if breaking changes found")
+    parser.add_argument(
+        "--strict", action="store_true", default=True, help="Exit with code 1 if breaking changes found"
+    )
     parser.add_argument("--markdown", type=str, default=None, help="Optional output markdown file for changelog")
 
     args = parser.parse_args()
@@ -147,6 +151,7 @@ def main() -> int:
             current_spec = json.load(f)
     else:
         from titan_backend.main import app
+
         current_spec = app.openapi()
 
     # Save baseline action
@@ -154,7 +159,9 @@ def main() -> int:
         os.makedirs(os.path.dirname(os.path.abspath(args.baseline)), exist_ok=True)
         with open(args.baseline, "w", encoding="utf-8") as f:
             json.dump(current_spec, f, indent=2)
-        print(f"✅ Saved baseline OpenAPI specification to `{args.baseline}` ({len(current_spec.get('paths', {}))} paths)")
+        print(
+            f"✅ Saved baseline OpenAPI specification to `{args.baseline}` ({len(current_spec.get('paths', {}))} paths)"
+        )
         return 0
 
     if not os.path.exists(args.baseline):
@@ -174,7 +181,9 @@ def main() -> int:
     print("        TITANRAG OPENAPI SPECIFICATION AUDIT           ")
     print("=======================================================\n")
     print(f"Baseline: {args.baseline} (OpenAPI {baseline_spec.get('openapi')})")
-    print(f"Current:  {len(current_spec.get('paths', {}))} paths, {len(current_spec.get('components', {}).get('schemas', {}))} schemas\n")
+    print(
+        f"Current:  {len(current_spec.get('paths', {}))} paths, {len(current_spec.get('components', {}).get('schemas', {}))} schemas\n"
+    )
 
     if breaking:
         print(f"🚨 BREAKING CHANGES DETECTED ({len(breaking)}):")

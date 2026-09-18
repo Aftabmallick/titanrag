@@ -56,4 +56,3 @@ v1_router.include_router(analytics_router)
 
 # Phase 7 Routers
 v1_router.include_router(plugins_router)
-

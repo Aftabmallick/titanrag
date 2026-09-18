@@ -104,12 +104,11 @@ retriever = TitanRAGRetriever(
 )
 llm = ChatOpenAI(model="gpt-4o", temperature=0.1)
 
+
 # 2. Format documents helper
 def format_docs(docs):
-    return "\n\n".join(
-        f"[Source: {d.metadata.get('filename')}]\n{d.page_content}"
-        for d in docs
-    )
+    return "\n\n".join(f"[Source: {d.metadata.get('filename')}]\n{d.page_content}" for d in docs)
+
 
 # 3. Prompt Template
 template = """Answer the query using exclusively the provided context. If unknown, state that you do not know.
@@ -123,12 +122,7 @@ Answer:"""
 prompt = ChatPromptTemplate.from_template(template)
 
 # 4. Chain Definition
-rag_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+rag_chain = {"context": retriever | format_docs, "question": RunnablePassthrough()} | prompt | llm | StrOutputParser()
 
 # 5. Execution
 response = rag_chain.invoke("What are our data retention guidelines?")

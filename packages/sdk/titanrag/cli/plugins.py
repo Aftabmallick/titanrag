@@ -15,7 +15,9 @@ plugin_app = typer.Typer(help="Manage webhook micro-hook plugins")
 def _resolve_workspace_id(override_id: str | None) -> str:
     wid = get_active_workspace_id(override_id)
     if not wid:
-        console.print("[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]")
+        console.print(
+            "[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]"
+        )
         raise typer.Exit(code=1)
     return wid
 
@@ -72,7 +74,9 @@ def ping_plugin(
     try:
         res = client.plugins.ping(workspace_id=wid, plugin_id=plugin_id)
         if res.get("success"):
-            console.print(f"[bold green]✓ Ping Successful![/bold green] Status: {res.get('status_code')} | Latency: [cyan]{res.get('latency_ms')} ms[/cyan]")
+            console.print(
+                f"[bold green]✓ Ping Successful![/bold green] Status: {res.get('status_code')} | Latency: [cyan]{res.get('latency_ms')} ms[/cyan]"
+            )
         else:
             console.print(f"[bold red]✗ Ping Failed:[/bold red] {res.get('error')} (Status: {res.get('status_code')})")
     except TitanRAGError as e:
@@ -104,7 +108,9 @@ def register_plugin(
         )
         console.print("[bold green]Plugin Registered Successfully![/bold green]")
         console.print(f"ID: [cyan]{res.get('id')}[/cyan]")
-        console.print(f"Webhook Secret: [bold red]{res.get('webhook_secret')}[/bold red] (Copy now! This will not be shown again)")
+        console.print(
+            f"Webhook Secret: [bold red]{res.get('webhook_secret')}[/bold red] (Copy now! This will not be shown again)"
+        )
     except TitanRAGError as e:
         console.print(f"[bold red]Error registering plugin:[/bold red] {e}")
         raise typer.Exit(code=1) from None

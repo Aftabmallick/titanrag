@@ -38,7 +38,9 @@ def test_cli_login_and_whoami(tmp_path, monkeypatch):
     mock_client.workspaces.list.return_value = [mock_ws]
 
     with patch("titanrag.cli.auth.get_active_client", return_value=mock_client):
-        result = runner.invoke(app, ["login", "--api-key", "tr_secret_test_123456", "--base-url", "http://localhost:8000"])
+        result = runner.invoke(
+            app, ["login", "--api-key", "tr_secret_test_123456", "--base-url", "http://localhost:8000"]
+        )
         assert result.exit_code == 0
         assert "Authentication Successful" in result.stdout
 

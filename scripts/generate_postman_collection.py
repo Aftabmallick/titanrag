@@ -40,7 +40,11 @@ POSTMAN_COLLECTION = {
                     "name": "Readiness Probe",
                     "request": {
                         "method": "GET",
-                        "url": {"raw": "{{baseUrl}}/health/ready", "host": ["{{baseUrl}}"], "path": ["health", "ready"]},
+                        "url": {
+                            "raw": "{{baseUrl}}/health/ready",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["health", "ready"],
+                        },
                     },
                 },
             ],
@@ -52,14 +56,22 @@ POSTMAN_COLLECTION = {
                     "name": "List Workspaces",
                     "request": {
                         "method": "GET",
-                        "url": {"raw": "{{baseUrl}}/api/v1/workspaces", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workspaces"]},
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/workspaces",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "workspaces"],
+                        },
                     },
                 },
                 {
                     "name": "Create Workspace",
                     "request": {
                         "method": "POST",
-                        "url": {"raw": "{{baseUrl}}/api/v1/workspaces", "host": ["{{baseUrl}}"], "path": ["api", "v1", "workspaces"]},
+                        "url": {
+                            "raw": "{{baseUrl}}/api/v1/workspaces",
+                            "host": ["{{baseUrl}}"],
+                            "path": ["api", "v1", "workspaces"],
+                        },
                         "body": {
                             "mode": "raw",
                             "raw": json.dumps({"name": "New Workspace", "description": "Docs and manuals"}, indent=2),
@@ -83,7 +95,10 @@ POSTMAN_COLLECTION = {
                         },
                         "body": {
                             "mode": "raw",
-                            "raw": json.dumps({"query": "What are the contractual payment terms?", "grounding_mode": "Balanced"}, indent=2),
+                            "raw": json.dumps(
+                                {"query": "What are the contractual payment terms?", "grounding_mode": "Balanced"},
+                                indent=2,
+                            ),
                             "options": {"raw": {"language": "json"}},
                         },
                     },
@@ -99,7 +114,9 @@ POSTMAN_COLLECTION = {
                         },
                         "body": {
                             "mode": "raw",
-                            "raw": json.dumps({"query": "Summarize key SLA metrics", "grounding_mode": "Strict"}, indent=2),
+                            "raw": json.dumps(
+                                {"query": "Summarize key SLA metrics", "grounding_mode": "Strict"}, indent=2
+                            ),
                             "options": {"raw": {"language": "json"}},
                         },
                     },
@@ -131,12 +148,15 @@ POSTMAN_COLLECTION = {
                         },
                         "body": {
                             "mode": "raw",
-                            "raw": json.dumps({
-                                "name": "Custom Parser Webhook",
-                                "endpoint_url": "https://service.internal/webhook",
-                                "hooks": ["ON_PARSE", "ON_POST_GENERATE"],
-                                "timeout_ms": 2000,
-                            }, indent=2),
+                            "raw": json.dumps(
+                                {
+                                    "name": "Custom Parser Webhook",
+                                    "endpoint_url": "https://service.internal/webhook",
+                                    "hooks": ["ON_PARSE", "ON_POST_GENERATE"],
+                                    "timeout_ms": 2000,
+                                },
+                                indent=2,
+                            ),
                             "options": {"raw": {"language": "json"}},
                         },
                     },

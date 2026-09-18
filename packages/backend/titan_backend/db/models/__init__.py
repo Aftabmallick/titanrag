@@ -74,4 +74,3 @@ __all__ = [
     "HookType",
     "PluginHealthStatus",
 ]
-

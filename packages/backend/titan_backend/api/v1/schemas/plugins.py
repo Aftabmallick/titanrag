@@ -2,17 +2,22 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
-
 from titan_backend.db.models.plugin import HookType, PluginHealthStatus
 
 
 class PluginCreateRequest(BaseModel):
     name: str = Field(..., min_length=2, max_length=255, description="Human-readable plugin name")
-    slug: str | None = Field(None, min_length=2, max_length=100, description="URL-friendly slug (auto-generated if omitted)")
+    slug: str | None = Field(
+        None, min_length=2, max_length=100, description="URL-friendly slug (auto-generated if omitted)"
+    )
     description: str | None = Field(None, max_length=1000)
     version: str = Field("1.0.0", max_length=50)
-    endpoint_url: str = Field(..., min_length=8, max_length=1024, description="HTTPS endpoint URL to receive webhook payloads")
-    webhook_secret: str | None = Field(None, description="HMAC-SHA256 secret. Auto-generated with 256-bit entropy if not supplied.")
+    endpoint_url: str = Field(
+        ..., min_length=8, max_length=1024, description="HTTPS endpoint URL to receive webhook payloads"
+    )
+    webhook_secret: str | None = Field(
+        None, description="HMAC-SHA256 secret. Auto-generated with 256-bit entropy if not supplied."
+    )
     hooks: list[HookType] = Field(..., min_length=1, description="List of pipeline hooks this plugin intercepts")
     timeout_ms: int = Field(2000, ge=100, le=10000, description="Timeout budget in milliseconds")
     retry_count: int = Field(1, ge=0, le=3, description="Number of retries on timeout/5xx")

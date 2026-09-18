@@ -16,7 +16,9 @@ settings_app = typer.Typer(help="Manage workspace RAG settings")
 def _resolve_workspace_id(override_id: str | None) -> str:
     wid = get_active_workspace_id(override_id)
     if not wid:
-        console.print("[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]")
+        console.print(
+            "[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]"
+        )
         raise typer.Exit(code=1)
     return wid
 
@@ -89,11 +91,13 @@ def update_settings(
 
     try:
         client.settings.update(wid, **updates)
-        console.print(Panel(
-            f"[bold green]Updated {len(updates)} setting(s) successfully![/bold green]\n"
-            + "\n".join(f"• [cyan]{k}[/cyan] = [bold white]{v}[/bold white]" for k, v in updates.items()),
-            title="Settings Saved",
-        ))
+        console.print(
+            Panel(
+                f"[bold green]Updated {len(updates)} setting(s) successfully![/bold green]\n"
+                + "\n".join(f"• [cyan]{k}[/cyan] = [bold white]{v}[/bold white]" for k, v in updates.items()),
+                title="Settings Saved",
+            )
+        )
     except TitanRAGError as e:
         console.print(f"[bold red]Error updating settings:[/bold red] {e}")
         raise typer.Exit(code=1) from None

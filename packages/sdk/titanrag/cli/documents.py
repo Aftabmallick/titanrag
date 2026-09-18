@@ -18,7 +18,9 @@ doc_app = typer.Typer(help="Manage documents and ingestion")
 def _resolve_workspace_id(override_id: str | None) -> str:
     wid = get_active_workspace_id(override_id)
     if not wid:
-        console.print("[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]")
+        console.print(
+            "[bold red]No active workspace selected. Use 'titan workspace switch <id>' or pass '--workspace-id'.[/bold red]"
+        )
         raise typer.Exit(code=1)
     return wid
 
@@ -114,7 +116,9 @@ def upload_documents(
                     filename=file_path.name,
                     acl_groups=group_list,
                 )
-                progress.console.print(f" [bold green]✓[/bold green] {file_path.name} -> queued ([cyan]{res.document_id}[/cyan])")
+                progress.console.print(
+                    f" [bold green]✓[/bold green] {file_path.name} -> queued ([cyan]{res.document_id}[/cyan])"
+                )
             except Exception as e:
                 progress.console.print(f" [bold red]✗[/bold red] {file_path.name} -> failed: {e}")
             progress.advance(task)

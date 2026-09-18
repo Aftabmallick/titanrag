@@ -24,6 +24,7 @@ from fastapi import FastAPI, Depends, Request
 import os
 from titanrag import AsyncTitanClient
 
+
 class TitanClientManager:
     client: AsyncTitanClient | None = None
 
