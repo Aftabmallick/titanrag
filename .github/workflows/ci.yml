@@ -62,6 +62,7 @@ jobs:
         run: |
           npm ci
           npm run build
+          npm test
 
   integration-test:
     name: Integration & Migration Tests
