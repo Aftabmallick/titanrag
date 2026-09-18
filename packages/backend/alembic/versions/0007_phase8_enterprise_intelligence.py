@@ -24,25 +24,41 @@ def upgrade() -> None:
         "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'mediatranscriptionstatus') THEN "
         "CREATE TYPE mediatranscriptionstatus AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'); END IF; END $$;"
     )
-    media_status_enum = postgresql.ENUM("PENDING", "PROCESSING", "COMPLETED", "FAILED", name="mediatranscriptionstatus", create_type=False)
+    media_status_enum = postgresql.ENUM(
+        "PENDING", "PROCESSING", "COMPLETED", "FAILED", name="mediatranscriptionstatus", create_type=False
+    )
 
     # 2. Add CDC and ACL mapping columns to connectors
     op.add_column("connectors", sa.Column("cdc_cursor", postgresql.JSONB(), nullable=False, server_default="{}"))
     op.add_column("connectors", sa.Column("last_sync_error", sa.Text(), nullable=True))
-    op.add_column("connectors", sa.Column("source_acl_mapping", postgresql.JSONB(), nullable=False, server_default="{}"))
+    op.add_column(
+        "connectors", sa.Column("source_acl_mapping", postgresql.JSONB(), nullable=False, server_default="{}")
+    )
     op.add_column("connectors", sa.Column("sync_stats", postgresql.JSONB(), nullable=False, server_default="{}"))
 
     # 3. Create saml_configurations table
     op.create_table(
         "saml_configurations",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, unique=True, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+            index=True,
+        ),
         sa.Column("idp_entity_id", sa.String(512), nullable=False),
         sa.Column("idp_sso_url", sa.String(1024), nullable=False),
         sa.Column("idp_x509_cert", sa.Text(), nullable=False),
         sa.Column("sp_entity_id", sa.String(512), nullable=False),
         sa.Column("sp_acs_url", sa.String(1024), nullable=False),
-        sa.Column("attribute_mapping", postgresql.JSONB(), nullable=False, server_default='{"email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "groups": "http://schemas.xmlsoap.org/claims/Group"}'),
+        sa.Column(
+            "attribute_mapping",
+            postgresql.JSONB(),
+            nullable=False,
+            server_default='{"email": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress", "name": "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", "groups": "http://schemas.xmlsoap.org/claims/Group"}',
+        ),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default="true"),
         sa.Column("allow_unencrypted_assertions", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
@@ -55,8 +71,20 @@ def upgrade() -> None:
     op.create_table(
         "webhooks",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("name", sa.String(255), nullable=False),
         sa.Column("url", sa.String(1024), nullable=False),
         sa.Column("secret_token", sa.String(255), nullable=False),
@@ -74,7 +102,13 @@ def upgrade() -> None:
     op.create_table(
         "webhook_delivery_logs",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("webhook_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("webhooks.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "webhook_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("webhooks.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("event_type", sa.String(100), nullable=False, index=True),
         sa.Column("status_code", sa.Integer(), nullable=True),
         sa.Column("latency_ms", sa.Float(), nullable=False, server_default="0.0"),
@@ -90,9 +124,28 @@ def upgrade() -> None:
     op.create_table(
         "media_transcriptions",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("document_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, unique=True, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "document_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+            unique=True,
+            index=True,
+        ),
         sa.Column("media_type", sa.String(50), nullable=False),
         sa.Column("duration_seconds", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("language", sa.String(20), nullable=True),
@@ -111,9 +164,27 @@ def upgrade() -> None:
     op.create_table(
         "visual_pages",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("workspace_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True),
-        sa.Column("document_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True),
+        sa.Column(
+            "tenant_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("tenants.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "workspace_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("workspaces.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
+        sa.Column(
+            "document_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("documents.id", ondelete="CASCADE"),
+            nullable=False,
+            index=True,
+        ),
         sa.Column("page_number", sa.Integer(), nullable=False),
         sa.Column("entropy_score", sa.Float(), nullable=False, server_default="0.0"),
         sa.Column("is_visual_qualified", sa.Boolean(), nullable=False, server_default="false"),
