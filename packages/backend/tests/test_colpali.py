@@ -62,7 +62,9 @@ async def test_colpali_visual_retriever_mock():
 
     with patch("titan_backend.colpali.retriever.get_qdrant_client") as mock_get_client:
         mock_client = AsyncMock()
-        mock_client.search.return_value = [mock_hit]
+        mock_response = MagicMock()
+        mock_response.points = [mock_hit]
+        mock_client.query_points.return_value = mock_response
         mock_get_client.return_value = mock_client
 
         results = await ColPaliVisualRetriever.search_visual_pages(

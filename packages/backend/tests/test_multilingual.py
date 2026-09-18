@@ -66,7 +66,7 @@ def test_cross_lingual_retriever():
 
 
 def test_frontend_i18n_dictionaries():
-    messages_dir = Path("/Users/aftabmallick/Desktop/rag-god/titanrag/packages/frontend/src/messages")
+    messages_dir = Path(__file__).resolve().parents[3] / "packages" / "frontend" / "src" / "messages"
     required_locales = ["en", "es", "de", "ja", "ar"]
 
     required_keys = {"nav", "chat", "documents", "settings", "common"}
