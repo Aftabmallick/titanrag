@@ -68,7 +68,12 @@ async def init_qdrant_collection(collection_name: str = "titan_chunks", vector_s
                         index=qmodels.SparseIndexParams(
                             on_disk=True,
                         )
-                    )
+                    ),
+                    "splade": qmodels.SparseVectorParams(
+                        index=qmodels.SparseIndexParams(
+                            on_disk=True,
+                        )
+                    ),
                 },
             )
 
@@ -93,6 +98,65 @@ async def init_qdrant_collection(collection_name: str = "titan_chunks", vector_s
             logger.info("qdrant_collection_ready", name=collection_name)
     except Exception as e:
         logger.warning("qdrant_init_collection_skipped_or_failed", error=str(e))
+
+
+async def init_colpali_collection(
+    collection_name: str = "titan_colpali_visual",
+    vector_size: int = 128,
+) -> None:
+    """
+    Dedicated physically isolated Qdrant collection for ColPali visual document pages.
+    Configured with multivector MaxSim late-interaction, on-disk storage, and Binary Quantization (BQ).
+    """
+    client = get_qdrant_client()
+    try:
+        collections = await client.get_collections()
+        existing_names = [c.name for c in collections.collections]
+
+        if collection_name not in existing_names:
+            logger.info("creating_colpali_visual_collection", name=collection_name, size=vector_size)
+            await client.create_collection(
+                collection_name=collection_name,
+                vectors_config={
+                    "colpali": qmodels.VectorParams(
+                        size=vector_size,
+                        distance=qmodels.Distance.DOT,
+                        multivector_config=qmodels.MultiVectorConfig(
+                            comparator=qmodels.MultiVectorComparator.MAX_SIM
+                        ),
+                        on_disk=True,
+                        hnsw_config=qmodels.HnswConfigDiff(
+                            m=16,
+                            ef_construct=128,
+                            on_disk=True,
+                        ),
+                        quantization_config=qmodels.BinaryQuantization(
+                            binary=qmodels.BinaryQuantizationConfig(
+                                always_ram=True,
+                            )
+                        ),
+                    )
+                },
+            )
+
+            # Payload indexes for tenant isolation and document page filtering
+            index_fields = [
+                ("tenant_id", qmodels.PayloadSchemaType.KEYWORD),
+                ("workspace_id", qmodels.PayloadSchemaType.KEYWORD),
+                ("document_id", qmodels.PayloadSchemaType.KEYWORD),
+                ("page_number", qmodels.PayloadSchemaType.INTEGER),
+                ("is_visual_qualified", qmodels.PayloadSchemaType.KEYWORD),
+                ("acl_groups", qmodels.PayloadSchemaType.KEYWORD),
+            ]
+            for field_name, schema_type in index_fields:
+                await client.create_payload_index(
+                    collection_name=collection_name,
+                    field_name=field_name,
+                    field_schema=schema_type,
+                )
+            logger.info("colpali_visual_collection_ready", name=collection_name)
+    except Exception as e:
+        logger.warning("colpali_collection_init_skipped_or_failed", error=str(e))
 
 
 class TenantIngestionSemaphore:

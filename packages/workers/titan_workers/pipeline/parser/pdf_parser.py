@@ -20,27 +20,12 @@ class PDFParser(DocumentParser):
 
     def _ocr_page_fallback(self, page_num: int, image_bytes: bytes | None = None) -> list[ParsedElement]:
         """
-        Executes OCR if Tesseract / OCR engine is installed, or extracts visual regions.
+        Executes multilingual OCR (10+ languages) with script detection and bounding box coordinate estimation.
         """
-        # Check if tesseract binary is available in system path
-        has_tesseract = shutil.which("tesseract") is not None
-        ocr_text = ""
-
-        if has_tesseract and image_bytes:
-            try:
-                proc = subprocess.run(
-                    ["tesseract", "stdin", "stdout", "--oem", "1", "-l", "eng"],
-                    input=image_bytes,
-                    capture_output=True,
-                    timeout=10,
-                )
-                if proc.returncode == 0:
-                    ocr_text = proc.stdout.decode("utf-8", errors="replace").strip()
-            except Exception as e:
-                logger.warning("tesseract_invocation_failed", error=str(e), page=page_num)
-
-        if not ocr_text:
-            ocr_text = f"[Scanned Image Region Page {page_num}] Content extracted via OCR visual recognition pipeline."
+        from titan_workers.pipeline.parser.multilingual_ocr import MultilingualOCREngine
+        ocr_engine = MultilingualOCREngine()
+        res = ocr_engine.run_ocr(image_bytes or b"", page_num=page_num)
+        ocr_text = res["text"]
 
         lines = [line.strip() for line in ocr_text.splitlines() if line.strip()]
         elements: list[ParsedElement] = []

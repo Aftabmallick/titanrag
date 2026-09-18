@@ -1,0 +1,58 @@
+{
+  "nav": {
+    "chat": "チャットワークステーション",
+    "documents": "ナレッジドキュメント",
+    "connectors": "SaaSコネクタ",
+    "analytics": "分析 & FinOps",
+    "admin": "プラットフォーム管理",
+    "settings": "RAG設定",
+    "newChat": "新しいセッション"
+  },
+  "chat": {
+    "headerTitle": "グラウンデッド研究セッション",
+    "inputPlaceholder": "検証済みドキュメント全体から質問を入力... (Enterキーで送信)",
+    "send": "送信",
+    "stop": "生成停止",
+    "auto": "自動オーケストレーション",
+    "fast": "高速パス (<1.8s)",
+    "deep": "深層推論",
+    "strict": "厳格な根拠付け",
+    "balanced": "バランス型",
+    "creative": "クリエイティブ探索",
+    "verified": "NLI検証済み",
+    "sources": "検証済みソース",
+    "export": "セッション出力",
+    "regenerate": "再生成",
+    "retryRetrieval": "最新の検索で再試行",
+    "copy": "回答をコピー"
+  },
+  "documents": {
+    "title": "ナレッジドキュメント",
+    "subtitle": "企業データソース全体のベクトル投影を取り込み、解析、監視します。",
+    "uploadTitle": "ファイルをここにドラッグ＆ドロップ",
+    "uploadSubtitle": "PDF、DOCX、CSV、PPTX、Markdown（最大100MB）に対応",
+    "folders": "フォルダ",
+    "allFolders": "すべてのドキュメント",
+    "newFolder": "新規フォルダ",
+    "reindex": "再インデックス",
+    "delete": "削除",
+    "bulkSelected": "件のドキュメントを選択中"
+  },
+  "settings": {
+    "title": "RAGパイプライン設定",
+    "subtitle": "ハイブリッド検索、リランキング閾値、LLM推論パラメータを自動保存で微調整します。",
+    "searchTab": "検索 & リランキング",
+    "generationTab": "生成設定",
+    "guardrailsTab": "ガードレール & プライバシー",
+    "cacheTab": "キャッシュ & パフォーマンス",
+    "autoSaved": "変更は自動的に保存されました (500ms debounce)"
+  },
+  "common": {
+    "close": "閉じる",
+    "cancel": "キャンセル",
+    "save": "変更を保存",
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "success": "操作が完了しました"
+  }
+}

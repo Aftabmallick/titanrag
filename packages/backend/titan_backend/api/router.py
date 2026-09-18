@@ -56,3 +56,22 @@ v1_router.include_router(analytics_router)
 
 # Phase 7 Routers
 v1_router.include_router(plugins_router)
+
+# Phase 8 Routers
+from titan_backend.api.v1.collaboration import router as collaboration_router
+from titan_backend.api.v1.connectors import router as connectors_router
+from titan_backend.api.v1.graph import router as graph_router
+from titan_backend.api.v1.integrations import router as integrations_router
+from titan_backend.api.v1.media import router as media_router
+from titan_backend.api.v1.multimodal import router as multimodal_router
+from titan_backend.api.v1.saml import router as saml_router
+from titan_backend.api.v1.visual_pages import router as visual_pages_router
+v1_router.include_router(connectors_router)
+v1_router.include_router(saml_router)
+v1_router.include_router(integrations_router)
+v1_router.include_router(graph_router)
+v1_router.include_router(media_router)
+v1_router.include_router(visual_pages_router)
+v1_router.include_router(collaboration_router)
+v1_router.include_router(multimodal_router)
+

@@ -18,12 +18,16 @@ from titan_backend.db.models.evaluation import (
 from titan_backend.db.models.feedback import Feedback, FeedbackTriageStatus
 from titan_backend.db.models.finops import FinOpsLedger, FinOpsOperation
 from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
+from titan_backend.db.models.media import MediaTranscription, MediaTranscriptionStatus
 from titan_backend.db.models.outbox import ChunkOutbox, OutboxStatus
 from titan_backend.db.models.plugin import HookType, Plugin, PluginExecutionLog, PluginHealthStatus
 from titan_backend.db.models.promptops import PromptEnvironment, PromptTemplate, PromptVersion
+from titan_backend.db.models.saml import SAMLConfiguration
 from titan_backend.db.models.settings import RAGSettings
 from titan_backend.db.models.tenants import Tenant
 from titan_backend.db.models.users import User
+from titan_backend.db.models.visual_pages import VisualPage
+from titan_backend.db.models.webhook import Webhook, WebhookDeliveryLog
 from titan_backend.db.models.workspaces import Workspace, WorkspaceMember, WorkspaceRole
 
 __all__ = [
@@ -73,4 +77,10 @@ __all__ = [
     "PluginExecutionLog",
     "HookType",
     "PluginHealthStatus",
+    "SAMLConfiguration",
+    "Webhook",
+    "WebhookDeliveryLog",
+    "MediaTranscription",
+    "MediaTranscriptionStatus",
+    "VisualPage",
 ]
