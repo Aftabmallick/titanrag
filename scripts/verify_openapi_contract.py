@@ -23,6 +23,7 @@ REQUIRED_ROUTES = [
     "/api/v1/workspaces/{workspace_id}/analytics/failure-clusters",
     "/api/v1/workspaces/{workspace_id}/ab-experiments",
     "/api/v1/workspaces/{workspace_id}/finops/breakdown",
+    "/api/v1/workspaces/{workspace_id}/plugins",
 ]
 
 

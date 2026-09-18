@@ -19,6 +19,7 @@ from titan_backend.db.models.feedback import Feedback, FeedbackTriageStatus
 from titan_backend.db.models.finops import FinOpsLedger, FinOpsOperation
 from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
 from titan_backend.db.models.outbox import ChunkOutbox, OutboxStatus
+from titan_backend.db.models.plugin import HookType, Plugin, PluginExecutionLog, PluginHealthStatus
 from titan_backend.db.models.promptops import PromptEnvironment, PromptTemplate, PromptVersion
 from titan_backend.db.models.settings import RAGSettings
 from titan_backend.db.models.tenants import Tenant
@@ -68,4 +69,8 @@ __all__ = [
     "ABExperimentStatus",
     "FinOpsLedger",
     "FinOpsOperation",
+    "Plugin",
+    "PluginExecutionLog",
+    "HookType",
+    "PluginHealthStatus",
 ]

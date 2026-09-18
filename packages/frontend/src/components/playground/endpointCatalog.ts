@@ -1,0 +1,196 @@
+export interface EndpointParam {
+  name: string;
+  type: "string" | "number" | "boolean";
+  required: boolean;
+  description: string;
+  default?: any;
+}
+
+export interface EndpointSpec {
+  id: string;
+  category: "Chat & Search" | "Documents" | "Workspaces" | "Settings" | "Plugins" | "FinOps" | "Other";
+  name: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  path: string;
+  description: string;
+  pathParams?: EndpointParam[];
+  queryParams?: EndpointParam[];
+  defaultBody?: any;
+}
+
+export const ENDPOINT_CATALOG: EndpointSpec[] = [
+  {
+    id: "chat-query",
+    category: "Chat & Search",
+    name: "Chat Query (Synchronous)",
+    method: "POST",
+    path: "/api/v1/workspaces/{workspace_id}/chat",
+    description: "Submit a prompt to the RAG pipeline and receive grounded answer with citations.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ],
+    defaultBody: {
+      query: "What are the key findings in the latest quarterly report?",
+      grounding_mode: "Balanced",
+      session_id: null
+    }
+  },
+  {
+    id: "list-docs",
+    category: "Documents",
+    name: "List Documents",
+    method: "GET",
+    path: "/api/v1/workspaces/{workspace_id}/documents",
+    description: "Retrieve all indexed documents, chunk counts, and status in the workspace.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ]
+  },
+  {
+    id: "list-workspaces",
+    category: "Workspaces",
+    name: "List Workspaces",
+    method: "GET",
+    path: "/api/v1/workspaces",
+    description: "List all accessible workspaces for the current tenant."
+  },
+  {
+    id: "create-workspace",
+    category: "Workspaces",
+    name: "Create Workspace",
+    method: "POST",
+    path: "/api/v1/workspaces",
+    description: "Create a new isolated multi-tenant workspace.",
+    defaultBody: {
+      name: "Research & Development",
+      description: "Technical specifications and whitepapers"
+    }
+  },
+  {
+    id: "get-settings",
+    category: "Settings",
+    name: "Get RAG Settings",
+    method: "GET",
+    path: "/api/v1/workspaces/{workspace_id}/settings",
+    description: "Fetch active RAG retrieval weights, reranker configuration, and cache thresholds.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ]
+  },
+  {
+    id: "update-settings",
+    category: "Settings",
+    name: "Update RAG Settings",
+    method: "PUT",
+    path: "/api/v1/workspaces/{workspace_id}/settings",
+    description: "Modify retrieval mode, alpha weights, and confidence thresholds.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ],
+    defaultBody: {
+      retrieval_mode: "HYBRID",
+      dense_weight: 0.75,
+      sparse_weight: 0.25,
+      top_k: 30,
+      rerank_top_k: 5,
+      score_threshold: 0.40,
+      hyde_enabled: false,
+      semantic_cache_enabled: true
+    }
+  },
+  {
+    id: "list-plugins",
+    category: "Plugins",
+    name: "List Plugins",
+    method: "GET",
+    path: "/api/v1/workspaces/{workspace_id}/plugins",
+    description: "List registered webhook micro-hook extensions and their health status.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ]
+  },
+  {
+    id: "register-plugin",
+    category: "Plugins",
+    name: "Register Plugin",
+    method: "POST",
+    path: "/api/v1/workspaces/{workspace_id}/plugins",
+    description: "Register an external webhook micro-hook with HMAC-SHA256 signing.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ],
+    defaultBody: {
+      name: "Legal Contract Specialized Parser",
+      endpoint_url: "https://my-webhook-service.corp.internal/webhook",
+      hooks: ["ON_PARSE", "ON_POST_GENERATE"],
+      timeout_ms: 2000,
+      is_active: true
+    }
+  },
+  {
+    id: "finops-usage",
+    category: "FinOps",
+    name: "Get Compute Unit Usage",
+    method: "GET",
+    path: "/api/v1/workspaces/{workspace_id}/finops/usage",
+    description: "Fetch real-time Compute Unit consumption and dollar spend breakdown.",
+    pathParams: [
+      { name: "workspace_id", type: "string", required: true, description: "Workspace UUID" }
+    ]
+  }
+];
+
+export async function fetchDynamicEndpointsFromOpenApi(baseUrl: string): Promise<EndpointSpec[]> {
+  try {
+    const url = `${baseUrl.replace(/\/+$/, "")}/openapi.json`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return ENDPOINT_CATALOG;
+
+    const openapi = await res.json();
+    const paths = openapi.paths || {};
+    const dynamicCatalog: EndpointSpec[] = [];
+
+    for (const [pathKey, methods] of Object.entries<any>(paths)) {
+      for (const [methodKey, op] of Object.entries<any>(methods)) {
+        const method = methodKey.toUpperCase() as "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+        if (!["GET", "POST", "PUT", "DELETE", "PATCH"].includes(method)) continue;
+
+        let category: EndpointSpec["category"] = "Other";
+        if (pathKey.includes("/chat")) category = "Chat & Search";
+        else if (pathKey.includes("/documents")) category = "Documents";
+        else if (pathKey.includes("/workspaces")) category = "Workspaces";
+        else if (pathKey.includes("/settings")) category = "Settings";
+        else if (pathKey.includes("/plugins")) category = "Plugins";
+        else if (pathKey.includes("/finops")) category = "FinOps";
+
+        const pathParams: EndpointParam[] = [];
+        const matches = pathKey.match(/\{([^}]+)\}/g);
+        if (matches) {
+          for (const m of matches) {
+            const name = m.replace(/[{}]/g, "");
+            pathParams.push({
+              name,
+              type: "string",
+              required: true,
+              description: `Path parameter ${name}`,
+            });
+          }
+        }
+
+        dynamicCatalog.push({
+          id: `${method.toLowerCase()}-${pathKey.replace(/[^a-zA-Z0-9]/g, "-")}`,
+          category,
+          name: op.summary || op.operationId || `${method} ${pathKey}`,
+          method,
+          path: pathKey,
+          description: op.description || op.summary || `Execute ${method} on ${pathKey}`,
+          pathParams: pathParams.length > 0 ? pathParams : undefined,
+        });
+      }
+    }
+
+    return dynamicCatalog.length > 0 ? dynamicCatalog : ENDPOINT_CATALOG;
+  } catch {
+    return ENDPOINT_CATALOG;
+  }
+}

@@ -16,6 +16,7 @@ from titan_backend.api.v1.finops import router as finops_router
 from titan_backend.api.v1.health import router as health_router
 from titan_backend.api.v1.metrics import router as metrics_router
 from titan_backend.api.v1.oauth import router as oauth_router
+from titan_backend.api.v1.plugins import router as plugins_router
 from titan_backend.api.v1.prompts import router as prompts_router
 from titan_backend.api.v1.rag_settings import alt_router as rag_settings_alt_router
 from titan_backend.api.v1.rag_settings import router as rag_settings_router
@@ -52,3 +53,6 @@ v1_router.include_router(prompts_router)
 v1_router.include_router(ab_testing_router)
 v1_router.include_router(evaluation_router)
 v1_router.include_router(analytics_router)
+
+# Phase 7 Routers
+v1_router.include_router(plugins_router)
