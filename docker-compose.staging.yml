@@ -1,0 +1,117 @@
+name: titanrag-staging
+
+networks:
+  titan-staging-net:
+    driver: bridge
+
+volumes:
+  pg-staging-data:
+  redis-staging-data:
+  qdrant-staging-data:
+  minio-staging-data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: titan-staging-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: titan_staging
+      POSTGRES_PASSWORD: staging_secure_password_99
+      POSTGRES_DB: titanrag_staging
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-staging-data:/var/lib/postgresql/data
+    networks:
+      - titan-staging-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U titan_staging -d titanrag_staging"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: titan-staging-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-staging-data:/data
+    networks:
+      - titan-staging-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: titan-staging-qdrant
+    restart: unless-stopped
+    ports:
+      - "6335:6333"
+    volumes:
+      - qdrant-staging-data:/qdrant/storage
+    networks:
+      - titan-staging-net
+
+  minio:
+    image: minio/minio:RELEASE.2024-08-03T04-33-23Z
+    container_name: titan-staging-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: stagingadmin
+      MINIO_ROOT_PASSWORD: stagingadminpassword
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    volumes:
+      - minio-staging-data:/data
+    networks:
+      - titan-staging-net
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: titan-staging-clamav
+    restart: unless-stopped
+    ports:
+      - "3311:3310"
+    networks:
+      - titan-staging-net
+
+  backend:
+    build:
+      context: ./packages/backend
+      dockerfile: Dockerfile
+    container_name: titan-staging-backend
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: titan_staging
+      POSTGRES_PASSWORD: staging_secure_password_99
+      POSTGRES_DB: titanrag_staging
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_HOST: qdrant
+      QDRANT_PORT: 6333
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ROOT_USER: stagingadmin
+      MINIO_ROOT_PASSWORD: stagingadminpassword
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      ENVIRONMENT: staging
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - titan-staging-net

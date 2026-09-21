@@ -64,6 +64,11 @@ class ConflictError(AppException):
         super().__init__(message, code="CONFLICT", status_code=status.HTTP_409_CONFLICT, details=details)
 
 
+class BadRequestError(AppException):
+    def __init__(self, message: str = "Bad request", details: dict[str, Any] | None = None):
+        super().__init__(message, code="BAD_REQUEST", status_code=status.HTTP_400_BAD_REQUEST, details=details)
+
+
 def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", str(uuid4()))
 

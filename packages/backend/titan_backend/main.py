@@ -77,6 +77,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Response Compression Middleware (Brotli / Gzip)
+    from titan_backend.core.compression import CompressionMiddleware
+
+    app.add_middleware(CompressionMiddleware, minimum_size=1024)
+
     # Metrics Middleware
     @app.middleware("http")
     async def metrics_middleware(request: Request, call_next):  # type: ignore

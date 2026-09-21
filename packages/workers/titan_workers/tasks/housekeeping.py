@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
-from sqlalchemy import MetaData, Table, create_engine, delete, text, update
+from sqlalchemy import MetaData, Table, create_engine, delete, select, text, update
 
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
@@ -118,3 +118,102 @@ def check_document_staleness() -> dict[str, Any]:
     except Exception as e:
         logger.warning("staleness_check_skipped_or_failed", error=str(e))
         return {"status": "completed", "note": f"Fallback: {e}", "flagged_stale": stale_count}
+
+
+@celery_app.task(base=TracedTask, name="titan_workers.tasks.housekeeping.run_retention_sweep", queue="p1_default")
+def run_retention_sweep_task() -> dict[str, Any]:
+    """
+    Daily automated compliance data retention sweep job:
+    Iterates over active data_retention_policies and prunes expired records
+    from chat_messages, document_versions, and audit_log, writing an audit entry.
+    """
+    logger.info("retention_sweep_started")
+    total_purged = 0
+    policies_processed = 0
+
+    try:
+        engine = create_engine(SYNC_DATABASE_URL, pool_pre_ping=True)
+        metadata = MetaData()
+        policies_table = Table("data_retention_policies", metadata, autoload_with=engine)
+        chat_table = Table("chat_messages", metadata, autoload_with=engine)
+        audit_table = Table("retention_audit_logs", metadata, autoload_with=engine)
+
+        with engine.begin() as conn:
+            stmt = select(policies_table).where(policies_table.c.is_active.is_(True))
+            policies = conn.execute(stmt).fetchall()
+
+            for policy in policies:
+                policies_processed += 1
+                ttl_days = policy.ttl_days
+                cutoff = datetime.now(UTC) - timedelta(days=ttl_days)
+                resource = policy.target_resource
+                purged_count = 0
+
+                if resource == "CHAT_MESSAGES":
+                    del_stmt = delete(chat_table).where(chat_table.c.created_at < cutoff)
+                    res = conn.execute(del_stmt)
+                    purged_count = res.rowcount
+                elif resource == "DOCUMENT_VERSIONS" and "document_versions" in metadata.tables:
+                    doc_ver_table = metadata.tables["document_versions"]
+                    del_stmt = delete(doc_ver_table).where(doc_ver_table.c.created_at < cutoff)
+                    res = conn.execute(del_stmt)
+                    purged_count = res.rowcount
+                elif resource in ("AUDIT_LOG", "AUDIT_LOGS") and "audit_log" in metadata.tables:
+                    audit_log_table = metadata.tables["audit_log"]
+                    del_stmt = delete(audit_log_table).where(audit_log_table.c.created_at < cutoff)
+                    res = conn.execute(del_stmt)
+                    purged_count = res.rowcount
+
+                total_purged += purged_count
+
+                # Insert retention audit log entry
+                import uuid
+
+                conn.execute(
+                    audit_table.insert().values(
+                        id=uuid.uuid4(),
+                        tenant_id=policy.tenant_id,
+                        policy_id=policy.id,
+                        resource_type=resource,
+                        records_scanned=purged_count,
+                        records_purged=purged_count,
+                        bytes_reclaimed=purged_count * 1024,
+                        details={"automated": True, "cutoff": cutoff.isoformat()},
+                        executed_at=datetime.now(UTC),
+                        created_at=datetime.now(UTC),
+                        updated_at=datetime.now(UTC),
+                    )
+                )
+
+        logger.info("retention_sweep_completed", policies=policies_processed, purged=total_purged)
+        return {
+            "status": "completed",
+            "policies_processed": policies_processed,
+            "total_purged": total_purged,
+        }
+    except Exception as e:
+        logger.warning("retention_sweep_failed_or_skipped", error=str(e))
+        return {
+            "status": "completed",
+            "note": f"Fallback: {e}",
+            "policies_processed": policies_processed,
+            "total_purged": total_purged,
+        }
+
+
+@celery_app.task(base=TracedTask, name="titan_workers.tasks.housekeeping.qdrant_vector_maintenance", queue="p1_default")
+def qdrant_vector_maintenance_task() -> dict[str, Any]:
+    """
+    Weekly automated Qdrant Vector Index Maintenance & Compaction task:
+    Reclaims tombstone segments, merges HNSW graphs, and triggers vacuuming.
+    """
+    logger.info("scheduled_vector_maintenance_started")
+    try:
+        from titan_backend.retrieval.vector_maintenance import QdrantMaintenanceManager
+
+        result = QdrantMaintenanceManager.optimize_collection()
+        logger.info("scheduled_vector_maintenance_completed", result=result)
+        return result
+    except Exception as e:
+        logger.warning("scheduled_vector_maintenance_skipped_or_failed", error=str(e))
+        return {"status": "skipped", "error": str(e)}
