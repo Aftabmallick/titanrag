@@ -8,16 +8,19 @@ from titan_backend.api.v1.audit import router as audit_router
 from titan_backend.api.v1.auth import router as auth_router
 from titan_backend.api.v1.chat import router as chat_router
 from titan_backend.api.v1.collaboration import router as collaboration_router
+from titan_backend.api.v1.compliance import router as compliance_router
 from titan_backend.api.v1.connectors import router as connectors_router
 from titan_backend.api.v1.dlq import router as dlq_router
 from titan_backend.api.v1.documents import router as documents_router
 from titan_backend.api.v1.evaluation import router as evaluation_router
 from titan_backend.api.v1.events import router as events_router
 from titan_backend.api.v1.feedback import router as feedback_router
+from titan_backend.api.v1.file_security import router as file_security_router
 from titan_backend.api.v1.finops import router as finops_router
 from titan_backend.api.v1.graph import router as graph_router
 from titan_backend.api.v1.health import router as health_router
 from titan_backend.api.v1.integrations import router as integrations_router
+from titan_backend.api.v1.kms import router as kms_router
 from titan_backend.api.v1.media import router as media_router
 from titan_backend.api.v1.metrics import router as metrics_router
 from titan_backend.api.v1.multimodal import router as multimodal_router
@@ -26,6 +29,8 @@ from titan_backend.api.v1.plugins import router as plugins_router
 from titan_backend.api.v1.prompts import router as prompts_router
 from titan_backend.api.v1.rag_settings import alt_router as rag_settings_alt_router
 from titan_backend.api.v1.rag_settings import router as rag_settings_router
+from titan_backend.api.v1.residency import router as residency_router
+from titan_backend.api.v1.retention import router as retention_router
 from titan_backend.api.v1.saml import router as saml_router
 from titan_backend.api.v1.scim import router as scim_router
 from titan_backend.api.v1.visual_pages import router as visual_pages_router
@@ -75,3 +80,10 @@ v1_router.include_router(media_router)
 v1_router.include_router(visual_pages_router)
 v1_router.include_router(collaboration_router)
 v1_router.include_router(multimodal_router)
+
+# Phase 9 Routers
+v1_router.include_router(compliance_router)
+v1_router.include_router(retention_router)
+v1_router.include_router(kms_router)
+v1_router.include_router(residency_router)
+v1_router.include_router(file_security_router)

@@ -5,8 +5,26 @@ from titan_backend.db.models.api_keys import APIKey
 from titan_backend.db.models.audit import AuditLog
 from titan_backend.db.models.chat import ChatMessage, ChatSession, MessageRole
 from titan_backend.db.models.chunks import Chunk
+from titan_backend.db.models.compliance import (
+    ConsentPurpose,
+    ConsentStatus,
+    DataRetentionPolicy,
+    GDPRDeletionRequest,
+    GDPRDeletionStatus,
+    RetentionAction,
+    RetentionAuditLog,
+    RetentionTargetResource,
+    UserConsent,
+)
 from titan_backend.db.models.connectors import Connector, ConnectorStatus, ConnectorSyncLog, SyncStatus
 from titan_backend.db.models.documents import Document, DocumentStatus, DocumentVersion
+from titan_backend.db.models.encryption import (
+    DataResidencyRegion,
+    KmsKeyConfiguration,
+    KmsProviderType,
+    QuarantineFileLog,
+    TenantDataResidency,
+)
 from titan_backend.db.models.evaluation import (
     EvaluationResultItem,
     EvaluationRun,
@@ -83,4 +101,18 @@ __all__ = [
     "MediaTranscription",
     "MediaTranscriptionStatus",
     "VisualPage",
+    "GDPRDeletionRequest",
+    "GDPRDeletionStatus",
+    "UserConsent",
+    "ConsentPurpose",
+    "ConsentStatus",
+    "DataRetentionPolicy",
+    "RetentionTargetResource",
+    "RetentionAction",
+    "RetentionAuditLog",
+    "KmsKeyConfiguration",
+    "KmsProviderType",
+    "TenantDataResidency",
+    "DataResidencyRegion",
+    "QuarantineFileLog",
 ]

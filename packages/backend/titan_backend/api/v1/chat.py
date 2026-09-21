@@ -170,6 +170,13 @@ async def chat_endpoint(
         if "model" in exp_override and not payload.model_override:
             payload.model_override = str(exp_override["model"])
 
+    # Phase 9: Enforce enterprise Zero Data Retention (ZDR) policy
+    from titan_backend.core.config import settings
+    from titan_backend.security.zdr import ZdrEnforcementProxy
+
+    target_chat_model = payload.model_override or getattr(rag_settings, "model", None) or settings.DEFAULT_CHAT_MODEL
+    await ZdrEnforcementProxy.validate_chat_request(db, current_user.tenant_id, target_chat_model)
+
     # 5. Resolve user effective ACL groups with Redis cache & compaction
     user_groups = await resolve_user_acl_groups(
         user_id=current_user.id,

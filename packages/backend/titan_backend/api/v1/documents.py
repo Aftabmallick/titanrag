@@ -103,6 +103,33 @@ async def upload_document(
             error_code="SECURITY_THREAT_DETECTED",
         )
 
+    # Phase 9 Streaming ClamAV Antivirus Inspection & Quarantine
+    from titan_backend.db.models.encryption import QuarantineFileLog
+    from titan_backend.security.scanner import ClamAVScanner
+
+    clamav = ClamAVScanner()
+    scan_res = await clamav.scan_bytes(file_bytes)
+    if not scan_res.is_clean:
+        q_entry = QuarantineFileLog(
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            filename=filename,
+            content_hash_sha256=hashlib.sha256(file_bytes).hexdigest(),
+            mime_type=file.content_type or "application/octet-stream",
+            file_size_bytes=file_size,
+            threat_name=scan_res.threat_name or "MALWARE_DETECTED",
+            quarantine_path=f"quarantine/{tenant_id}/{filename}",
+            scanner_latency_ms=scan_res.latency_ms,
+            details={"engine": scan_res.engine},
+        )
+        db.add(q_entry)
+        await db.commit()
+        raise AppException(
+            message=f"Malicious file blocked: Threat '{scan_res.threat_name}' detected by {scan_res.engine}",
+            status_code=400,
+            error_code="MALWARE_DETECTED",
+        )
+
     # 1. FinOps Quotas Check
     await check_storage_quota(tenant_id, file_size)
     await check_document_quota(tenant_id, db)
@@ -134,7 +161,11 @@ async def upload_document(
     dup_res = await db.execute(stmt_dup)
     existing_dup = dup_res.scalars().first()
 
-    # 3. MinIO Storage Scoping
+    # 3. MinIO Storage Scoping with Phase 9 Regional Geo-Pinning
+    from titan_backend.compliance.residency import TenantRegionRouter
+
+    target_bucket = await TenantRegionRouter.get_regional_storage_bucket(db, tenant_id)
+
     document_id = uuid.uuid4()
     storage_path = build_scoped_storage_path(tenant_id, workspace_id, document_id, filename)
     minio_client = get_minio_client()
@@ -142,7 +173,7 @@ async def upload_document(
     try:
         await asyncio.to_thread(
             minio_client.put_object,
-            bucket_name=settings.MINIO_BUCKET,
+            bucket_name=target_bucket,
             object_name=storage_path,
             data=BytesIO(file_bytes),
             length=file_size,
