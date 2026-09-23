@@ -14,7 +14,7 @@
   <a href="https://fastapi.tiangolo.com/"><img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.115+-009688?style=flat-square&logo=fastapi&logoColor=white" /></a>
   <a href="https://github.com/Aftabmallick/rag-god/actions/workflows/ci.yml"><img alt="CI Status" src="https://img.shields.io/badge/CI-passing-10B981?style=flat-square&logo=github-actions&logoColor=white" /></a>
   <a href="https://codecov.io"><img alt="Coverage" src="https://img.shields.io/badge/coverage-95%25%2B-success?style=flat-square&logo=codecov" /></a>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square" /></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-BSL--1.1-orange?style=flat-square" /></a>
 </p>
 
 <p align="center">
@@ -425,4 +425,4 @@ Contributions are warmly welcome! Whether reporting a bug, improving documentati
 
 ## License
 
-TitanRAG Enterprise is licensed under the **[Apache-2.0 License](LICENSE)**.
+TitanRAG Enterprise is licensed under the **[Business Source License 1.1](LICENSE)**.
