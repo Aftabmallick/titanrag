@@ -1,0 +1,399 @@
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+============================================================
+TitanRAG Enterprise incorporates components from the projects
+listed below. The original copyright notices and the licenses
+under which TitanRAG received such components are set forth below.
+
+TitanRAG itself is licensed under the Business Source License 1.1.
+See LICENSE for details.
+
+============================================================
+
+TABLE OF CONTENTS
+-----------------
+  1. Python Backend Dependencies
+  2. JavaScript / Frontend Dependencies
+  3. Infrastructure & Runtime Dependencies
+
+============================================================
+1. PYTHON BACKEND DEPENDENCIES
+============================================================
+
+------------------------------------------------------------
+FastAPI (0.136.x)
+Copyright (c) 2018 Sebastián Ramírez
+License: MIT
+Homepage: https://github.com/fastapi/fastapi
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+------------------------------------------------------------
+
+------------------------------------------------------------
+Uvicorn (0.35.x)
+Copyright (c) 2017-present, Encode OSS Ltd.
+License: BSD-3-Clause
+Homepage: https://www.uvicorn.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Pydantic (2.x)
+Copyright (c) 2017 to present Pydantic Services Inc. and individual contributors
+License: MIT
+Homepage: https://github.com/pydantic/pydantic
+------------------------------------------------------------
+
+------------------------------------------------------------
+pydantic-settings (2.x)
+Copyright (c) 2022 Samuel Colvin and contributors
+License: MIT
+Homepage: https://github.com/pydantic/pydantic-settings
+------------------------------------------------------------
+
+------------------------------------------------------------
+SQLAlchemy (2.x)
+Copyright (c) 2005-2024 SQLAlchemy authors and contributors
+License: MIT
+Homepage: https://www.sqlalchemy.org
+------------------------------------------------------------
+
+------------------------------------------------------------
+asyncpg (0.31.x)
+Copyright (c) 2016-present MagicStack Inc. and the asyncpg authors
+License: Apache-2.0
+Homepage: https://github.com/MagicStack/asyncpg
+------------------------------------------------------------
+
+------------------------------------------------------------
+psycopg2-binary (2.9.x)
+Copyright (c) 2001-2021, Federico Di Gregorio; Copyright (c) 2020-2021, The Psycopg Team
+License: LGPL-3.0 with OpenSSL linking exception
+Homepage: https://www.psycopg.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Alembic (1.18.x)
+Copyright (c) 2009-2024 Michael Bayer
+License: MIT
+Homepage: https://alembic.sqlalchemy.org
+------------------------------------------------------------
+
+------------------------------------------------------------
+qdrant-client (1.18.x)
+Copyright (c) 2021 Qdrant
+License: Apache-2.0
+Homepage: https://github.com/qdrant/qdrant-client
+------------------------------------------------------------
+
+------------------------------------------------------------
+redis-py (8.x)
+Copyright (c) 2023 Redis Ltd.
+License: MIT
+Homepage: https://github.com/redis/redis-py
+------------------------------------------------------------
+
+------------------------------------------------------------
+httpx (0.28.x)
+Copyright (c) 2019 Encode OSS Ltd.
+License: BSD-3-Clause
+Homepage: https://github.com/encode/httpx
+------------------------------------------------------------
+
+------------------------------------------------------------
+structlog (24.x)
+Copyright (c) 2013 Hynek Schlawack and the structlog contributors
+License: Apache-2.0 / MIT (dual licensed)
+Homepage: https://github.com/hynek/structlog
+------------------------------------------------------------
+
+------------------------------------------------------------
+opentelemetry-api / opentelemetry-sdk (1.x)
+opentelemetry-instrumentation-* packages
+Copyright (c) 2019 OpenTelemetry Authors
+License: Apache-2.0
+Homepage: https://github.com/open-telemetry/opentelemetry-python
+------------------------------------------------------------
+
+------------------------------------------------------------
+prometheus_client (0.25.x)
+Copyright (c) 2015 The Prometheus Authors
+License: Apache-2.0
+Homepage: https://github.com/prometheus/client_python
+------------------------------------------------------------
+
+------------------------------------------------------------
+python-multipart (0.0.x)
+Copyright (c) 2012 Andrew Dunstan
+License: Apache-2.0
+Homepage: https://github.com/Kludex/python-multipart
+------------------------------------------------------------
+
+------------------------------------------------------------
+minio (7.x)
+Copyright (c) 2015-2024 MinIO, Inc.
+License: Apache-2.0
+Homepage: https://github.com/minio/minio-py
+------------------------------------------------------------
+
+------------------------------------------------------------
+PyJWT (2.x)
+Copyright (c) 2015-2022 José Padilla
+License: MIT
+Homepage: https://github.com/jpadilla/pyjwt
+------------------------------------------------------------
+
+------------------------------------------------------------
+bcrypt (5.x)
+Copyright (c) 2022 The Python Cryptographic Authority and individual contributors
+License: Apache-2.0
+Homepage: https://github.com/pyca/bcrypt/
+------------------------------------------------------------
+
+------------------------------------------------------------
+cryptography (49.x)
+Copyright (c) Individual contributors
+License: Apache-2.0 / BSD-3-Clause (dual licensed)
+Homepage: https://github.com/pyca/cryptography
+------------------------------------------------------------
+
+------------------------------------------------------------
+greenlet (3.x)
+Copyright (c) Alexey Borzenkov and contributors
+License: MIT
+Homepage: https://github.com/python-greenlet/greenlet
+------------------------------------------------------------
+
+------------------------------------------------------------
+tiktoken (0.13.x)
+Copyright (c) 2022 OpenAI
+License: MIT
+Homepage: https://github.com/openai/tiktoken
+------------------------------------------------------------
+
+------------------------------------------------------------
+datasketch (2.x)
+Copyright (c) 2015 ekzhu
+License: MIT
+Homepage: https://github.com/ekzhu/datasketch
+------------------------------------------------------------
+
+------------------------------------------------------------
+python-docx (1.2.x)
+Copyright (c) 2013 Steve Canny, https://github.com/scanny
+License: MIT
+Homepage: https://github.com/python-openxml/python-docx
+------------------------------------------------------------
+
+------------------------------------------------------------
+beautifulsoup4 (4.x)
+Copyright (c) 2004-2023 Leonard Richardson
+License: MIT
+Homepage: https://www.crummy.com/software/BeautifulSoup/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Jinja2 (3.x)
+Copyright (c) 2007 Pallets
+License: BSD-3-Clause
+Homepage: https://github.com/pallets/jinja
+------------------------------------------------------------
+
+------------------------------------------------------------
+neo4j (Python Driver, 5.x)
+Copyright (c) 2002-2024 Neo4j
+License: Apache-2.0
+Homepage: https://github.com/neo4j/neo4j-python-driver
+------------------------------------------------------------
+
+------------------------------------------------------------
+python3-saml (1.16.x)
+Copyright (c) 2010-2024 OneLogin, Inc.
+License: MIT
+Homepage: https://github.com/SAML-Toolkits/python3-saml
+------------------------------------------------------------
+
+============================================================
+2. JAVASCRIPT / FRONTEND DEPENDENCIES
+============================================================
+
+------------------------------------------------------------
+Next.js (14.x)
+Copyright (c) 2024 Vercel, Inc.
+License: MIT
+Homepage: https://nextjs.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+React / React-DOM (18.x)
+Copyright (c) Meta Platforms, Inc. and affiliates.
+License: MIT
+Homepage: https://react.dev/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Framer Motion (13.x)
+Copyright (c) 2018 Framer B.V.
+License: MIT
+Homepage: https://www.framer.com/motion/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Lucide React (0.428.x)
+Copyright (c) 2020 Lucide Contributors
+License: ISC
+Homepage: https://lucide.dev/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Tailwind CSS (3.x)
+Copyright (c) Tailwind Labs, Inc.
+License: MIT
+Homepage: https://tailwindcss.com/
+------------------------------------------------------------
+
+------------------------------------------------------------
+tailwind-merge (2.x)
+Copyright (c) 2021 Dany Castillo
+License: MIT
+Homepage: https://github.com/dcastil/tailwind-merge
+------------------------------------------------------------
+
+------------------------------------------------------------
+clsx (2.x)
+Copyright (c) Luke Edwards <luke.edwards05@gmail.com>
+License: MIT
+Homepage: https://github.com/lukeed/clsx
+------------------------------------------------------------
+
+------------------------------------------------------------
+react-markdown (10.x)
+Copyright (c) 2015 Espen Hovlandsdal
+License: MIT
+Homepage: https://github.com/remarkjs/react-markdown
+------------------------------------------------------------
+
+------------------------------------------------------------
+remark-gfm (4.x)
+Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>
+License: MIT
+Homepage: https://github.com/remarkjs/remark-gfm
+------------------------------------------------------------
+
+------------------------------------------------------------
+rehype-highlight (7.x)
+Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+License: MIT
+Homepage: https://github.com/rehypejs/rehype-highlight
+------------------------------------------------------------
+
+------------------------------------------------------------
+pdfjs-dist (6.x)
+Copyright (c) 2012-2024 Mozilla Foundation
+License: Apache-2.0
+Homepage: https://github.com/mozilla/pdf.js
+------------------------------------------------------------
+
+------------------------------------------------------------
+PostCSS (8.x)
+Copyright (c) 2013 Andrey Sitnik <andrey@sitnik.ru>
+License: MIT
+Homepage: https://postcss.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Autoprefixer (10.x)
+Copyright (c) 2013 Andrey Sitnik <andrey@sitnik.ru>
+License: MIT
+Homepage: https://github.com/postcss/autoprefixer
+------------------------------------------------------------
+
+------------------------------------------------------------
+TypeScript (5.x)
+Copyright (c) Microsoft Corporation
+License: Apache-2.0
+Homepage: https://www.typescriptlang.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+ESLint / eslint-config-next (8.x)
+Copyright (c) OpenJS Foundation and other contributors
+License: MIT
+Homepage: https://eslint.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Playwright (1.x)
+Copyright (c) Microsoft Corporation
+License: Apache-2.0
+Homepage: https://playwright.dev/
+------------------------------------------------------------
+
+============================================================
+3. INFRASTRUCTURE & RUNTIME DEPENDENCIES
+============================================================
+
+------------------------------------------------------------
+PostgreSQL (16.x)
+Copyright (c) 1996-2024 The PostgreSQL Global Development Group
+License: PostgreSQL License (similar to BSD/MIT)
+Homepage: https://www.postgresql.org/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Redis (7.x)
+Copyright (c) 2009-2024 Redis Ltd.
+License: RSALv2 / SSPLv1 (dual; client interaction only — no redistribution)
+Homepage: https://redis.io/
+------------------------------------------------------------
+
+------------------------------------------------------------
+Qdrant (Vector Database)
+Copyright (c) 2021 Qdrant Team & Contributors
+License: Apache-2.0
+Homepage: https://qdrant.tech/
+------------------------------------------------------------
+
+------------------------------------------------------------
+MinIO (Object Storage)
+Copyright (c) 2015-2024 MinIO, Inc.
+License: GNU AGPL v3 (server; client SDK is Apache-2.0)
+Homepage: https://min.io/
+Note: TitanRAG uses the MinIO Python client SDK (Apache-2.0),
+not the MinIO server binary directly in its source.
+------------------------------------------------------------
+
+------------------------------------------------------------
+ClamAV (Anti-Malware)
+Copyright (c) 2024 Cisco Systems, Inc.
+License: GPL-2.0
+Homepage: https://www.clamav.net/
+Note: ClamAV is used as an external subprocess / daemon,
+not linked or embedded in TitanRAG's source code.
+------------------------------------------------------------
+
+------------------------------------------------------------
+Langfuse (LLMOps)
+Copyright (c) 2023 Langfuse GmbH
+License: MIT (SDK) / Elastic-2.0 (server)
+Homepage: https://langfuse.com/
+Note: TitanRAG integrates via the Langfuse SDK (MIT).
+------------------------------------------------------------
+
+------------------------------------------------------------
+Arize Phoenix (Observability)
+Copyright (c) 2023 Arize AI, Inc.
+License: Elastic-2.0
+Homepage: https://phoenix.arize.com/
+Note: Used as an external observability service via OTLP.
+------------------------------------------------------------
+
+============================================================
+END OF THIRD-PARTY NOTICES
+============================================================
