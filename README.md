@@ -1,5 +1,5 @@
 <div align="center">
-  <a href="https://github.com/Aftabmallick/rag-god">
+  <a href="https://github.com/Aftabmallick/titanrag">
     <img src="packages/frontend/public/titanrag-logo.svg" alt="TitanRAG Logo" width="560" />
   </a>
   <h1>TitanRAG Enterprise</h1>
@@ -79,8 +79,8 @@ Get the complete 14-service enterprise stack up and running in 60 seconds with *
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/Aftabmallick/rag-god.git
-cd rag-god/titanrag
+git clone https://github.com/Aftabmallick/titanrag.git
+cd titanrag
 
 # 2. Copy the default networking and credentials configuration
 cp .env.defaults .env
@@ -416,8 +416,8 @@ Contributions are warmly welcome! Whether reporting a bug, improving documentati
 4. Open a Pull Request against `master`.
 
 <p align="center">
-  <a href="https://github.com/Aftabmallick/rag-god/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=Aftabmallick/rag-god" alt="Contributors" />
+  <a href="https://github.com/Aftabmallick/titanrag/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=Aftabmallick/titanrag" alt="Contributors" />
   </a>
 </p>
 
