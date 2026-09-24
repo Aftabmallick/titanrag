@@ -3,9 +3,15 @@ from fastapi import APIRouter
 from titan_backend.api.v1.ab_testing import router as ab_testing_router
 from titan_backend.api.v1.acl_groups import router as acl_groups_router
 from titan_backend.api.v1.analytics import router as analytics_router
+
+# Phase 10 imports
+from titan_backend.api.v1.announcements import router as announcements_router
 from titan_backend.api.v1.api_keys import router as api_keys_router
 from titan_backend.api.v1.audit import router as audit_router
 from titan_backend.api.v1.auth import router as auth_router
+from titan_backend.api.v1.batch import router as batch_router
+from titan_backend.api.v1.billing import router as billing_router
+from titan_backend.api.v1.brand import router as brand_router
 from titan_backend.api.v1.chat import router as chat_router
 from titan_backend.api.v1.collaboration import router as collaboration_router
 from titan_backend.api.v1.compliance import router as compliance_router
@@ -25,6 +31,7 @@ from titan_backend.api.v1.media import router as media_router
 from titan_backend.api.v1.metrics import router as metrics_router
 from titan_backend.api.v1.multimodal import router as multimodal_router
 from titan_backend.api.v1.oauth import router as oauth_router
+from titan_backend.api.v1.platform_admin import router as platform_admin_router
 from titan_backend.api.v1.plugins import router as plugins_router
 from titan_backend.api.v1.prompts import router as prompts_router
 from titan_backend.api.v1.rag_settings import alt_router as rag_settings_alt_router
@@ -32,6 +39,7 @@ from titan_backend.api.v1.rag_settings import router as rag_settings_router
 from titan_backend.api.v1.residency import router as residency_router
 from titan_backend.api.v1.retention import router as retention_router
 from titan_backend.api.v1.saml import router as saml_router
+from titan_backend.api.v1.sandbox import router as sandbox_router
 from titan_backend.api.v1.scim import router as scim_router
 from titan_backend.api.v1.visual_pages import router as visual_pages_router
 from titan_backend.api.v1.workspaces import router as workspaces_router
@@ -87,3 +95,11 @@ v1_router.include_router(retention_router)
 v1_router.include_router(kms_router)
 v1_router.include_router(residency_router)
 v1_router.include_router(file_security_router)
+
+# Phase 10 Routers
+v1_router.include_router(billing_router)
+v1_router.include_router(brand_router)
+v1_router.include_router(batch_router)
+v1_router.include_router(sandbox_router)
+v1_router.include_router(platform_admin_router)
+v1_router.include_router(announcements_router)

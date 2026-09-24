@@ -228,3 +228,31 @@ async def require_admin(current_user: CurrentUser = Depends(get_current_user)) -
         status_code=403,
         error_code="ADMIN_REQUIRED",
     )
+
+
+def require_role(*roles: str) -> Callable[..., Any]:
+    async def _dependency(current_user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+        if current_user.is_superuser or current_user.role in roles:
+            return current_user
+        raise AppException(
+            message=f"Required role not held: {', '.join(roles)}",
+            status_code=403,
+            error_code="FORBIDDEN_ROLE",
+        )
+
+    return _dependency
+
+
+async def require_platform_admin(
+    current_user: CurrentUser = Depends(get_current_user),
+) -> CurrentUser:
+    if current_user.is_superuser or current_user.role in ("PLATFORM_ADMIN", "OWNER"):
+        return current_user
+    raise AppException(
+        message="Platform super-administrator privileges required",
+        status_code=403,
+        error_code="PLATFORM_ADMIN_REQUIRED",
+    )
+
+
+require_workspace_permission = require_permission

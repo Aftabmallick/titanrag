@@ -1,0 +1,146 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "Log Volume by Service & Level",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "Loki"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "Loki"
+          },
+          "editorMode": "code",
+          "expr": "sum by (service, level) (count_over_time({service=~\"$service\"} [$__interval]))",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Ingested Log Stream Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "Loki"
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": true,
+        "showCommonLabels": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "Loki"
+          },
+          "editorMode": "code",
+          "expr": "{service=~\"$service\"} |= \"$search\" | json | request_id =~ \"$request_id.*\" | tenant_id =~ \"$tenant_id.*\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "Cross-Service Correlated Logs (API, Workers & DB)",
+      "type": "logs"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["titanrag", "logs", "loki", "phase10"],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": true,
+          "value": ".*"
+        },
+        "name": "service",
+        "query": "label_values(service)",
+        "type": "query"
+      },
+      {
+        "current": {
+          "selected": false,
+          "value": ""
+        },
+        "name": "request_id",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "value": ""
+        },
+        "name": "tenant_id",
+        "type": "textbox"
+      },
+      {
+        "current": {
+          "selected": false,
+          "value": ""
+        },
+        "name": "search",
+        "type": "textbox"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "TitanRAG — Log Explorer",
+  "uid": "titanrag-log-explorer",
+  "version": 1
+}
