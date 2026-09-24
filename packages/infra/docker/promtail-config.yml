@@ -1,0 +1,62 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: titan-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+
+    pipeline_stages:
+      # Parse structlog JSON
+      - json:
+          expressions:
+            level: level
+            request_id: request_id
+            tenant_id: tenant_id
+            event: event
+            timestamp: timestamp
+
+      - labels:
+          level:
+          request_id:
+          tenant_id:
+
+      # PII Redaction Stages (Task 10.7.2)
+      # 1. Redact email addresses
+      - replace:
+          expression: '([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})'
+          replace: '[REDACTED_EMAIL]'
+
+      # 2. Redact Titan API Keys (tk_live_... / tk_test_...)
+      - replace:
+          expression: '(tk_(?:live|test)_[a-zA-Z0-9]{32,64})'
+          replace: '[REDACTED_API_KEY]'
+
+      # 3. Redact Social Security Numbers (SSN)
+      - replace:
+          expression: '\b\d{3}-\d{2}-\d{4}\b'
+          replace: '[REDACTED_SSN]'
+
+      # 4. Redact Credit Card Numbers (13-16 digits with optional dashes)
+      - replace:
+          expression: '\b(?:\d{4}[ -]?){3}\d{4}\b'
+          replace: '[REDACTED_CREDIT_CARD]'
+
+      # 5. Redact Bearer JWT tokens
+      - replace:
+          expression: 'Bearer\s+eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9._-]+'
+          replace: 'Bearer [REDACTED_JWT]'

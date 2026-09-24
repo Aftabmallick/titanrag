@@ -1,0 +1,88 @@
+name: TitanRAG Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  validate-and-test:
+    name: Run Quality Gates & Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install uv and Dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv pip install --system -e packages/backend -e packages/workers pytest pytest-asyncio stripe jinja2
+
+      - name: Run Backend Test Suite
+        run: |
+          PYTHONPATH=packages/backend:packages/workers pytest packages/backend/tests/ -v
+
+      - name: Run Evaluation CI Quality Gate
+        run: |
+          PYTHONPATH=packages/backend:packages/workers python3 scripts/ci_evaluation_gate.py --dry-run
+
+  build-and-publish:
+    name: Build & Publish Container Images
+    needs: validate-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/titan-api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and Push Titan API Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: packages/backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  create-github-release:
+    name: Publish GitHub Release
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: TitanRAG ${{ github.ref_name }} — Enterprise Expansion GA
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false

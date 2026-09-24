@@ -18,7 +18,10 @@ from titan_backend.core.brute_force import (
     record_login_failure,
 )
 from titan_backend.core.config import settings
-from titan_backend.core.dependencies import CurrentUser, get_current_user
+from titan_backend.core.dependencies import (
+    CurrentUser,
+    get_current_user,
+)
 from titan_backend.core.errors import AppException
 from titan_backend.core.security import (
     create_access_token,
@@ -33,6 +36,8 @@ from titan_backend.db.models.tenants import Tenant
 from titan_backend.db.models.users import User
 from titan_backend.db.models.workspaces import Workspace, WorkspaceMember, WorkspaceRole
 from titan_backend.db.session import get_db
+
+decode_access_token = decode_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
