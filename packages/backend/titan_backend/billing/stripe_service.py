@@ -179,7 +179,7 @@ async def create_checkout_session(
             "metadata": {"tenant_id": tenant_id, "plan_slug": plan_slug.value},
         }
     )
-    return session.url or ""
+    return str(session.url or "")
 
 
 async def create_customer_portal_session(
@@ -204,7 +204,7 @@ async def create_customer_portal_session(
     portal = client.billing_portal.sessions.create(
         params={"customer": customer.stripe_customer_id, "return_url": return_url}
     )
-    return portal.url
+    return str(portal.url or "")
 
 
 # ---------------------------------------------------------------------------
