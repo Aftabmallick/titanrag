@@ -19,3 +19,8 @@ scrape_configs:
     metrics_path: "/metrics"
     static_configs:
       - targets: ["qdrant:6333"]
+
+  - job_name: "flower"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["flower:5555"]
