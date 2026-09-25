@@ -177,9 +177,7 @@ services:
   # Application Core Services
   # ---------------------------------------------------------------------------
   backend:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: titan-backend:latest
     container_name: titan-backend
     restart: unless-stopped
     profiles: ["quickstart", "default", "full"]
@@ -208,9 +206,7 @@ services:
       start_period: 5s
 
   celery-core:
-    build:
-      context: ../workers
-      dockerfile: Dockerfile.core
+    image: titan-backend:latest
     container_name: titan-celery-core
     restart: unless-stopped
     profiles: ["default", "full"]
@@ -231,9 +227,7 @@ services:
       - titan-net
 
   outbox-relay:
-    build:
-      context: ../workers
-      dockerfile: Dockerfile.core
+    image: titan-backend:latest
     container_name: titan-outbox-relay
     restart: unless-stopped
     profiles: ["default", "full"]
@@ -253,9 +247,7 @@ services:
       - titan-net
 
   celery-beat:
-    build:
-      context: ../workers
-      dockerfile: Dockerfile.core
+    image: titan-backend:latest
     container_name: titan-celery-beat
     restart: unless-stopped
     profiles: ["default", "full"]
@@ -413,7 +405,7 @@ services:
     restart: unless-stopped
     profiles: ["observability", "full"]
     ports:
-      - "3000:3000"
+      - "${GRAFANA_PORT:-3003}:3000"
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
