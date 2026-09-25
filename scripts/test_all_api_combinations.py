@@ -20,6 +20,7 @@ from uuid import uuid4
 
 import httpx
 from titan_backend.core.config import settings
+settings.RATE_LIMIT_DISABLED = True
 from titan_backend.core.dependencies import CurrentUser, get_current_user
 from titan_backend.db.models.acl import ACLGroup
 from titan_backend.db.models.chat import ChatSession
@@ -373,6 +374,8 @@ async def run_combination_matrix() -> None:
             current_model = "audit"
         elif "ingestion_tasks" in stmt_str or "chunk_outbox" in stmt_str:
             current_model = "dlq"
+        elif "ab_experiment" in stmt_str or "experiment" in stmt_str:
+            current_model = "ab_experiment"
         else:
             current_model = "workspace"
         return mock_result
@@ -402,6 +405,8 @@ async def run_combination_matrix() -> None:
             return mock_acl_group
         elif current_model == "chat_session":
             return mock_chat_session
+        elif current_model == "ab_experiment":
+            return None
         return mock_ws
 
     def safe_scalars_first() -> Any:

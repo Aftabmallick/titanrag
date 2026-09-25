@@ -61,23 +61,22 @@ async def set_session_tenant_id(session: AsyncSession, tenant_id: UUID) -> None:
 
 async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
-    Yields an AsyncSession wrapped in an explicit transaction block.
+    Yields an AsyncSession with automatic transaction management.
     If tenant_id is available in request state, it executes SET LOCAL app.tenant_id
     within the transaction to enforce PostgreSQL RLS.
-
-    The explicit `session.begin()` block is critical for PgBouncer transaction pooling:
-    SET LOCAL only applies within a transaction boundary, so without begin()/commit(),
-    the variable can leak across pooled connections.
     """
     async with async_session_factory() as session:
         tenant_id: UUID | None = getattr(request.state, "tenant_id", None) if request else None
-
-        async with session.begin():
-            if tenant_id:
-                await set_session_tenant_id(session, tenant_id)
+        if tenant_id:
+            await set_session_tenant_id(session, tenant_id)
+        try:
             yield session
-            # Transaction commits automatically on clean exit from `session.begin()`.
-            # On exception, it rolls back automatically.
+            if session.is_active:
+                await session.commit()
+        except Exception:
+            if session.is_active:
+                await session.rollback()
+            raise
 
 
 get_db_session = get_db

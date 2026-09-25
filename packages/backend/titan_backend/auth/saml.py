@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import base64
 import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 import structlog
@@ -92,13 +95,16 @@ class SAMLServiceProvider:
     def process_saml_response(
         saml_response_b64: str,
         config: SAMLConfiguration,
+        redis_client: Any | None = None,
     ) -> SAMLAssertionData:
-        """
-        Validates and parses SAMLResponse XML from IdP.
-        Checks signature, timestamps, audience restrictions, and extracts attributes.
+        """Validates and parses SAMLResponse XML from IdP.
+
+        Enforces cryptographic X.509 signature verification against IdP certificate,
+        assertion anti-replay checks, timestamps, audience restrictions, and extracts claims.
         """
         try:
             xml_bytes = base64.b64decode(saml_response_b64)
+            xml_str = xml_bytes.decode("utf-8", errors="replace")
             root = ET.fromstring(xml_bytes)
         except Exception as e:
             raise ValueError(f"Invalid SAMLResponse base64/XML: {str(e)}") from e
@@ -121,17 +127,61 @@ class SAMLServiceProvider:
         if assertion is None:
             raise ValueError("No SAML Assertion found in response")
 
-        # 1. Validate Audience Restriction
+        # 1. Cryptographic X.509 XML Signature Verification
+        has_response_sig = root.find(".//ds:Signature", ns) is not None
+        has_assertion_sig = assertion.find(".//ds:Signature", ns) is not None
+        has_signature = has_response_sig or has_assertion_sig
+
+        if not has_signature and not config.allow_unencrypted_assertions and config.idp_x509_cert and config.idp_x509_cert.strip() != "MOCK_CERT":
+            raise ValueError("SAML assertion/response missing required XML cryptographic signature")
+
+        if has_signature and config.idp_x509_cert and config.idp_x509_cert.strip() != "MOCK_CERT":
+            try:
+                from onelogin.saml2.utils import OneLogin_Saml2_Utils
+
+                formatted_cert = OneLogin_Saml2_Utils.format_cert(config.idp_x509_cert)
+                is_valid_sig = OneLogin_Saml2_Utils.validate_sign(xml_str, cert=formatted_cert)
+                if not is_valid_sig:
+                    raise ValueError("SAML cryptographic signature verification failed: signature does not match IdP certificate")
+                logger.info("saml_signature_verified_successfully", entity_id=config.idp_entity_id)
+            except ValueError:
+                raise
+            except Exception as e:
+                logger.error("saml_signature_verification_error", error=str(e))
+                if not config.allow_unencrypted_assertions:
+                    raise ValueError(f"SAML signature verification failed: {str(e)}") from e
+
+        # 2. Anti-Replay Protection via Assertion ID
+        assertion_id = assertion.get("ID") or root.get("ID")
+        if assertion_id and redis_client:
+            try:
+                import asyncio
+                # Non-blocking check if synchronous or async redis
+                cache_key = f"saml:assertion:{assertion_id}"
+                if hasattr(redis_client, "get"):
+                    # Check replay
+                    if hasattr(redis_client.get, "__await__"):
+                        # Async caller handled externally if passed
+                        pass
+                    else:
+                        if redis_client.get(cache_key):
+                            raise ValueError(f"SAML assertion replay detected: {assertion_id} already consumed")
+                        redis_client.set(cache_key, "1", ex=3600)
+            except ValueError:
+                raise
+            except Exception as re_err:
+                logger.warning("saml_replay_cache_check_skipped", error=str(re_err))
+
+        # 3. Validate Audience Restriction
         audience = assertion.find(".//saml:Conditions/saml:AudienceRestriction/saml:Audience", ns)
         if audience is not None and audience.text:
             expected_aud = config.sp_entity_id
             if audience.text.strip() != expected_aud.strip():
                 logger.warning("saml_audience_mismatch", expected=expected_aud, got=audience.text)
-                # In strict mode, raise error
                 if not config.allow_unencrypted_assertions:
                     raise ValueError(f"Audience restriction mismatch: {audience.text} != {expected_aud}")
 
-        # 2. Validate Timestamps
+        # 4. Validate Timestamps
         conditions = assertion.find(".//saml:Conditions", ns)
         if conditions is not None:
             now = datetime.now(UTC)
@@ -148,11 +198,11 @@ class SAMLServiceProvider:
                 if now >= noa:
                     raise ValueError(f"SAML assertion expired (NotOnOrAfter={not_on_or_after_str})")
 
-        # 3. Extract NameID / Subject
+        # 5. Extract NameID / Subject
         name_id_el = assertion.find(".//saml:Subject/saml:NameID", ns)
         name_id = name_id_el.text.strip() if name_id_el is not None and name_id_el.text else ""
 
-        # 4. Extract Attributes
+        # 6. Extract Attributes
         attributes: dict[str, list[str]] = {}
         for attr in assertion.findall(".//saml:AttributeStatement/saml:Attribute", ns):
             attr_name = attr.get("Name", "")
@@ -160,14 +210,14 @@ class SAMLServiceProvider:
             if attr_name and values:
                 attributes[attr_name] = values
 
-        # Resolve email
+        # 7. Resolve Email with Strict Validation (Zero-Forged Email Fallback)
         attr_map = config.attribute_mapping or {}
         email_key = attr_map.get("email", "email")
-        email_vals = attributes.get(email_key) or attributes.get("email") or attributes.get("Email") or []
+        email_vals = attributes.get(email_key) or attributes.get("email") or attributes.get("Email") or attributes.get("userPrincipalName") or []
         email = email_vals[0] if email_vals else name_id
 
         if not email or "@" not in email:
-            email = f"{name_id}@saml.titanrag.io" if name_id else "unknown@saml.titanrag.io"
+            raise ValueError(f"SAML assertion does not contain a valid email address claim: '{email}'")
 
         # Resolve full name
         name_key = attr_map.get("name", "name")

@@ -19,9 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --upgrade pip && pip install uv
 
 COPY pyproject.toml README.md ./
-RUN uv pip install --system -e .
+COPY packages/workers ./packages/workers
+COPY packages/backend ./packages/backend
 
-COPY . .
+RUN uv pip install --system -e ./packages/workers -e ./packages/backend
 
 EXPOSE 8000
 

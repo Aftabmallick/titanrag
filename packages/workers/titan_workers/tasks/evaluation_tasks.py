@@ -7,6 +7,7 @@ from uuid import UUID
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from titan_backend.core.config import settings
 from titan_backend.db.models.evaluation import (
     EvaluationResultItem,
     EvaluationRun,
@@ -32,9 +33,7 @@ logger = structlog.get_logger(__name__)
 
 
 def _get_async_session() -> AsyncSession:
-    db_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://titan:titan@localhost:5432/titanrag")
-    if "postgresql://" in db_url and "+asyncpg" not in db_url:
-        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://")
+    db_url = settings.get_database_url()
     engine = create_async_engine(db_url, echo=False)
     return async_sessionmaker(engine, expire_on_commit=False)()
 

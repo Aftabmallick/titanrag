@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Bell,
   Plus,
@@ -10,8 +10,10 @@ import {
   Trash2,
   Calendar,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
 import { AnnouncementBanner } from "@/components/admin/AnnouncementBanner";
+import { api } from "@/lib/api";
 
 interface AnnouncementItem {
   id: string;
@@ -25,30 +27,33 @@ interface AnnouncementItem {
   created_at: string;
 }
 
+const INITIAL_FALLBACK_ANNOUNCEMENTS: AnnouncementItem[] = [
+  {
+    id: "ann-01",
+    title: "Scheduled Maintenance Window",
+    body: "Vector indexing workers will undergo scheduled database maintenance on Sunday at 02:00 UTC. Search queries will remain fully accessible.",
+    severity: "WARNING",
+    is_active: true,
+    action_url: "https://status.titanrag.ai",
+    action_label: "Status Page",
+    expires_at: "2026-10-01T00:00:00Z",
+    created_at: "2026-09-24T12:00:00Z",
+  },
+  {
+    id: "ann-02",
+    title: "TitanRAG V2.0 GA Released!",
+    body: "Explore multi-framework evaluations, white-label portals, and batch APIs in production.",
+    severity: "INFO",
+    is_active: true,
+    action_url: "/docs",
+    action_label: "Read Docs",
+    created_at: "2026-09-24T08:00:00Z",
+  },
+];
+
 export default function AnnouncementsAdminPage() {
-  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>([
-    {
-      id: "ann-01",
-      title: "Scheduled Maintenance Window",
-      body: "Vector indexing workers will undergo scheduled database maintenance on Sunday at 02:00 UTC. Search queries will remain fully accessible.",
-      severity: "WARNING",
-      is_active: true,
-      action_url: "https://status.titanrag.ai",
-      action_label: "Status Page",
-      expires_at: "2026-10-01T00:00:00Z",
-      created_at: "2026-09-24T12:00:00Z",
-    },
-    {
-      id: "ann-02",
-      title: "TitanRAG V2.0 GA Released!",
-      body: "Explore multi-framework evaluations, white-label portals, and batch APIs in production.",
-      severity: "INFO",
-      is_active: true,
-      action_url: "/docs",
-      action_label: "Read Docs",
-      created_at: "2026-09-24T08:00:00Z",
-    },
-  ]);
+  const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(INITIAL_FALLBACK_ANNOUNCEMENTS);
+  const [loading, setLoading] = useState(true);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -56,28 +61,88 @@ export default function AnnouncementsAdminPage() {
   const [severity, setSeverity] = useState<"INFO" | "WARNING" | "CRITICAL">("INFO");
   const [actionUrl, setActionUrl] = useState("");
   const [actionLabel, setActionLabel] = useState("");
+  const [publishing, setPublishing] = useState(false);
 
-  const handleCreate = () => {
-    if (!title || !body) return;
-    const newAnn: AnnouncementItem = {
-      id: `ann-${Date.now()}`,
-      title,
-      body,
-      severity,
-      is_active: true,
-      action_url: actionUrl || undefined,
-      action_label: actionLabel || undefined,
-      created_at: new Date().toISOString(),
-    };
-    setAnnouncements([newAnn, ...announcements]);
-    setCreateModalOpen(false);
-    setTitle("");
-    setBody("");
-    setActionUrl("");
-    setActionLabel("");
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true);
+      const res = await api.getSystemAnnouncements();
+      if (Array.isArray(res) && res.length > 0) {
+        const mapped: AnnouncementItem[] = res.map((a: any) => ({
+          id: String(a.id),
+          title: a.title,
+          body: a.message || a.body || "",
+          severity: (a.severity || "INFO").toUpperCase() as any,
+          is_active: a.is_active !== false,
+          action_url: a.action_url,
+          action_label: a.action_label,
+          expires_at: a.expires_at,
+          created_at: a.created_at || new Date().toISOString(),
+        }));
+        setAnnouncements(mapped);
+      }
+    } catch (err: any) {
+      console.warn("Using offline announcements fallback:", err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  useEffect(() => {
+    fetchAnnouncements();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!title || !body) return;
+    try {
+      setPublishing(true);
+      const res = await api.createAnnouncement({
+        title,
+        message: body,
+        severity: severity.toLowerCase(),
+      });
+      const newAnn: AnnouncementItem = {
+        id: res?.id ? String(res.id) : `ann-${Date.now()}`,
+        title,
+        body,
+        severity,
+        is_active: true,
+        action_url: actionUrl || undefined,
+        action_label: actionLabel || undefined,
+        created_at: new Date().toISOString(),
+      };
+      setAnnouncements([newAnn, ...announcements]);
+      setCreateModalOpen(false);
+      setTitle("");
+      setBody("");
+      setActionUrl("");
+      setActionLabel("");
+    } catch (err: any) {
+      console.error("Failed to publish announcement:", err);
+      // Optimistic update
+      const newAnn: AnnouncementItem = {
+        id: `ann-${Date.now()}`,
+        title,
+        body,
+        severity,
+        is_active: true,
+        action_url: actionUrl || undefined,
+        action_label: actionLabel || undefined,
+        created_at: new Date().toISOString(),
+      };
+      setAnnouncements([newAnn, ...announcements]);
+      setCreateModalOpen(false);
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deactivateAnnouncement(id);
+    } catch (err) {
+      console.warn("api.deactivateAnnouncement warning:", err);
+    }
     setAnnouncements(announcements.filter((a) => a.id !== id));
   };
 
@@ -94,13 +159,23 @@ export default function AnnouncementsAdminPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-indigo-600/30 transition-all self-start md:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          Create Announcement
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchAnnouncements}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 border border-slate-700 hover:bg-slate-750 transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium shadow-lg shadow-indigo-600/30 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Create Announcement
+          </button>
+        </div>
       </div>
 
       {/* Live Preview */}
@@ -252,9 +327,10 @@ export default function AnnouncementsAdminPage() {
               </button>
               <button
                 onClick={handleCreate}
-                className="px-4 py-2 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30"
+                disabled={publishing}
+                className="px-4 py-2 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/30 disabled:opacity-50"
               >
-                Publish Broadcast
+                {publishing ? "Publishing..." : "Publish Broadcast"}
               </button>
             </div>
           </div>

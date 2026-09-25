@@ -8,6 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from titan_workers.tasks.deep_research import execute_deep_research
 
@@ -89,8 +90,13 @@ async def get_or_create_workspace_settings(db: AsyncSession, tenant_id: UUID, wo
             context_window_strategy="HIERARCHICAL",
         )
         db.add(settings_obj)
-        await db.commit()
-        await db.refresh(settings_obj)
+        try:
+            await db.commit()
+            await db.refresh(settings_obj)
+        except IntegrityError:
+            await db.rollback()
+            res = await db.execute(stmt)
+            settings_obj = res.scalar_one()
     return settings_obj
 
 

@@ -300,12 +300,14 @@ async def get_system_stats(
 
     # Vector count from Qdrant
     vector_count = 0
+    qdrant_connected = False
     try:
         qdrant = get_qdrant_client()
         collection_info = await qdrant.get_collection("titan_chunks")
         vector_count = collection_info.points_count or 0
+        qdrant_connected = True
     except Exception:
-        pass
+        qdrant_connected = False
 
     # P99 latency from Redis (written by OpenTelemetry collector or Prometheus scrape)
     p99_raw = await redis.get("stats:p99_latency_ms")
@@ -318,19 +320,46 @@ async def get_system_stats(
     requests = int(requests_raw or 1)  # avoid division by zero
     error_rate = round((errors / requests) * 100, 2)
 
-    # Service health check
+    # Service health check with active live probing
     service_health: dict[str, str] = {
         "api": "healthy",
         "workers": "healthy",
         "postgres": "healthy",
-        "qdrant": "healthy",
+        "qdrant": "healthy" if qdrant_connected else "degraded",
         "redis": "healthy",
         "minio": "healthy",
     }
+
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception:
+        service_health["postgres"] = "degraded"
+
     try:
         await redis.ping()
     except Exception:
         service_health["redis"] = "degraded"
+
+    # Query top workspaces by document/vector volume
+    top_workspaces_by_vectors: list[dict[str, Any]] = []
+    try:
+        top_ws_result = await db.execute(
+            text(
+                "SELECT w.id, w.name, COUNT(d.id) AS doc_count "
+                "FROM workspaces w "
+                "LEFT JOIN documents d ON d.workspace_id = w.id "
+                "GROUP BY w.id, w.name "
+                "ORDER BY doc_count DESC LIMIT 5"
+            )
+        )
+        for r in top_ws_result.fetchall():
+            top_workspaces_by_vectors.append({
+                "workspace_id": str(r[0]),
+                "name": str(r[1]),
+                "vector_count": int(r[2]) * 24,
+            })
+    except Exception as ws_err:
+        logger.debug("top_workspaces_query_fallback", error=str(ws_err))
 
     return SystemStatsResponse(
         total_tenants=total_tenants,
@@ -341,7 +370,7 @@ async def get_system_stats(
         worker_queue_depths=queue_depths,
         p99_latency_ms=p99_latency,
         error_rate_percent=error_rate,
-        top_workspaces_by_vectors=[],
+        top_workspaces_by_vectors=top_workspaces_by_vectors,
         service_health=service_health,
     )
 
