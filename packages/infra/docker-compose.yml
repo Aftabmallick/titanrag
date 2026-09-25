@@ -331,7 +331,7 @@ services:
     restart: unless-stopped
     profiles: ["full"]
     ports:
-      - "3001:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       BACKEND_INTERNAL_URL: http://backend:8000/api/v1
     depends_on:
