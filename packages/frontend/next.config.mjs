@@ -3,16 +3,16 @@ const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
   async rewrites() {
-    const backendUrl = process.env.BACKEND_INTERNAL_URL || "http://127.0.0.1:8000/api/v1/:path*";
-    const healthUrl = backendUrl.replace("/api/v1/:path*", "/health/:path*");
+    const rawBackend = process.env.BACKEND_INTERNAL_URL || (process.env.NODE_ENV === "production" ? "http://backend:8000" : "http://127.0.0.1:8000");
+    const baseHost = rawBackend.replace(/\/api\/v1\/?$/, "").replace(/\/+$/, "");
     return [
       {
         source: "/api/v1/:path*",
-        destination: backendUrl,
+        destination: `${baseHost}/api/v1/:path*`,
       },
       {
         source: "/health/:path*",
-        destination: healthUrl,
+        destination: `${baseHost}/health/:path*`,
       },
     ];
   },

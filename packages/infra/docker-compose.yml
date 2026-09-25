@@ -327,13 +327,15 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
     container_name: titan-frontend
     restart: unless-stopped
     profiles: ["full"]
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      BACKEND_INTERNAL_URL: http://backend:8000/api/v1
+      BACKEND_INTERNAL_URL: ${BACKEND_INTERNAL_URL:-http://backend:8000}
     depends_on:
       backend:
         condition: service_healthy
