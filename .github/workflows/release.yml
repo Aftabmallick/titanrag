@@ -82,17 +82,34 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Check if Version Already Exists on PyPI
+        id: check-pypi
+        working-directory: packages/sdk
+        run: |
+          SDK_VERSION=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "sdk_version=$SDK_VERSION" >> $GITHUB_OUTPUT
+          if curl -s -f "https://pypi.org/pypi/titanrag/$SDK_VERSION/json" > /dev/null 2>&1; then
+            echo "Version $SDK_VERSION already exists on PyPI. Skipping publish."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version $SDK_VERSION is new. Proceeding to publish."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install uv
+        if: steps.check-pypi.outputs.skip != 'true'
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
 
       - name: Build Python Package
+        if: steps.check-pypi.outputs.skip != 'true'
         working-directory: packages/sdk
         run: |
           uv build --out-dir dist
 
       - name: Publish to PyPI
+        if: steps.check-pypi.outputs.skip != 'true'
         working-directory: packages/sdk
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
@@ -114,7 +131,22 @@ jobs:
           node-version: 20
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Check if Version Already Exists on npm
+        id: check-npm
+        working-directory: packages/widget
+        run: |
+          WIDGET_VERSION=$(node -p "require('./package.json').version")
+          echo "widget_version=$WIDGET_VERSION" >> $GITHUB_OUTPUT
+          if npm view @titanrag/widget@$WIDGET_VERSION version > /dev/null 2>&1; then
+            echo "Version $WIDGET_VERSION already exists on npm. Skipping publish."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "Version $WIDGET_VERSION is new. Proceeding to publish."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build & Test Widget
+        if: steps.check-npm.outputs.skip != 'true'
         working-directory: packages/widget
         run: |
           npm ci
@@ -122,6 +154,7 @@ jobs:
           npm test
 
       - name: Publish to npm
+        if: steps.check-npm.outputs.skip != 'true'
         working-directory: packages/widget
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -165,7 +198,7 @@ jobs:
 
   create-github-release:
     name: Publish GitHub Release
-    needs: [publish-pypi, publish-npm, build-and-publish-docker]
+    needs: validate-and-test
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
