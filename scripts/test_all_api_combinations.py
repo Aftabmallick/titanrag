@@ -20,7 +20,6 @@ from uuid import uuid4
 
 import httpx
 from titan_backend.core.config import settings
-settings.RATE_LIMIT_DISABLED = True
 from titan_backend.core.dependencies import CurrentUser, get_current_user
 from titan_backend.db.models.acl import ACLGroup
 from titan_backend.db.models.chat import ChatSession
@@ -30,6 +29,8 @@ from titan_backend.db.models.users import User
 from titan_backend.db.models.workspaces import Workspace, WorkspaceMember, WorkspaceRole
 from titan_backend.db.session import get_db
 from titan_backend.main import app
+
+settings.RATE_LIMIT_DISABLED = True
 
 LIVE_SERVER_URL = "http://127.0.0.1:8000"
 

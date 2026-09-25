@@ -7,6 +7,7 @@ and computes late-interaction MaxSim similarity scores using NumPy-accelerated S
 from __future__ import annotations
 
 import hashlib
+
 import numpy as np
 import structlog
 
@@ -68,7 +69,7 @@ class ColPaliMultiVectorEmbedder:
             if len(chunk_arr) > 1:
                 diffs = np.abs(np.diff(chunk_arr)) / 255.0
                 grad_mean = float(np.mean(diffs))
-                grad_energy = float(np.sum(diffs ** 2) / len(diffs))
+                grad_energy = float(np.sum(diffs**2) / len(diffs))
             else:
                 grad_mean = 0.0
                 grad_energy = 0.0
@@ -84,14 +85,11 @@ class ColPaliMultiVectorEmbedder:
             # Combine statistical distribution, texture hash projections, and spatial coordinates
             patch_hash = hashlib.sha256(chunk[:128] + patch_idx.to_bytes(2, "big")).digest()
             hash_ints = np.frombuffer(patch_hash, dtype=np.int8).astype(np.float32) / 128.0
-            repeated_hashes = np.tile(hash_ints, int(np.ceil(cls.DIMENSION / len(hash_ints))))[:cls.DIMENSION]
+            repeated_hashes = np.tile(hash_ints, int(np.ceil(cls.DIMENSION / len(hash_ints))))[: cls.DIMENSION]
 
             # Synthesis: Linear blend of spatial encoding, texture harmonics, and statistical energy
             vec = (
-                0.40 * spatial_pe
-                + 0.35 * repeated_hashes
-                + 0.15 * (mean_intensity - 0.5)
-                + 0.10 * (grad_energy - 0.5)
+                0.40 * spatial_pe + 0.35 * repeated_hashes + 0.15 * (mean_intensity - 0.5) + 0.10 * (grad_energy - 0.5)
             )
 
             # Insert explicit salient scalar features into designated descriptor slots
@@ -132,7 +130,7 @@ class ColPaliMultiVectorEmbedder:
             combined_hash = h1 + h2  # 32 + 64 = 96 bytes
 
             hash_arr = np.frombuffer(combined_hash, dtype=np.int8).astype(np.float32) / 128.0
-            subword_proj = np.tile(hash_arr, int(np.ceil(cls.DIMENSION / len(hash_arr))))[:cls.DIMENSION]
+            subword_proj = np.tile(hash_arr, int(np.ceil(cls.DIMENSION / len(hash_arr))))[: cls.DIMENSION]
 
             # Token positional encoding
             token_pe = cls._compute_position_encoding(token_idx, cls.DIMENSION)
@@ -167,7 +165,7 @@ class ColPaliMultiVectorEmbedder:
             return 0.0
 
         q_mat = np.asarray(query_multi_vectors, dtype=np.float32)  # (N_q, D)
-        d_mat = np.asarray(doc_multi_vectors, dtype=np.float32)    # (N_d, D)
+        d_mat = np.asarray(doc_multi_vectors, dtype=np.float32)  # (N_d, D)
 
         # Compute all dot products: shape (N_q, N_d)
         sim_matrix = np.matmul(q_mat, d_mat.T)

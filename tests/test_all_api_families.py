@@ -6,6 +6,7 @@ import uuid
 
 BASE = "http://localhost:8000"
 
+
 def run_api_census():
     print("=" * 80)
     print("TITANRAG ALL-API COMPREHENSIVE LIVE INTEGRATION VERIFICATION")
@@ -21,7 +22,7 @@ def run_api_census():
         if auth and "token" in session:
             hdrs["Authorization"] = f"Bearer {session['token']}"
         body = json.dumps(data).encode("utf-8") if data is not None else None
-        
+
         req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
         t0 = time.perf_counter()
         try:
@@ -70,18 +71,31 @@ def run_api_census():
     uid = uuid.uuid4().hex[:8]
     email = f"all_apis_{uid}@titanrag.io"
     pwd = "AuditSecret123!"
-    reg = probe("Auth", "POST", "/api/v1/auth/register", {"email": email, "password": pwd, "tenant_name": f"AuditCorp-{uid}"}, auth=False, expect=(201,))
+    _ = probe(
+        "Auth",
+        "POST",
+        "/api/v1/auth/register",
+        {"email": email, "password": pwd, "tenant_name": f"AuditCorp-{uid}"},
+        auth=False,
+        expect=(201,),
+    )
     login = probe("Auth", "POST", "/api/v1/auth/login", {"email": email, "password": pwd}, auth=False)
     if login and "access_token" in login:
         session["token"] = login["access_token"]
         session["user_id"] = login.get("user", {}).get("id")
-    
+
     probe("Auth", "GET", "/api/v1/auth/me")
     probe("API Keys", "GET", "/api/v1/api-keys")
 
     # 3. Workspaces Management
     print("\n[3] Workspaces & Members")
-    ws = probe("Workspaces", "POST", "/api/v1/workspaces", {"name": f"All-APIs-Workspace-{uid}", "description": "Verification workspace"}, expect=(201,))
+    ws = probe(
+        "Workspaces",
+        "POST",
+        "/api/v1/workspaces",
+        {"name": f"All-APIs-Workspace-{uid}", "description": "Verification workspace"},
+        expect=(201,),
+    )
     ws_id = ws.get("id") if ws else None
     if not ws_id:
         print("Fatal: Could not create test workspace")
@@ -95,7 +109,12 @@ def run_api_census():
     # 4. RAG Settings
     print("\n[4] RAG Settings & Policies")
     probe("RAG Settings", "GET", f"/api/v1/workspaces/{ws_id}/settings")
-    probe("RAG Settings", "PATCH", f"/api/v1/workspaces/{ws_id}/settings", {"rag_temperature": 0.35, "enable_hybrid_search": True})
+    probe(
+        "RAG Settings",
+        "PATCH",
+        f"/api/v1/workspaces/{ws_id}/settings",
+        {"rag_temperature": 0.35, "enable_hybrid_search": True},
+    )
     probe("RAG Settings", "GET", f"/api/v1/workspaces/{ws_id}/rag-settings")
 
     # 5. Documents & Ingestion
@@ -107,19 +126,22 @@ def run_api_census():
         f"Content-Type: text/plain\r\n\r\n"
         f"TitanRAG All API Integration Doc\r\n"
         f"--{boundary}--\r\n"
-    ).encode("utf-8")
-    
+    ).encode()
+
     up_url = f"{BASE}/api/v1/workspaces/{ws_id}/documents"
     up_req = urllib.request.Request(
         up_url,
         data=doc_payload,
-        headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "Authorization": f"Bearer {session['token']}"},
-        method="POST"
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Authorization": f"Bearer {session['token']}",
+        },
+        method="POST",
     )
     with urllib.request.urlopen(up_req) as up_res:
         doc_data = json.loads(up_res.read().decode())
         doc_id = doc_data["document"]["id"]
-        print(f"  ✅ [201] POST   /api/v1/workspaces/.../documents                        (  8.0ms) [Documents]")
+        print("  ✅ [201] POST   /api/v1/workspaces/.../documents                        (  8.0ms) [Documents]")
         passed.append(("Documents", "POST", "/api/v1/workspaces/.../documents", 201, 8.0))
 
     probe("Documents", "GET", f"/api/v1/workspaces/{ws_id}/documents")
@@ -129,18 +151,31 @@ def run_api_census():
 
     # 6. Conversational Chat Sessions
     print("\n[6] Conversational Chat Sessions & Multi-Turn")
-    chat_sess = probe("Chat Sessions", "POST", f"/api/v1/workspaces/{ws_id}/chat-sessions", {"title": "API Census Chat"}, expect=(200, 201))
+    chat_sess = probe(
+        "Chat Sessions",
+        "POST",
+        f"/api/v1/workspaces/{ws_id}/chat-sessions",
+        {"title": "API Census Chat"},
+        expect=(200, 201),
+    )
     sess_id = chat_sess.get("id") if chat_sess else None
-    
+
     probe("Chat Sessions", "GET", f"/api/v1/workspaces/{ws_id}/chat-sessions")
     if sess_id:
-        probe("Chat Sessions", "PATCH", f"/api/v1/workspaces/{ws_id}/chat-sessions/{sess_id}", {"title": "Renamed Census Session"})
+        probe(
+            "Chat Sessions",
+            "PATCH",
+            f"/api/v1/workspaces/{ws_id}/chat-sessions/{sess_id}",
+            {"title": "Renamed Census Session"},
+        )
         probe("Chat Sessions", "GET", f"/api/v1/workspaces/{ws_id}/chat-sessions/{sess_id}/messages")
 
     # 7. Knowledge Graph (GraphRAG)
     print("\n[7] Knowledge Graph & GraphRAG")
     probe("GraphRAG", "GET", f"/api/v1/workspaces/{ws_id}/graph")
-    probe("GraphRAG", "POST", f"/api/v1/workspaces/{ws_id}/graph/query", {"query": "Find graph nodes"}, expect=(200, 400))
+    probe(
+        "GraphRAG", "POST", f"/api/v1/workspaces/{ws_id}/graph/query", {"query": "Find graph nodes"}, expect=(200, 400)
+    )
 
     # 8. Visual / ColPali
     print("\n[8] Visual Search & ColPali Pages")
@@ -192,6 +227,7 @@ def run_api_census():
             print(f"  ❌ [{st}] {meth:6} {pth} ({cat}) -> {err}")
     else:
         print(f"\n🎉 ALL {len(passed)} API FAMILIES ARE FULLY FUNCTIONAL AND RETURNING SUCCESS!")
+
 
 if __name__ == "__main__":
     run_api_census()

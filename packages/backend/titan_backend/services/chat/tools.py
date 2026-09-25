@@ -76,15 +76,18 @@ tool_registry = ToolRegistry()
 
 # --- Built-in Enterprise Tool Handlers ---
 
+
 def _safe_eval_math(expression: str) -> float:
     """Safely evaluates an arithmetic expression without eval()."""
-    operators: dict[type, Callable[[Any, Any], Any]] = {
+    bin_operators: dict[type, Callable[[Any, Any], Any]] = {
         ast.Add: operator.add,
         ast.Sub: operator.sub,
         ast.Mult: operator.mul,
         ast.Div: operator.truediv,
         ast.Pow: operator.pow,
         ast.Mod: operator.mod,
+    }
+    unary_operators: dict[type, Callable[[Any], Any]] = {
         ast.USub: operator.neg,
         ast.UAdd: operator.pos,
     }
@@ -95,16 +98,16 @@ def _safe_eval_math(expression: str) -> float:
         elif isinstance(node, ast.BinOp):
             left = _eval(node.left)
             right = _eval(node.right)
-            op = operators.get(type(node.op))
-            if op is None:
+            bin_op = bin_operators.get(type(node.op))
+            if bin_op is None:
                 raise ValueError(f"Unsupported operator: {type(node.op)}")
-            return op(left, right)
+            return bin_op(left, right)
         elif isinstance(node, ast.UnaryOp):
             operand = _eval(node.operand)
-            op = operators.get(type(node.op))
-            if op is None:
+            un_op = unary_operators.get(type(node.op))
+            if un_op is None:
                 raise ValueError(f"Unsupported unary operator: {type(node.op)}")
-            return op(operand)
+            return un_op(operand)
         else:
             raise ValueError(f"Invalid math syntax: {type(node)}")
 
@@ -148,7 +151,7 @@ async def get_document_metadata_handler(document_id: str) -> dict[str, Any]:
         "status": "success",
         "document_id": document_id,
         "mime_type": "application/pdf",
-        "status": "COMPLETED",
+        "ingestion_status": "COMPLETED",
         "vector_count": 48,
     }
 

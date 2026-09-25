@@ -353,11 +353,13 @@ async def get_system_stats(
             )
         )
         for r in top_ws_result.fetchall():
-            top_workspaces_by_vectors.append({
-                "workspace_id": str(r[0]),
-                "name": str(r[1]),
-                "vector_count": int(r[2]) * 24,
-            })
+            top_workspaces_by_vectors.append(
+                {
+                    "workspace_id": str(r[0]),
+                    "name": str(r[1]),
+                    "vector_count": int(r[2]) * 24,
+                }
+            )
     except Exception as ws_err:
         logger.debug("top_workspaces_query_fallback", error=str(ws_err))
 

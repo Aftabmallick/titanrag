@@ -159,9 +159,9 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
 
     # Resolve user role from workspace ownership or superuser status
     user_role = "ADMIN" if user.is_superuser else "MEMBER"
-    ws_membership = (await db.execute(
-        select(WorkspaceMember).where(WorkspaceMember.user_id == user.id).limit(1)
-    )).scalar_one_or_none()
+    ws_membership = (
+        await db.execute(select(WorkspaceMember).where(WorkspaceMember.user_id == user.id).limit(1))
+    ).scalar_one_or_none()
     if ws_membership and ws_membership.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
         user_role = ws_membership.role.value
 

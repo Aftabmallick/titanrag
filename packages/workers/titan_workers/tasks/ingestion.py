@@ -1,13 +1,12 @@
 import asyncio
-import os
 from typing import Any
 from uuid import UUID
 
 import structlog
 from minio import Minio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from titan_backend.core.config import settings
+
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
 from titan_workers.pipeline.orchestrator import IngestionPipelineOrchestrator

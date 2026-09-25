@@ -36,18 +36,54 @@ ACRONYM_PATTERNS = r"\b([A-Z]{2,6})\b"
 
 # Generalized relational grammar patterns (Transitive verbs & prepositions)
 RELATION_GRAMMAR = [
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+(?:has\s+)?acquired\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "ACQUIRED"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+integrates\s+(?:directly\s+)?with\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "INTEGRATES_WITH"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+uses\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "USES"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+manages\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "MANAGES"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+authenticates\s+via\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "AUTHENTICATES_VIA"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+depends\s+on\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "DEPENDS_ON"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+implements\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "IMPLEMENTS"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+is\s+(?:developed|created|built)\s+by\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "DEVELOPED_BY"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+is\s+deployed\s+to\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "DEPLOYED_TO"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+stores\s+(?:data\s+in|state\s+in)\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "STORES_IN"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+connects\s+to\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "CONNECTS_TO"),
-    (r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+operates\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)", "OPERATES"),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+(?:has\s+)?acquired\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "ACQUIRED",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+integrates\s+(?:directly\s+)?with\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "INTEGRATES_WITH",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+uses\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "USES",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+manages\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "MANAGES",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+authenticates\s+via\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "AUTHENTICATES_VIA",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+depends\s+on\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "DEPENDS_ON",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+implements\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "IMPLEMENTS",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+is\s+(?:developed|created|built)\s+by\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "DEVELOPED_BY",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+is\s+deployed\s+to\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "DEPLOYED_TO",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+stores\s+(?:data\s+in|state\s+in)\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "STORES_IN",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+connects\s+to\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "CONNECTS_TO",
+    ),
+    (
+        r"(?P<src>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)\s+operates\s+(?P<tgt>[A-Z][A-Za-z0-9_]+(?:\s+[A-Z][A-Za-z0-9_]+)*)",
+        "OPERATES",
+    ),
 ]
 
 
@@ -91,7 +127,18 @@ class KnowledgeGraphExtractor:
         for match in re.finditer(PROPER_NOUN_PATTERNS, text):
             name = match.group(0).strip()
             # Ignore common sentence starters
-            if name.split()[0].lower() in {"in", "on", "at", "the", "this", "that", "these", "after", "before", "during"}:
+            if name.split()[0].lower() in {
+                "in",
+                "on",
+                "at",
+                "the",
+                "this",
+                "that",
+                "these",
+                "after",
+                "before",
+                "during",
+            }:
                 continue
             if name.upper() not in entities_map:
                 entities_map[name.upper()] = {

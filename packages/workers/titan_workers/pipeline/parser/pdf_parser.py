@@ -102,14 +102,16 @@ class PDFParser(DocumentParser):
             w_norm = max(0.01, min(1.0 - x_norm, width_pts / page_w))
             h_norm = max(0.005, min(1.0 - y_norm, height_pts / page_h))
 
-            fragments.append({
-                "text": text,
-                "x": x_norm,
-                "y": y_norm,
-                "w": w_norm,
-                "h": h_norm,
-                "font_size": fs,
-            })
+            fragments.append(
+                {
+                    "text": text,
+                    "x": x_norm,
+                    "y": y_norm,
+                    "w": w_norm,
+                    "h": h_norm,
+                    "font_size": fs,
+                }
+            )
 
         try:
             page.extract_text(visitor_text=visitor_text)
@@ -136,7 +138,26 @@ class PDFParser(DocumentParser):
                     # Flush previous line
                     full_line = " ".join(curr_line_texts).strip()
                     if full_line:
-                        lines.append((
+                        lines.append(
+                            (
+                                full_line,
+                                BoundingBox(
+                                    page_number=page_num,
+                                    x=round(curr_bbox["x"], 3),
+                                    y=round(curr_bbox["y"], 3),
+                                    width=round(min(0.95, curr_bbox["w"]), 3),
+                                    height=round(min(0.2, curr_bbox["h"]), 3),
+                                ),
+                            )
+                        )
+                    curr_bbox = {"x": f["x"], "y": f["y"], "w": f["w"], "h": f["h"]}
+                    curr_line_texts = [f["text"]]
+
+            if curr_bbox and curr_line_texts:
+                full_line = " ".join(curr_line_texts).strip()
+                if full_line:
+                    lines.append(
+                        (
                             full_line,
                             BoundingBox(
                                 page_number=page_num,
@@ -145,29 +166,14 @@ class PDFParser(DocumentParser):
                                 width=round(min(0.95, curr_bbox["w"]), 3),
                                 height=round(min(0.2, curr_bbox["h"]), 3),
                             ),
-                        ))
-                    curr_bbox = {"x": f["x"], "y": f["y"], "w": f["w"], "h": f["h"]}
-                    curr_line_texts = [f["text"]]
-
-            if curr_bbox and curr_line_texts:
-                full_line = " ".join(curr_line_texts).strip()
-                if full_line:
-                    lines.append((
-                        full_line,
-                        BoundingBox(
-                            page_number=page_num,
-                            x=round(curr_bbox["x"], 3),
-                            y=round(curr_bbox["y"], 3),
-                            width=round(min(0.95, curr_bbox["w"]), 3),
-                            height=round(min(0.2, curr_bbox["h"]), 3),
-                        ),
-                    ))
+                        )
+                    )
             if lines:
                 return lines
 
         # Fallback to plain line splitting if visitor yielded nothing
         plain_text = page.extract_text() or ""
-        plain_lines = [l.strip() for l in plain_text.splitlines() if l.strip()]
+        plain_lines = [line_str.strip() for line_str in plain_text.splitlines() if line_str.strip()]
         fallback_lines = []
         for idx, line in enumerate(plain_lines):
             line_y = idx / max(len(plain_lines), 1)

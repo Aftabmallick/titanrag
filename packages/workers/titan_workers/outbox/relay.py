@@ -1,5 +1,4 @@
 import asyncio
-import os
 import signal
 from datetime import UTC, datetime
 from typing import Any
@@ -9,7 +8,6 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-
 from titan_backend.core.config import settings
 
 # Database connection

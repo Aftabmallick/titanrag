@@ -132,7 +132,12 @@ class SAMLServiceProvider:
         has_assertion_sig = assertion.find(".//ds:Signature", ns) is not None
         has_signature = has_response_sig or has_assertion_sig
 
-        if not has_signature and not config.allow_unencrypted_assertions and config.idp_x509_cert and config.idp_x509_cert.strip() != "MOCK_CERT":
+        if (
+            not has_signature
+            and not config.allow_unencrypted_assertions
+            and config.idp_x509_cert
+            and config.idp_x509_cert.strip() != "MOCK_CERT"
+        ):
             raise ValueError("SAML assertion/response missing required XML cryptographic signature")
 
         if has_signature and config.idp_x509_cert and config.idp_x509_cert.strip() != "MOCK_CERT":
@@ -142,7 +147,9 @@ class SAMLServiceProvider:
                 formatted_cert = OneLogin_Saml2_Utils.format_cert(config.idp_x509_cert)
                 is_valid_sig = OneLogin_Saml2_Utils.validate_sign(xml_str, cert=formatted_cert)
                 if not is_valid_sig:
-                    raise ValueError("SAML cryptographic signature verification failed: signature does not match IdP certificate")
+                    raise ValueError(
+                        "SAML cryptographic signature verification failed: signature does not match IdP certificate"
+                    )
                 logger.info("saml_signature_verified_successfully", entity_id=config.idp_entity_id)
             except ValueError:
                 raise
@@ -155,7 +162,6 @@ class SAMLServiceProvider:
         assertion_id = assertion.get("ID") or root.get("ID")
         if assertion_id and redis_client:
             try:
-                import asyncio
                 # Non-blocking check if synchronous or async redis
                 cache_key = f"saml:assertion:{assertion_id}"
                 if hasattr(redis_client, "get"):
@@ -213,7 +219,13 @@ class SAMLServiceProvider:
         # 7. Resolve Email with Strict Validation (Zero-Forged Email Fallback)
         attr_map = config.attribute_mapping or {}
         email_key = attr_map.get("email", "email")
-        email_vals = attributes.get(email_key) or attributes.get("email") or attributes.get("Email") or attributes.get("userPrincipalName") or []
+        email_vals = (
+            attributes.get(email_key)
+            or attributes.get("email")
+            or attributes.get("Email")
+            or attributes.get("userPrincipalName")
+            or []
+        )
         email = email_vals[0] if email_vals else name_id
 
         if not email or "@" not in email:
