@@ -66,13 +66,13 @@ class CrossEncoderReranker:
 
         # 1. Try Cohere Rerank API if configured
         if settings.COHERE_API_KEY:
-            url = "https://api.cohere.ai/v1/rerank"
+            url = settings.COHERE_RERANK_URL
             headers = {
                 "Authorization": f"Bearer {settings.COHERE_API_KEY}",
                 "Content-Type": "application/json",
             }
             payload = {
-                "model": "rerank-v3.5",
+                "model": settings.COHERE_RERANK_MODEL,
                 "query": query,
                 "documents": documents,
                 "top_n": top_n,
@@ -101,7 +101,7 @@ class CrossEncoderReranker:
             "Content-Type": "application/json",
         }
         payload = {
-            "model": "bge-reranker-large",
+            "model": settings.LITELLM_RERANK_MODEL,
             "query": query,
             "documents": documents,
             "top_n": top_n,
@@ -130,7 +130,10 @@ class CrossEncoderReranker:
         """Gracefully scales scores down logarithmically for calibrated confidence."""
         results: list[RerankedCandidate] = []
         for i, c in enumerate(candidates[:top_n]):
-            score = max(0.45, round(0.90 - (i * 0.08), 3))
+            score = max(
+                settings.RERANKER_FALLBACK_MIN_SCORE,
+                round(settings.RERANKER_FALLBACK_BASE_SCORE - (i * settings.RERANKER_FALLBACK_STEP), 3),
+            )
             results.append(
                 RerankedCandidate(chunk_id=c.chunk_id, relevance_score=score, candidate=c, is_reranked=False)
             )

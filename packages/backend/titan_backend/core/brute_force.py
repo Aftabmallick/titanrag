@@ -5,12 +5,13 @@ from typing import Any
 import structlog
 
 from titan_backend.clients.redis_client import get_redis_client
+from titan_backend.core.config import settings
 from titan_backend.core.errors import AppException
 
 logger = structlog.get_logger("titanrag.brute_force")
 
-MAX_ATTEMPTS = 5
-LOCKOUT_DURATION_SECONDS = 900  # 15 minutes
+MAX_ATTEMPTS = settings.LOGIN_MAX_ATTEMPTS
+LOCKOUT_DURATION_SECONDS = settings.LOGIN_LOCKOUT_DURATION_SECONDS
 FAILURE_PREFIX = "login_failures:"
 LOCKOUT_PREFIX = "account_locked:"
 

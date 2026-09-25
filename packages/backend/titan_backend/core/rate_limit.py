@@ -65,6 +65,9 @@ class SlidingWindowRateLimiter:
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable[[Request], Any]) -> Response:
+        if settings.RATE_LIMIT_DISABLED:
+            return cast(Response, await call_next(request))
+
         # Exclude internal health and metrics from rate limits
         path = request.url.path
         if path.startswith("/health") or path == "/metrics" or path.startswith("/docs") or path.startswith("/openapi"):
@@ -76,10 +79,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         api_key_header = request.headers.get("X-API-Key", "")
 
         import hashlib
-        import os
 
         identifier = f"ip:{client_ip}"
-        limit = 10000 if os.getenv("PYTEST_CURRENT_TEST") else settings.RATE_LIMIT_PER_MINUTE_ANONYMOUS
+        limit = settings.RATE_LIMIT_PER_MINUTE_ANONYMOUS
 
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()

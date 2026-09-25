@@ -2,6 +2,7 @@ import time
 from typing import NamedTuple
 from uuid import UUID
 
+from titan_backend.core.config import settings
 from titan_backend.services.retrieval.search import SearchCandidate
 
 
@@ -68,8 +69,8 @@ class TieredFusionEngine:
             # Document staleness penalty (Task 6.5)
             is_stale = payloads.get(c_id, {}).get("is_stale", False)
             if is_stale:
-                # Apply 30% score penalty to stale documents to favor fresh documentation
-                score *= 0.70
+                # Apply configurable score penalty to stale documents to favor fresh documentation
+                score *= settings.FUSION_STALENESS_PENALTY
 
             scores.append(
                 FusedCandidate(

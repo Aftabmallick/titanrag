@@ -34,30 +34,35 @@ async def check_qdrant_health() -> bool:
         return False
 
 
-async def init_qdrant_collection(collection_name: str = "titan_chunks", vector_size: int = 1536) -> None:
+async def init_qdrant_collection(
+    collection_name: str | None = None,
+    vector_size: int | None = None,
+) -> None:
     client = get_qdrant_client()
+    target_collection = collection_name or settings.QDRANT_COLLECTION_NAME
+    target_size = vector_size or settings.QDRANT_DENSE_VECTOR_SIZE
     try:
         collections = await client.get_collections()
         existing_names = [c.name for c in collections.collections]
 
-        if collection_name not in existing_names:
-            logger.info("creating_qdrant_collection", name=collection_name, size=vector_size)
+        if target_collection not in existing_names:
+            logger.info("creating_qdrant_collection", name=target_collection, size=target_size)
             await client.create_collection(
-                collection_name=collection_name,
+                collection_name=target_collection,
                 vectors_config={
                     "dense": qmodels.VectorParams(
-                        size=vector_size,
+                        size=target_size,
                         distance=qmodels.Distance.COSINE,
                         on_disk=True,
                         hnsw_config=qmodels.HnswConfigDiff(
-                            m=16,
-                            ef_construct=128,
+                            m=settings.QDRANT_HNSW_M,
+                            ef_construct=settings.QDRANT_HNSW_EF_CONSTRUCT,
                             on_disk=True,
                         ),
                         quantization_config=qmodels.ScalarQuantization(
                             scalar=qmodels.ScalarQuantizationConfig(
                                 type=qmodels.ScalarType.INT8,
-                                quantile=0.99,
+                                quantile=settings.QDRANT_QUANTILE,
                                 always_ram=True,
                             )
                         ),
@@ -91,41 +96,43 @@ async def init_qdrant_collection(collection_name: str = "titan_chunks", vector_s
             ]
             for field_name, schema_type in index_fields:
                 await client.create_payload_index(
-                    collection_name=collection_name,
+                    collection_name=target_collection,
                     field_name=field_name,
                     field_schema=schema_type,
                 )
-            logger.info("qdrant_collection_ready", name=collection_name)
+            logger.info("qdrant_collection_ready", name=target_collection)
     except Exception as e:
         logger.warning("qdrant_init_collection_skipped_or_failed", error=str(e))
 
 
 async def init_colpali_collection(
-    collection_name: str = "titan_colpali_visual",
-    vector_size: int = 128,
+    collection_name: str | None = None,
+    vector_size: int | None = None,
 ) -> None:
     """
     Dedicated physically isolated Qdrant collection for ColPali visual document pages.
     Configured with multivector MaxSim late-interaction, on-disk storage, and Binary Quantization (BQ).
     """
     client = get_qdrant_client()
+    target_collection = collection_name or settings.QDRANT_COLPALI_COLLECTION_NAME
+    target_size = vector_size or settings.QDRANT_COLPALI_VECTOR_SIZE
     try:
         collections = await client.get_collections()
         existing_names = [c.name for c in collections.collections]
 
-        if collection_name not in existing_names:
-            logger.info("creating_colpali_visual_collection", name=collection_name, size=vector_size)
+        if target_collection not in existing_names:
+            logger.info("creating_colpali_visual_collection", name=target_collection, size=target_size)
             await client.create_collection(
-                collection_name=collection_name,
+                collection_name=target_collection,
                 vectors_config={
                     "colpali": qmodels.VectorParams(
-                        size=vector_size,
+                        size=target_size,
                         distance=qmodels.Distance.DOT,
                         multivector_config=qmodels.MultiVectorConfig(comparator=qmodels.MultiVectorComparator.MAX_SIM),
                         on_disk=True,
                         hnsw_config=qmodels.HnswConfigDiff(
-                            m=16,
-                            ef_construct=128,
+                            m=settings.QDRANT_HNSW_M,
+                            ef_construct=settings.QDRANT_HNSW_EF_CONSTRUCT,
                             on_disk=True,
                         ),
                         quantization_config=qmodels.BinaryQuantization(
@@ -148,11 +155,11 @@ async def init_colpali_collection(
             ]
             for field_name, schema_type in index_fields:
                 await client.create_payload_index(
-                    collection_name=collection_name,
+                    collection_name=target_collection,
                     field_name=field_name,
                     field_schema=schema_type,
                 )
-            logger.info("colpali_visual_collection_ready", name=collection_name)
+            logger.info("colpali_visual_collection_ready", name=target_collection)
     except Exception as e:
         logger.warning("colpali_collection_init_skipped_or_failed", error=str(e))
 
@@ -163,10 +170,15 @@ class TenantIngestionSemaphore:
     Limits active concurrent ingestion / embedding jobs per tenant.
     """
 
-    def __init__(self, tenant_id: str, max_concurrent: int = 5, ttl_seconds: int = 600):
+    def __init__(
+        self,
+        tenant_id: str,
+        max_concurrent: int | None = None,
+        ttl_seconds: int | None = None,
+    ):
         self.tenant_id = str(tenant_id)
-        self.max_concurrent = max_concurrent
-        self.ttl = ttl_seconds
+        self.max_concurrent = max_concurrent if max_concurrent is not None else settings.QDRANT_TENANT_MAX_CONCURRENT
+        self.ttl = ttl_seconds if ttl_seconds is not None else settings.QDRANT_SEMAPHORE_TTL_SECONDS
         self.key = f"semaphore:ingestion:{self.tenant_id}"
         self.acquired = False
 
@@ -201,9 +213,9 @@ def get_collection_for_tenant(tenant_plan: str = "free", tenant_id: str | None =
     """
     Tiered sharding routing:
     - Enterprise tenants receive dedicated Qdrant collection to prevent noisy neighbor memory thrashing
-    - Free / Pro tenants use shared partitioned 'titan_chunks' collection
+    - Free / Pro tenants use shared partitioned default collection
     """
     if tenant_plan.lower() == "enterprise" and tenant_id:
         clean_id = str(tenant_id).replace("-", "_")
         return f"titan_enterprise_{clean_id}"
-    return "titan_chunks"
+    return settings.QDRANT_COLLECTION_NAME

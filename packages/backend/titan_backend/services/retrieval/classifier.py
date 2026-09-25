@@ -114,7 +114,7 @@ class InProcessQueryClassifier:
                 normalized_query=normalized,
                 recommended_mode=PipelineMode.FAST,
                 classification_latency_ms=round(latency, 2),
-                chitchat_response="Hello! I am TitanRAG, your enterprise AI knowledge assistant. Ask me anything about your uploaded documents or workspace knowledge base.",
+                chitchat_response=settings.CLASSIFIER_CHITCHAT_RESPONSE,
             )
         elif onnx_intent == QueryIntent.META:
             latency = (time.perf_counter() - start) * 1000.0
@@ -123,7 +123,7 @@ class InProcessQueryClassifier:
                 normalized_query=normalized,
                 recommended_mode=PipelineMode.FAST,
                 classification_latency_ms=round(latency, 2),
-                meta_response="I am TitanRAG. I index your documents using hybrid dense-sparse search and cited grounded generation. You can query policies, contracts, technical specifications, and tabular reports with verifiable citations.",
+                meta_response=settings.CLASSIFIER_META_RESPONSE,
             )
 
         # 1. Chit-chat check
@@ -135,7 +135,7 @@ class InProcessQueryClassifier:
                     normalized_query=normalized,
                     recommended_mode=PipelineMode.FAST,
                     classification_latency_ms=round(latency, 2),
-                    chitchat_response="Hello! I am TitanRAG, your enterprise AI knowledge assistant. Ask me anything about your uploaded documents or workspace knowledge base.",
+                    chitchat_response=settings.CLASSIFIER_CHITCHAT_RESPONSE,
                 )
 
         # 2. Meta inquiry check
@@ -147,14 +147,17 @@ class InProcessQueryClassifier:
                     normalized_query=normalized,
                     recommended_mode=PipelineMode.FAST,
                     classification_latency_ms=round(latency, 2),
-                    meta_response="I am TitanRAG. I index your documents using hybrid dense-sparse search and cited grounded generation. You can query policies, contracts, technical specifications, and tabular reports with verifiable citations.",
+                    meta_response=settings.CLASSIFIER_META_RESPONSE,
                 )
 
         # 3. Determine recommended mode (FAST vs DEEP)
         if user_selected_mode != PipelineMode.AUTO:
             chosen_mode = user_selected_mode
         else:
-            is_complex = any(pattern.search(normalized) for pattern in COMPLEX_PATTERNS) or len(normalized.split()) > 35
+            is_complex = (
+                any(pattern.search(normalized) for pattern in COMPLEX_PATTERNS)
+                or len(normalized.split()) > settings.CLASSIFIER_COMPLEX_QUERY_WORD_THRESHOLD
+            )
             chosen_mode = PipelineMode.DEEP if is_complex else PipelineMode.FAST
 
         latency = (time.perf_counter() - start) * 1000.0

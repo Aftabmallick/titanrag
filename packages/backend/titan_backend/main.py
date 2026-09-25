@@ -80,7 +80,7 @@ def create_app() -> FastAPI:
     # Response Compression Middleware (Brotli / Gzip)
     from titan_backend.core.compression import CompressionMiddleware
 
-    app.add_middleware(CompressionMiddleware, minimum_size=1024)
+    app.add_middleware(CompressionMiddleware, minimum_size=settings.COMPRESSION_MINIMUM_SIZE)
 
     # Metrics Middleware
     @app.middleware("http")
