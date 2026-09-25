@@ -5,6 +5,7 @@ from uuid import UUID
 from qdrant_client.http import models as qmodels
 from titan_backend.clients.litellm_client import litellm_client
 from titan_backend.clients.qdrant_client import get_collection_for_tenant, get_qdrant_client
+from titan_backend.core.config import settings
 from titan_backend.core.logging import logger
 from titan_workers.pipeline.embedding.sparse_embedder import SparseBM25Embedder
 
@@ -102,13 +103,13 @@ class HybridSearchEngine:
         sparse_vec = self.sparse_embedder.generate_sparse_vector(query, workspace_id=str(workspace_id))
 
         try:
-            dense_vectors = await asyncio.wait_for(dense_task, timeout=1.5)
+            dense_vectors = await asyncio.wait_for(dense_task, timeout=settings.DENSE_EMBEDDING_TIMEOUT_SECONDS)
             dense_vector = dense_vectors[0]
         except Exception as e:
             logger.warning("dense_query_embedding_failed", error=str(e))
             dense_vector = None
 
-        # 2. Parallel Qdrant Queries with 150ms timeout
+        # 2. Parallel Qdrant Queries with timeout
         async def run_dense() -> tuple[list[SearchCandidate], float]:
             t0 = asyncio.get_event_loop().time()
             if not dense_vector:
@@ -157,8 +158,8 @@ class HybridSearchEngine:
 
         try:
             results = await asyncio.gather(
-                asyncio.wait_for(dense_query_task, timeout=0.25),
-                asyncio.wait_for(sparse_query_task, timeout=0.25),
+                asyncio.wait_for(dense_query_task, timeout=settings.QDRANT_SEARCH_TIMEOUT_SECONDS),
+                asyncio.wait_for(sparse_query_task, timeout=settings.QDRANT_SEARCH_TIMEOUT_SECONDS),
                 return_exceptions=True,
             )
             res0 = results[0]

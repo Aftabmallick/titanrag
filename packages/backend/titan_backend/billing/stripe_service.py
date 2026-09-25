@@ -79,7 +79,7 @@ def _is_billing_enabled() -> bool:
 
 def _stripe_client() -> stripe.StripeClient:
     """Build a configured Stripe client. Raises if billing is disabled."""
-    if not _is_billing_enabled():
+    if not _is_billing_enabled() or not settings.STRIPE_SECRET_KEY:
         raise RuntimeError("Stripe billing is not configured (STRIPE_SECRET_KEY missing)")
     return stripe.StripeClient(api_key=settings.STRIPE_SECRET_KEY)  # type: ignore[attr-defined]
 
@@ -161,8 +161,8 @@ async def create_checkout_session(
 
     # Map plan slug to Stripe Price ID (configured via env/settings)
     price_map: dict[StripePlanSlug, str] = {
-        StripePlanSlug.PRO: getattr(settings, "STRIPE_PRO_PRICE_ID", "price_pro"),
-        StripePlanSlug.ENTERPRISE: getattr(settings, "STRIPE_ENTERPRISE_PRICE_ID", "price_enterprise"),
+        StripePlanSlug.PRO: settings.STRIPE_PRO_PRICE_ID or "price_pro",
+        StripePlanSlug.ENTERPRISE: settings.STRIPE_ENTERPRISE_PRICE_ID or "price_enterprise",
     }
     price_id = price_map.get(plan_slug)
     if not price_id:
@@ -234,7 +234,7 @@ async def report_cu_usage_to_stripe(
 
     try:
         client = _stripe_client()
-        meter_event_name = getattr(settings, "STRIPE_CU_METER_EVENT_NAME", "compute_units_consumed")
+        meter_event_name = settings.STRIPE_CU_METER_EVENT_NAME or "compute_units_consumed"
         client.billing.meter_events.create(
             params={
                 "event_name": meter_event_name,

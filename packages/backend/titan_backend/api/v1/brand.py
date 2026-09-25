@@ -42,9 +42,9 @@ _HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 
 
 class BrandConfigSchema(BaseModel):
-    company_name: str = Field(default="TitanRAG", max_length=128)
-    primary_color: str = Field(default="#6366f1")
-    accent_color: str = Field(default="#8b5cf6")
+    company_name: str = Field(default_factory=lambda: settings.BRAND_DEFAULT_COMPANY_NAME, max_length=128)
+    primary_color: str = Field(default_factory=lambda: settings.BRAND_DEFAULT_PRIMARY_COLOR)
+    accent_color: str = Field(default_factory=lambda: settings.BRAND_DEFAULT_ACCENT_COLOR)
     custom_domain: str | None = Field(default=None, max_length=255)
     from_email: str | None = Field(default=None, max_length=256)
     from_name: str | None = Field(default=None, max_length=128)
@@ -115,7 +115,7 @@ async def _presign_asset_url(object_key: str | None) -> str | None:
         url = minio.presigned_get_object(
             settings.MINIO_BUCKET,
             object_key,
-            expires=timedelta(hours=1),
+            expires=timedelta(hours=settings.BRAND_PRESIGNED_URL_TTL_HOURS),
         )
         return str(url)
     except Exception as exc:
@@ -201,9 +201,9 @@ async def get_public_brand_config(
     if not tenant_id:
         # No tenant resolved — return default platform brand
         return PublicBrandConfigResponse(
-            company_name="TitanRAG",
-            primary_color="#6366f1",
-            accent_color="#8b5cf6",
+            company_name=settings.BRAND_DEFAULT_COMPANY_NAME,
+            primary_color=settings.BRAND_DEFAULT_PRIMARY_COLOR,
+            accent_color=settings.BRAND_DEFAULT_ACCENT_COLOR,
             logo_light_url=None,
             logo_dark_url=None,
             favicon_url=None,
@@ -226,9 +226,9 @@ async def get_public_brand_config(
     config = result.scalar_one_or_none()
     if not config:
         return PublicBrandConfigResponse(
-            company_name="TitanRAG",
-            primary_color="#6366f1",
-            accent_color="#8b5cf6",
+            company_name=settings.BRAND_DEFAULT_COMPANY_NAME,
+            primary_color=settings.BRAND_DEFAULT_PRIMARY_COLOR,
+            accent_color=settings.BRAND_DEFAULT_ACCENT_COLOR,
             logo_light_url=None,
             logo_dark_url=None,
             favicon_url=None,
@@ -245,8 +245,8 @@ async def get_public_brand_config(
         custom_domain=config.custom_domain if config.domain_verified else None,
     )
 
-    # Cache for 5 minutes
-    await redis.setex(cache_key, 300, response.model_dump_json())
+    # Cache for configured duration
+    await redis.setex(cache_key, settings.BRAND_CACHE_TTL_SECONDS, response.model_dump_json())
     return response
 
 
@@ -337,11 +337,12 @@ async def upload_brand_asset(
 
     content = await file.read()
 
-    # Max 2MB
-    if len(content) > 2 * 1024 * 1024:
+    # Max asset size check
+    if len(content) > settings.BRAND_ASSET_MAX_BYTES:
+        max_mb = settings.BRAND_ASSET_MAX_BYTES // (1024 * 1024)
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"code": "FILE_TOO_LARGE", "message": "Brand assets must be ≤ 2MB"},
+            detail={"code": "FILE_TOO_LARGE", "message": f"Brand assets must be ≤ {max_mb}MB"},
         )
 
     tenant_id = str(current_user.tenant_id)

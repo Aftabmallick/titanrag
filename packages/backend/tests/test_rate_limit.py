@@ -32,20 +32,27 @@ async def test_rate_limiter_blocks_and_sets_headers(async_client: AsyncClient):
     """
     Verify SlidingWindowRateLimiter returns 429 with Retry-After and X-RateLimit-* headers when limit breached.
     """
-    with patch(
-        "titan_backend.core.rate_limit.SlidingWindowRateLimiter.check_rate_limit",
-        new_callable=AsyncMock,
-    ) as mock_limit:
-        # Mock rate limiter rejecting request
-        mock_limit.return_value = (False, 0, 1726000060, 45)
+    from titan_backend.core.config import settings
 
-        resp = await async_client.get(
-            "/api/v1/workspaces",
-            headers={"Authorization": "Bearer fake-token-for-test"},
-        )
-        assert resp.status_code == 429
-        assert resp.headers.get("Retry-After") == "45"
-        assert resp.headers.get("X-RateLimit-Remaining") == "0"
-        data = resp.json()
-        assert data["error"]["code"] == "RATE_LIMIT_EXCEEDED"
-        assert "45 seconds" in data["error"]["message"]
+    orig_disabled = settings.RATE_LIMIT_DISABLED
+    settings.RATE_LIMIT_DISABLED = False
+    try:
+        with patch(
+            "titan_backend.core.rate_limit.SlidingWindowRateLimiter.check_rate_limit",
+            new_callable=AsyncMock,
+        ) as mock_limit:
+            # Mock rate limiter rejecting request
+            mock_limit.return_value = (False, 0, 1726000060, 45)
+
+            resp = await async_client.get(
+                "/api/v1/workspaces",
+                headers={"Authorization": "Bearer fake-token-for-test"},
+            )
+            assert resp.status_code == 429
+            assert resp.headers.get("Retry-After") == "45"
+            assert resp.headers.get("X-RateLimit-Remaining") == "0"
+            data = resp.json()
+            assert data["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+            assert "45 seconds" in data["error"]["message"]
+    finally:
+        settings.RATE_LIMIT_DISABLED = orig_disabled

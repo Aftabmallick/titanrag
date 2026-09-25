@@ -12,13 +12,8 @@ from titan_backend.db.models.documents import Document, DocumentStatus
 
 logger = structlog.get_logger("titanrag.quotas")
 
-# Weighted CU Cost Table
-CU_COSTS = {
-    "text_query": 1,
-    "ocr_page": 3,
-    "batched_context_window": 5,
-    "colpali_page": 10,
-}
+# Weighted CU Cost Table - sourced dynamically from settings
+CU_COSTS = settings.get_cu_costs()
 
 
 async def consume_compute_units(
@@ -32,7 +27,8 @@ async def consume_compute_units(
     Raises 429 Quota Exceeded if tenant has exhausted monthly compute units.
     Returns: new monthly total CU
     """
-    cost_per_unit = CU_COSTS.get(operation, 1)
+    costs = settings.get_cu_costs()
+    cost_per_unit = costs.get(operation, 1)
     total_cu = cost_per_unit * units
     quota = max_monthly_quota or settings.DEFAULT_MONTHLY_CU_QUOTA
 
@@ -72,22 +68,23 @@ async def consume_compute_units(
 async def check_storage_quota(
     tenant_id: UUID,
     additional_bytes: int,
-    max_storage_bytes: int = 10 * 1024 * 1024 * 1024,  # 10GB default
+    max_storage_bytes: int | None = None,
 ) -> int:
     """
     Checks if adding additional_bytes exceeds the tenant's max storage bytes quota.
     """
+    effective_max = max_storage_bytes if max_storage_bytes is not None else settings.DEFAULT_MAX_STORAGE_BYTES
     redis_key = f"tenant_storage_bytes:{tenant_id}"
     try:
         redis = await get_redis_client()
         current_bytes = await redis.incrby(redis_key, additional_bytes)
-        if current_bytes > max_storage_bytes:
+        if current_bytes > effective_max:
             await redis.decrby(redis_key, additional_bytes)
             raise AppException(
-                message=f"Storage quota exceeded ({current_bytes}/{max_storage_bytes} bytes).",
+                message=f"Storage quota exceeded ({current_bytes}/{effective_max} bytes).",
                 status_code=429,
                 error_code="STORAGE_QUOTA_EXCEEDED",
-                details={"current_bytes": current_bytes, "max_storage_bytes": max_storage_bytes},
+                details={"current_bytes": current_bytes, "max_storage_bytes": effective_max},
             )
         return int(current_bytes)
     except AppException:
@@ -100,34 +97,36 @@ async def check_storage_quota(
 async def check_document_quota(
     tenant_id: UUID,
     db: AsyncSession,
-    max_documents: int = 10000,
+    max_documents: int | None = None,
 ) -> int:
     """
     Checks if active document count exceeds the tenant's max document quota.
     """
+    effective_max = max_documents if max_documents is not None else settings.DEFAULT_MAX_DOCUMENTS
     stmt = select(func.count(Document.id)).where(
         Document.tenant_id == tenant_id,
         Document.status != DocumentStatus.FAILED,
     )
     res = await db.execute(stmt)
     doc_count = res.scalar_one_or_none() or 0
-    if doc_count >= max_documents:
+    if doc_count >= effective_max:
         raise AppException(
-            message=f"Document count quota exceeded ({doc_count}/{max_documents} documents).",
+            message=f"Document count quota exceeded ({doc_count}/{effective_max} documents).",
             status_code=429,
             error_code="DOCUMENT_QUOTA_EXCEEDED",
-            details={"current_documents": doc_count, "max_documents": max_documents},
+            details={"current_documents": doc_count, "max_documents": effective_max},
         )
     return int(doc_count)
 
 
 async def check_daily_query_quota(
     tenant_id: UUID,
-    max_queries_per_day: int = 5000,
+    max_queries_per_day: int | None = None,
 ) -> int:
     """
     Sliding/daily query counter to prevent noisy neighbor denial of service.
     """
+    effective_max = max_queries_per_day if max_queries_per_day is not None else settings.DEFAULT_MAX_QUERIES_PER_DAY
     day_key = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d")
     redis_key = f"tenant_queries:{tenant_id}:{day_key}"
     try:
@@ -135,12 +134,12 @@ async def check_daily_query_quota(
         queries = await redis.incr(redis_key)
         if queries == 1:
             await redis.expire(redis_key, 2 * 86400)
-        if queries > max_queries_per_day:
+        if queries > effective_max:
             raise AppException(
-                message=f"Daily query quota exceeded ({queries}/{max_queries_per_day} queries).",
+                message=f"Daily query quota exceeded ({queries}/{effective_max} queries).",
                 status_code=429,
                 error_code="QUERY_QUOTA_EXCEEDED",
-                details={"current_queries": queries, "daily_quota": max_queries_per_day},
+                details={"current_queries": queries, "daily_quota": effective_max},
             )
         return int(queries)
     except AppException:
@@ -160,6 +159,7 @@ async def record_chat_token_usage(tenant_id: UUID, tokens: int) -> None:
     """Post-generation accounting: records additional CUs based on LLM tokens consumed."""
     if tokens <= 0:
         return
-    # 1 CU per 1000 tokens
-    additional_cu = max(1, tokens // 1000)
+    # 1 CU per N tokens (configurable)
+    tokens_per_unit = max(1, settings.CU_TOKENS_PER_UNIT)
+    additional_cu = max(1, tokens // tokens_per_unit)
     await consume_compute_units(tenant_id, operation="text_query", units=additional_cu)

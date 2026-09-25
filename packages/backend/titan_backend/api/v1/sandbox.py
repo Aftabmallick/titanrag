@@ -18,18 +18,19 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from titan_backend.core.config import settings
 from titan_backend.db.deps import get_db
 from titan_backend.db.models.billing import SandboxSession
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/sandbox", tags=["Sandbox"])
 
-# Sandbox limits
-SANDBOX_SESSION_TTL_HOURS = 24
-SANDBOX_MAX_QUERIES_PER_HOUR = 10
-SANDBOX_MAX_UPLOADS_PER_DAY = 5
-SANDBOX_MAX_STORAGE_BYTES = 50 * 1024 * 1024  # 50MB
-SANDBOX_MAX_SESSIONS_PER_IP_PER_DAY = 5
+# Sandbox limits — sourced from Settings
+SANDBOX_SESSION_TTL_HOURS = settings.SANDBOX_SESSION_TTL_HOURS
+SANDBOX_MAX_QUERIES_PER_HOUR = settings.SANDBOX_MAX_QUERIES_PER_HOUR
+SANDBOX_MAX_UPLOADS_PER_DAY = settings.SANDBOX_MAX_UPLOADS_PER_DAY
+SANDBOX_MAX_STORAGE_BYTES = settings.SANDBOX_MAX_STORAGE_BYTES
+SANDBOX_MAX_SESSIONS_PER_IP_PER_DAY = settings.SANDBOX_MAX_SESSIONS_PER_IP_PER_DAY
 
 
 # ---------------------------------------------------------------------------
@@ -148,7 +149,7 @@ async def _provision_ephemeral_tenant(
         {
             "id": str(user_id),
             "tenant_id": str(tenant_id),
-            "email": f"demo-{str(user_id)[:8]}@sandbox.titanrag.io",
+            "email": f"demo-{str(user_id)[:8]}@{settings.SANDBOX_EMAIL_DOMAIN}",
         },
     )
     await db.execute(
@@ -215,7 +216,7 @@ async def create_sandbox_session(
     access_token, _ = create_access_token(
         user_id=user_id,
         tenant_id=tenant_id,
-        email=f"demo-{str(user_id)[:8]}@sandbox.titanrag.io",
+        email=f"demo-{str(user_id)[:8]}@{settings.SANDBOX_EMAIL_DOMAIN}",
         role="MEMBER",
         expires_delta=timedelta(hours=SANDBOX_SESSION_TTL_HOURS),
         extra_claims={"is_sandbox": True},

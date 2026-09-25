@@ -2,8 +2,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from titan_backend.core.config import settings
 from titan_backend.db.session import get_db
 from titan_backend.main import app
+
+# Disable rate limiting across unit/integration test suites
+settings.RATE_LIMIT_DISABLED = True
 
 
 @pytest.fixture
