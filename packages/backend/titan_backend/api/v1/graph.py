@@ -67,7 +67,7 @@ async def extract_graph_from_text(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Test extractor on sample chunk text."""
-    entities, relations = KnowledgeGraphExtractor.extract_from_chunk(payload.text)
+    entities, relations = await KnowledgeGraphExtractor.aextract_from_chunk(payload.text)
     return {
         "entities_count": len(entities),
         "entities": entities,

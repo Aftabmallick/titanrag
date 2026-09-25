@@ -157,12 +157,20 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
     # Clear brute-force attempts on success
     await clear_login_failures(email)
 
+    # Resolve user role from workspace ownership or superuser status
+    user_role = "ADMIN" if user.is_superuser else "MEMBER"
+    ws_membership = (
+        await db.execute(select(WorkspaceMember).where(WorkspaceMember.user_id == user.id).limit(1))
+    ).scalar_one_or_none()
+    if ws_membership and ws_membership.role in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
+        user_role = ws_membership.role.value
+
     # Generate token pair
     access_token, _ = create_access_token(
         user_id=user.id,
         tenant_id=user.tenant_id,
         email=user.email,
-        role="ADMIN" if user.is_superuser else "MEMBER",
+        role=user_role,
     )
     refresh_token, _ = create_refresh_token(user_id=user.id, tenant_id=user.tenant_id)
 

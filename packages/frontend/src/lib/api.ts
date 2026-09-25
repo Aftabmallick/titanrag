@@ -971,6 +971,46 @@ export class ApiClient {
       body: JSON.stringify({ max_compute_units: maxComputeUnits }),
     });
   }
+
+  // --- Platform Super-Admin & Global Audit ---
+
+  async listPlatformTenants(limit: number = 50, offset: number = 0): Promise<any> {
+    return this.request(`/api/v1/platform/tenants?limit=${limit}&offset=${offset}`);
+  }
+
+  async suspendTenant(tenantId: string): Promise<any> {
+    return this.request(`/api/v1/platform/tenants/${tenantId}/suspend`, { method: "POST" });
+  }
+
+  async unsuspendTenant(tenantId: string): Promise<any> {
+    return this.request(`/api/v1/platform/tenants/${tenantId}/unsuspend`, { method: "POST" });
+  }
+
+  async updateTenantQuota(tenantId: string, quota: { cu_monthly_limit?: number; max_workspaces?: number; max_documents?: number }): Promise<any> {
+    return this.request(`/api/v1/platform/tenants/${tenantId}/quota`, {
+      method: "PATCH",
+      body: JSON.stringify(quota),
+    });
+  }
+
+  async getAuditLogs(limit: number = 50, offset: number = 0): Promise<any[]> {
+    return this.request(`/api/v1/admin/audit-log?limit=${limit}&offset=${offset}`);
+  }
+
+  async getSystemAnnouncements(): Promise<any[]> {
+    return this.request(`/api/v1/announcements`);
+  }
+
+  async createAnnouncement(data: { title: string; message: string; severity?: string; expires_at?: string }): Promise<any> {
+    return this.request(`/api/v1/platform/announcements`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deactivateAnnouncement(id: string): Promise<any> {
+    return this.request(`/api/v1/platform/announcements/${id}`, { method: "DELETE" });
+  }
 }
 
 export const api = new ApiClient();

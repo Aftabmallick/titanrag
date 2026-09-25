@@ -30,6 +30,8 @@ from titan_backend.db.models.workspaces import Workspace, WorkspaceMember, Works
 from titan_backend.db.session import get_db
 from titan_backend.main import app
 
+settings.RATE_LIMIT_DISABLED = True
+
 LIVE_SERVER_URL = "http://127.0.0.1:8000"
 
 
@@ -373,6 +375,8 @@ async def run_combination_matrix() -> None:
             current_model = "audit"
         elif "ingestion_tasks" in stmt_str or "chunk_outbox" in stmt_str:
             current_model = "dlq"
+        elif "ab_experiment" in stmt_str or "experiment" in stmt_str:
+            current_model = "ab_experiment"
         else:
             current_model = "workspace"
         return mock_result
@@ -402,6 +406,8 @@ async def run_combination_matrix() -> None:
             return mock_acl_group
         elif current_model == "chat_session":
             return mock_chat_session
+        elif current_model == "ab_experiment":
+            return None
         return mock_ws
 
     def safe_scalars_first() -> Any:

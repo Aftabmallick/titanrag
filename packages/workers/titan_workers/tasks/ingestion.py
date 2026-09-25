@@ -1,11 +1,11 @@
 import asyncio
-import os
 from typing import Any
 from uuid import UUID
 
 import structlog
 from minio import Minio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from titan_backend.core.config import settings
 
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
@@ -13,14 +13,11 @@ from titan_workers.pipeline.orchestrator import IngestionPipelineOrchestrator
 
 logger = structlog.get_logger("titanrag.tasks.ingestion")
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag",
-)
-MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-MINIO_ROOT_USER = os.getenv("MINIO_ROOT_USER", "minioadmin")
-MINIO_ROOT_PASSWORD = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
-MINIO_BUCKET = os.getenv("MINIO_BUCKET", "titanrag-documents")
+DATABASE_URL = settings.get_database_url()
+MINIO_ENDPOINT = settings.MINIO_ENDPOINT
+MINIO_ROOT_USER = settings.MINIO_ROOT_USER
+MINIO_ROOT_PASSWORD = settings.MINIO_ROOT_PASSWORD
+MINIO_BUCKET = settings.MINIO_BUCKET
 
 
 def _get_minio_client() -> Minio:

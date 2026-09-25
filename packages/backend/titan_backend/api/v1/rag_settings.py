@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from titan_backend.api.v1.schemas.rag_settings import RAGSettingsResponse, RAGSettingsUpdate
@@ -55,8 +56,13 @@ async def get_rag_settings(
             system_prompt_override=None,
         )
         db.add(settings_obj)
-        await db.commit()
-        await db.refresh(settings_obj)
+        try:
+            await db.commit()
+            await db.refresh(settings_obj)
+        except IntegrityError:
+            await db.rollback()
+            res = await db.execute(stmt)
+            settings_obj = res.scalar_one()
 
     return RAGSettingsResponse(
         id=settings_obj.id,

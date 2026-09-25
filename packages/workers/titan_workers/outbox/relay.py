@@ -1,5 +1,4 @@
 import asyncio
-import os
 import signal
 from datetime import UTC, datetime
 from typing import Any
@@ -9,14 +8,12 @@ from qdrant_client import AsyncQdrantClient
 from qdrant_client.http import models as qmodels
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from titan_backend.core.config import settings
 
 # Database connection
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag",
-)
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
+DATABASE_URL = settings.get_database_url()
+QDRANT_URL = settings.QDRANT_URL
+QDRANT_API_KEY = settings.QDRANT_API_KEY
 
 logger = structlog.get_logger("titanrag.outbox_relay")
 

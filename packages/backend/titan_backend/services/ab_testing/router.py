@@ -102,7 +102,7 @@ class ABExperimentRouter:
             .limit(1)
         )
         experiment = (await session.execute(stmt)).scalar_one_or_none()
-        if not experiment:
+        if not experiment or not hasattr(experiment, "traffic_split"):
             return None, None, None
 
         bucket = cls.get_variant_bucket(experiment.id, user_id)
