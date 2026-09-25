@@ -3,11 +3,26 @@ name: TitanRAG Release Automation
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      publish_pypi:
+        description: 'Publish Python SDK to PyPI'
+        type: boolean
+        default: true
+      publish_npm:
+        description: 'Publish Widget to npm'
+        type: boolean
+        default: true
+      publish_docker:
+        description: 'Build & Publish Docker images'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
   packages: write
+  id-token: write
 
 jobs:
   validate-and-test:
@@ -20,25 +35,84 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: '3.12'
 
-      - name: Install uv and Dependencies
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          uv pip install --system -e packages/backend -e packages/workers pytest pytest-asyncio stripe jinja2
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
 
-      - name: Run Backend Test Suite
+      - name: Install Dependencies
         run: |
-          PYTHONPATH=packages/backend:packages/workers pytest packages/backend/tests/ -v
+          uv sync --all-packages
+
+      - name: Run Test Suite
+        run: |
+          uv run pytest packages/backend/tests/ packages/sdk/tests/ -q
 
       - name: Run Evaluation CI Quality Gate
         run: |
-          PYTHONPATH=packages/backend:packages/workers python3 scripts/ci_evaluation_gate.py --dry-run
+          uv run python scripts/ci_evaluation_gate.py --dry-run
 
-  build-and-publish:
+  publish-pypi:
+    name: Publish Python SDK (PyPI)
+    needs: validate-and-test
+    if: github.event_name == 'push' || inputs.publish_pypi == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Build Python Package
+        working-directory: packages/sdk
+        run: |
+          uv build --out-dir dist
+
+      - name: Publish to PyPI
+        working-directory: packages/sdk
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          uv publish dist/*
+
+  publish-npm:
+    name: Publish Widget (npm)
+    needs: validate-and-test
+    if: github.event_name == 'push' || inputs.publish_npm == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build & Test Widget
+        working-directory: packages/widget
+        run: |
+          npm ci
+          npm run build
+          npm test
+
+      - name: Publish to npm
+        working-directory: packages/widget
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --access public
+
+  build-and-publish-docker:
     name: Build & Publish Container Images
     needs: validate-and-test
+    if: github.event_name == 'push' || inputs.publish_docker == true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -72,7 +146,8 @@ jobs:
 
   create-github-release:
     name: Publish GitHub Release
-    needs: build-and-publish
+    needs: [publish-pypi, publish-npm, build-and-publish-docker]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -82,7 +157,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          name: TitanRAG ${{ github.ref_name }} — Enterprise Expansion GA
+          name: TitanRAG ${{ github.ref_name }} — Enterprise GA
           body_path: CHANGELOG.md
           draft: false
           prerelease: false
