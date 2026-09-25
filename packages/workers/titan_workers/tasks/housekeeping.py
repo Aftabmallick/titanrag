@@ -10,13 +10,12 @@ from titan_workers.celery_app import celery_app
 
 logger = structlog.get_logger("titanrag.housekeeping")
 
-SYNC_DATABASE_URL = os.getenv(
-    "SYNC_DATABASE_URL",
-    os.getenv(
-        "DATABASE_URL",
-        "postgresql://postgres:postgres_dev_password@localhost:5432/titanrag",
-    ).replace("+asyncpg", ""),
-)
+_env_sync = os.getenv("SYNC_DATABASE_URL")
+if _env_sync:
+    SYNC_DATABASE_URL = _env_sync.replace("postgresql://", "postgresql+psycopg2://") if not _env_sync.startswith("postgresql+") else _env_sync
+else:
+    _raw_db = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres_dev_password@localhost:5432/titanrag")
+    SYNC_DATABASE_URL = _raw_db.replace("+asyncpg", "+psycopg2") if "+asyncpg" in _raw_db else _raw_db.replace("postgresql://", "postgresql+psycopg2://")
 
 
 @celery_app.task(base=TracedTask, name="titan_workers.tasks.housekeeping.cleanup_stale_tasks", queue="p1_default")

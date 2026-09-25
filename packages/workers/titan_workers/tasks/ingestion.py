@@ -39,21 +39,30 @@ async def _execute_ingestion(
     redaction_mode: str = "REPLACE",
     webhook_url: str | None = None,
     webhook_secret: str | None = None,
+    bucket_name: str | None = None,
 ) -> dict[str, Any]:
     # 1. Download source file from MinIO
     minio_client = _get_minio_client()
-    try:
-        response = await asyncio.to_thread(
-            minio_client.get_object,
-            bucket_name=MINIO_BUCKET,
-            object_name=storage_path,
-        )
-        file_bytes = response.read()
-        response.close()
-        response.release_conn()
-    except Exception as e:
-        logger.error("minio_download_failed", storage_path=storage_path, error=str(e))
-        raise e
+    target_bucket = bucket_name or MINIO_BUCKET
+    file_bytes = None
+
+    for b in [target_bucket, MINIO_BUCKET, "titan-documents-us-east"]:
+        try:
+            response = await asyncio.to_thread(
+                minio_client.get_object,
+                bucket_name=b,
+                object_name=storage_path,
+            )
+            file_bytes = response.read()
+            response.close()
+            response.release_conn()
+            break
+        except Exception:
+            continue
+
+    if file_bytes is None:
+        logger.error("minio_download_failed", storage_path=storage_path, attempted_bucket=target_bucket)
+        raise RuntimeError(f"Source file {storage_path} not found in MinIO bucket {target_bucket}")
 
     from titan_backend.clients.qdrant_client import TenantIngestionSemaphore
 
@@ -105,6 +114,7 @@ def process_document_pipeline(
     redaction_mode: str = "REPLACE",
     webhook_url: str | None = None,
     webhook_secret: str | None = None,
+    bucket_name: str | None = None,
 ) -> dict[str, Any]:
     logger.info("processing_document_task_received", document_id=document_id, filename=filename)
     try:
@@ -119,6 +129,7 @@ def process_document_pipeline(
                 redaction_mode=redaction_mode,
                 webhook_url=webhook_url,
                 webhook_secret=webhook_secret,
+                bucket_name=bucket_name,
             )
         )
     except Exception as exc:

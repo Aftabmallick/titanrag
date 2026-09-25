@@ -45,6 +45,8 @@ celery_app.conf.update(
     task_acks_late=True,  # Acknowledge only after task completes
     task_reject_on_worker_lost=True,  # Re-queue task if worker crashes
     broker_connection_retry_on_startup=True,
+    worker_send_task_events=True,
+    task_send_sent_event=True,
 )
 
 # Celery Beat Periodic Schedule

@@ -16,7 +16,7 @@ class TenantRegionRouter:
     """
 
     REGION_BUCKET_MAP: dict[DataResidencyRegion, str] = {
-        DataResidencyRegion.US_EAST: "titan-documents-us-east",
+        DataResidencyRegion.US_EAST: "titanrag-documents",
         DataResidencyRegion.US_WEST: "titan-documents-us-west",
         DataResidencyRegion.EU_CENTRAL: "titan-documents-eu-central",
         DataResidencyRegion.EU_WEST: "titan-documents-eu-west",

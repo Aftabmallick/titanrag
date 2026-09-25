@@ -70,9 +70,9 @@ class Settings(BaseSettings):
     # =========================================================================
     # Rate Limiting & FinOps Compute Units (CU)
     # =========================================================================
-    RATE_LIMIT_PER_MINUTE_ADMIN: int = 1000
-    RATE_LIMIT_PER_MINUTE_MEMBER: int = 100
-    RATE_LIMIT_PER_MINUTE_ANONYMOUS: int = 20
+    RATE_LIMIT_PER_MINUTE_ADMIN: int = 5000
+    RATE_LIMIT_PER_MINUTE_MEMBER: int = 2000
+    RATE_LIMIT_PER_MINUTE_ANONYMOUS: int = 200
     RATE_LIMIT_DISABLED: bool = False  # Set True in test environments only
     DEFAULT_MONTHLY_CU_QUOTA: int = 10000
 

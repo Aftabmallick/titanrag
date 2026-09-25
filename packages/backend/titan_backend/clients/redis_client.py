@@ -1,18 +1,26 @@
+import asyncio
 import redis.asyncio as aioredis
 
 from titan_backend.core.config import settings
 
 _redis_pool: aioredis.ConnectionPool | None = None
+_pool_loop_id: int | None = None
 
 
 def get_redis_pool() -> aioredis.ConnectionPool:
-    global _redis_pool
-    if _redis_pool is None:
+    global _redis_pool, _pool_loop_id
+    try:
+        current_loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        current_loop_id = None
+
+    if _redis_pool is None or _pool_loop_id != current_loop_id:
         _redis_pool = aioredis.ConnectionPool.from_url(
             settings.REDIS_URL,
             max_connections=settings.REDIS_MAX_CONNECTIONS,
             decode_responses=True,
         )
+        _pool_loop_id = current_loop_id
     return _redis_pool
 
 

@@ -1,5 +1,5 @@
+import asyncio
 from typing import Any
-
 import httpx
 import structlog
 from qdrant_client import AsyncQdrantClient
@@ -10,16 +10,23 @@ from titan_backend.core.config import settings
 logger = structlog.get_logger("titanrag.qdrant")
 
 _qdrant_client: AsyncQdrantClient | None = None
+_qdrant_loop_id: int | None = None
 
 
 def get_qdrant_client() -> AsyncQdrantClient:
-    global _qdrant_client
-    if _qdrant_client is None:
+    global _qdrant_client, _qdrant_loop_id
+    try:
+        current_loop_id = id(asyncio.get_running_loop())
+    except RuntimeError:
+        current_loop_id = None
+
+    if _qdrant_client is None or _qdrant_loop_id != current_loop_id:
         _qdrant_client = AsyncQdrantClient(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,
             timeout=10,
         )
+        _qdrant_loop_id = current_loop_id
     return _qdrant_client
 
 
