@@ -31,6 +31,25 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify Release Originates From Master Branch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ github.ref_name }}" != "master" ]; then
+              echo "::error::Manual release workflow can only be run from the 'master' branch (attempted from '${{ github.ref_name }}')."
+              exit 1
+            fi
+            echo "✅ Manual workflow triggered from master branch."
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            git fetch origin master
+            if ! git merge-base --is-ancestor HEAD origin/master; then
+              echo "::error::Release tag '${{ github.ref_name }}' was not created from a commit on 'master'. Only commits on master may be published."
+              exit 1
+            fi
+            echo "✅ Release tag verified as belonging to master branch."
+          fi
 
       - name: Set up Python
         uses: actions/setup-python@v5
