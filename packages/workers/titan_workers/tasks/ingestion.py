@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
+import urllib3
 from minio import Minio
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -22,9 +23,6 @@ MINIO_ENDPOINT = settings.MINIO_ENDPOINT
 MINIO_ROOT_USER = settings.MINIO_ROOT_USER
 MINIO_ROOT_PASSWORD = settings.MINIO_ROOT_PASSWORD
 MINIO_BUCKET = settings.MINIO_BUCKET
-
-
-import urllib3
 
 
 def _get_minio_client() -> Minio:
