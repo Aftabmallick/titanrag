@@ -31,15 +31,15 @@ class TieredFusionEngine:
 
         # 1. Alphanumeric / technical entity patterns
         has_identifier = bool(
-            re.search(r'[A-Za-z0-9]+[-_][A-Za-z0-9]+', q)
-            or re.search(r'\b\d{3,}\b', q)
-            or re.search(r'\.(md|html|json|csv|pdf|txt)\b', q, re.IGNORECASE)
-            or re.search(r'\b(rfc|cve|hsm|aes|sha|md5|tls|txn|srv|manifest|audit|telemetry)\b', q, re.IGNORECASE)
+            re.search(r"[A-Za-z0-9]+[-_][A-Za-z0-9]+", q)
+            or re.search(r"\b\d{3,}\b", q)
+            or re.search(r"\.(md|html|json|csv|pdf|txt)\b", q, re.IGNORECASE)
+            or re.search(r"\b(rfc|cve|hsm|aes|sha|md5|tls|txn|srv|manifest|audit|telemetry)\b", q, re.IGNORECASE)
         )
 
         has_question = bool(
             re.search(
-                r'\b(what|how|why|when|where|who|explain|describe|summarize|overview|difference|guidelines)\b',
+                r"\b(what|how|why|when|where|who|explain|describe|summarize|overview|difference|guidelines)\b",
                 q,
                 re.IGNORECASE,
             )
@@ -86,9 +86,9 @@ class TieredFusionEngine:
 
         # Extract query entity signatures for metadata match boost (Phase 3)
         q_clean = query.strip().lower()
-        q_nums = set(re.findall(r'\d+', q_clean))
+        q_nums = set(re.findall(r"\d+", q_clean))
         q_num_ints = {int(n) for n in q_nums if n.isdigit()}
-        q_slugs = set(re.findall(r'[a-zA-Z0-9]+[-_][a-zA-Z0-9]+', q_clean))
+        q_slugs = set(re.findall(r"[a-zA-Z0-9]+[-_][a-zA-Z0-9]+", q_clean))
 
         now_ts = time.time()
         scores: list[FusedCandidate] = []
@@ -109,7 +109,7 @@ class TieredFusionEngine:
             cand_text = (fname + " " + section_hier).strip()
 
             if q_clean and fname:
-                base_fname = re.sub(r'\.(md|html|json|csv|pdf|txt)$', '', fname)
+                base_fname = re.sub(r"\.(md|html|json|csv|pdf|txt)$", "", fname)
                 match_boost = 0.0
 
                 # Direct filename base match in query
@@ -117,7 +117,7 @@ class TieredFusionEngine:
                     match_boost += 1.2
 
                 # Numeric ID match between query and filename
-                f_nums = set(re.findall(r'\d+', fname))
+                f_nums = set(re.findall(r"\d+", fname))
                 f_num_ints = {int(n) for n in f_nums if n.isdigit()}
                 if q_num_ints and f_num_ints and (q_num_ints & f_num_ints):
                     match_boost += 0.8

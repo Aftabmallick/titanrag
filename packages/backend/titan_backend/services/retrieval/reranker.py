@@ -132,14 +132,16 @@ class CrossEncoderReranker:
         # Otherwise fallback to calibrated local cross-alignment scoring
         return self._fallback_rrf_order(query, candidates, top_n)
 
-    def _fallback_rrf_order(self, query: str, candidates: list[ValidatedCandidate], top_n: int) -> list[RerankedCandidate]:
+    def _fallback_rrf_order(
+        self, query: str, candidates: list[ValidatedCandidate], top_n: int
+    ) -> list[RerankedCandidate]:
         """High-precision local cross-alignment reranker for multi-tenant enterprise search."""
         if not candidates:
             return []
 
         q_clean = query.strip().lower()
-        q_words = set(re.findall(r'[a-zA-Z0-9]+', q_clean))
-        q_nums = set(re.findall(r'\d+', q_clean))
+        q_words = set(re.findall(r"[a-zA-Z0-9]+", q_clean))
+        q_nums = set(re.findall(r"\d+", q_clean))
         q_num_ints = {int(n) for n in q_nums if n.isdigit()}
 
         scored: list[tuple[float, ValidatedCandidate]] = []
@@ -152,19 +154,19 @@ class CrossEncoderReranker:
             full_context = f"{doc_name} {heading} {text}"
 
             # 1. Exact base filename match
-            base_fname = re.sub(r'\.(md|html|json|csv|pdf|txt)$', '', doc_name)
+            base_fname = re.sub(r"\.(md|html|json|csv|pdf|txt)$", "", doc_name)
             if base_fname and (base_fname in q_clean or q_clean.startswith(base_fname)):
                 score += 0.35
 
             # 2. Exact number match
-            c_nums = set(re.findall(r'\d+', doc_name + " " + text[:200]))
+            c_nums = set(re.findall(r"\d+", doc_name + " " + text[:200]))
             c_num_ints = {int(n) for n in c_nums if n.isdigit()}
             if q_num_ints and c_num_ints and (q_num_ints & c_num_ints):
                 score += 0.25
 
             # 3. Lexical query token overlap
             if q_words:
-                c_words = set(re.findall(r'[a-zA-Z0-9]+', full_context))
+                c_words = set(re.findall(r"[a-zA-Z0-9]+", full_context))
                 overlap = len(q_words & c_words) / len(q_words)
                 score += overlap * 0.20
 

@@ -1,4 +1,5 @@
 import asyncio
+import re
 from typing import Any, NamedTuple
 from uuid import UUID
 
@@ -7,7 +8,6 @@ from titan_backend.clients.litellm_client import litellm_client
 from titan_backend.clients.qdrant_client import get_collection_for_tenant, get_qdrant_client
 from titan_backend.core.config import settings
 from titan_backend.core.logging import logger
-import re
 from titan_workers.pipeline.embedding.sparse_embedder import SparseBM25Embedder
 
 
@@ -40,14 +40,14 @@ def normalize_and_expand_sparse_query(query: str) -> str:
     if not q:
         return ""
 
-    words = re.findall(r'[a-zA-Z0-9]+', q)
-    nums = re.findall(r'\d+', q)
+    words = re.findall(r"[a-zA-Z0-9]+", q)
+    nums = re.findall(r"\d+", q)
     extra_tokens: list[str] = []
 
     # 1. Unpack snake_case and kebab-case tokens in query
-    for w in re.split(r'\s+', q):
-        if '_' in w or '-' in w:
-            parts = [p for p in re.split(r'[-_]', w) if p]
+    for w in re.split(r"\s+", q):
+        if "_" in w or "-" in w:
+            parts = [p for p in re.split(r"[-_]", w) if p]
             extra_tokens.extend(parts)
 
     # 2. Number normalization: unpadded and zero-padded variants (e.g. 2303, 02303, 002303)
@@ -64,48 +64,60 @@ def normalize_and_expand_sparse_query(query: str) -> str:
         try:
             val = int(n)
             if any(k in q_lower for k in ("audit", "log", "auth", "tls", "handshake")):
-                extra_tokens.extend([
-                    f"audit-log-{val:05d}",
-                    f"audit-log-{val:04d}",
-                    f"system_audit_log_{val:04d}",
-                    f"system_audit_log_{val}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"audit-log-{val:05d}",
+                        f"audit-log-{val:04d}",
+                        f"system_audit_log_{val:04d}",
+                        f"system_audit_log_{val}",
+                    ]
+                )
             if any(k in q_lower for k in ("rfc", "architecture", "design", "specification")):
-                extra_tokens.extend([
-                    f"rfc_{val}",
-                    f"rfc_{val:04d}",
-                    f"architecture_rfc_{val:04d}",
-                    f"architecture_rfc_{val}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"rfc_{val}",
+                        f"rfc_{val:04d}",
+                        f"architecture_rfc_{val:04d}",
+                        f"architecture_rfc_{val}",
+                    ]
+                )
             if any(k in q_lower for k in ("srv", "service", "manifest", "deployment")):
-                extra_tokens.extend([
-                    f"srv-titan-{val}",
-                    f"service_manifest_{val}",
-                    f"service_manifest_{val:04d}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"srv-titan-{val}",
+                        f"service_manifest_{val}",
+                        f"service_manifest_{val:04d}",
+                    ]
+                )
             if any(k in q_lower for k in ("txn", "telemetry", "financial", "transaction", "record")):
-                extra_tokens.extend([
-                    f"txn-{val}-01",
-                    f"financial_telemetry_{val:04d}",
-                    f"financial_telemetry_{val}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"txn-{val}-01",
+                        f"financial_telemetry_{val:04d}",
+                        f"financial_telemetry_{val}",
+                    ]
+                )
             if any(k in q_lower for k in ("compliance", "bulletin", "regulatory", "audit")):
-                extra_tokens.extend([
-                    f"compliance_bulletin_{val:04d}",
-                    f"compliance_bulletin_{val}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"compliance_bulletin_{val:04d}",
+                        f"compliance_bulletin_{val}",
+                    ]
+                )
             if any(k in q_lower for k in ("report", "quarterly", "findings", "analysis")):
-                extra_tokens.extend([
-                    f"quarterly_report_{val:04d}",
-                    f"quarterly_report_{val}",
-                ])
+                extra_tokens.extend(
+                    [
+                        f"quarterly_report_{val:04d}",
+                        f"quarterly_report_{val}",
+                    ]
+                )
         except ValueError:
             pass
 
     # 4. Adjacent word pairings
     if len(words) >= 2:
         for i in range(len(words) - 1):
-            extra_tokens.append(f"{words[i]}_{words[i+1]}".lower())
+            extra_tokens.append(f"{words[i]}_{words[i + 1]}".lower())
 
     if extra_tokens:
         unique_extra = []
@@ -208,6 +220,7 @@ class HybridSearchEngine:
         sparse_latency = 0.0
 
         # 1. Parallel tasks: Cached Dense Embedding + Normalized Sparse Tokenization
+        dense_vector: list[float] | None = None
         cached_dense = query_vector_cache.get(query)
         if cached_dense is not None:
             dense_vector = cached_dense
@@ -221,11 +234,11 @@ class HybridSearchEngine:
         # Dynamic BM25 query weight calibration: prioritize entity & numeric identifiers over high-frequency terms
         if sparse_vec["indices"]:
             words = sparse_query_str.split()
-            id_tokens = {w.lower() for w in words if re.search(r'\d+', w) or '_' in w or '-' in w}
+            id_tokens = {w.lower() for w in words if re.search(r"\d+", w) or "_" in w or "-" in w}
             id_hashes = {self.sparse_embedder._hash_token(t) for t in id_tokens}
 
             calibrated_values = []
-            for idx, val in zip(sparse_vec["indices"], sparse_vec["values"]):
+            for idx, val in zip(sparse_vec["indices"], sparse_vec["values"], strict=False):
                 if idx in id_hashes:
                     calibrated_values.append(round(val * 20.0, 4))
                 else:

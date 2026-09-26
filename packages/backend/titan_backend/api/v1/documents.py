@@ -539,7 +539,6 @@ async def list_documents(
     res = await db.execute(paged_stmt)
     docs = res.scalars().all()
 
-
     return DocumentListResponse(
         items=[DocumentResponse.model_validate(d) for d in docs],
         total=total_count,
@@ -623,7 +622,7 @@ async def retry_document_ingestion(
     # Update document status to PENDING
     doc.status = DocumentStatus.PENDING
     if isinstance(doc.meta, dict):
-        doc.meta["retry_triggered_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        doc.meta["retry_triggered_at"] = datetime.datetime.now(datetime.UTC).isoformat()
     await db.commit()
 
     # Re-dispatch Celery task

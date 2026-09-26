@@ -3,6 +3,7 @@ from datetime import timedelta
 from uuid import UUID
 
 import structlog
+import urllib3
 from minio import Minio
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,8 +12,6 @@ from titan_backend.core.config import settings
 from titan_backend.core.errors import AppException
 
 logger = structlog.get_logger("titanrag.s3")
-
-import urllib3
 
 _minio_client: Minio | None = None
 

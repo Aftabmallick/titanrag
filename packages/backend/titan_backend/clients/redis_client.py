@@ -1,4 +1,5 @@
 import asyncio
+
 import redis.asyncio as aioredis
 
 from titan_backend.core.config import settings

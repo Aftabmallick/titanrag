@@ -30,6 +30,7 @@ class IngestionPipelineOrchestrator:
     def __init__(self, redis_url: str | None = None, minio_client: Any | None = None):
         if redis_url is None:
             import os
+
             redis_host = os.getenv("REDIS_HOST", "localhost")
             redis_port = os.getenv("REDIS_PORT", "6379")
             redis_db = os.getenv("REDIS_DB", "0")

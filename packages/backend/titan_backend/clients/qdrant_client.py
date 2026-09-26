@@ -1,5 +1,6 @@
 import asyncio
 from typing import Any
+
 import httpx
 import structlog
 from qdrant_client import AsyncQdrantClient

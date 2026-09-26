@@ -18,15 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip install --upgrade pip && pip install uv
 
-# Install backend package (context root = packages/)
-COPY backend/pyproject.toml backend/README.md ./
+COPY pyproject.toml README.md ./
 RUN uv pip install --system -e .
 
-# Install workers package (provides celery binary + task definitions)
-COPY workers /app/workers
-RUN cd /app/workers && uv pip install --system -e .
-
-COPY backend/ .
+COPY . .
 
 EXPOSE 8000
 

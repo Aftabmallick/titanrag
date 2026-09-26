@@ -462,7 +462,7 @@ async def chat_endpoint(
 
     # 17. Return Phased Streaming Generator with hard timeout guard
     # P95 target: <8s. Hard ceiling: 25s. Protects against zombie LLM connections.
-    CHAT_STREAM_TIMEOUT_S = 25.0
+    chat_stream_timeout_s = 25.0
 
     async def wrapped_stream() -> AsyncGenerator[str, None]:
         full_text = ""
@@ -480,8 +480,8 @@ async def chat_endpoint(
                 session_id=session.id if session else None,
                 canary_token=sanitized.canary_token,
             ):
-                # Enforce per-chunk deadline: abort if total elapsed > CHAT_STREAM_TIMEOUT_S
-                if time.monotonic() - stream_start > CHAT_STREAM_TIMEOUT_S:
+                # Enforce per-chunk deadline: abort if total elapsed > chat_stream_timeout_s
+                if time.monotonic() - stream_start > chat_stream_timeout_s:
                     logger.warning(
                         "chat_stream_timeout",
                         elapsed_s=round(time.monotonic() - stream_start, 2),
@@ -513,7 +513,7 @@ async def chat_endpoint(
 
                 yield chunk
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("chat_stream_asyncio_timeout", workspace_id=str(workspace_id))
             yield format_sse(
                 "error",
@@ -759,9 +759,7 @@ async def search_endpoint(
     )
 
     fused_validated_objects = [
-        validated_candidates_map[fc.chunk_id]
-        for fc in fused_candidates
-        if fc.chunk_id in validated_candidates_map
+        validated_candidates_map[fc.chunk_id] for fc in fused_candidates if fc.chunk_id in validated_candidates_map
     ]
 
     # 5. Cross-encoder / semantic reranking

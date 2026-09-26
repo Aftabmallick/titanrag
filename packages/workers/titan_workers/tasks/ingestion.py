@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -54,7 +54,7 @@ async def _record_terminal_failure(
         engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
         session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
         async with session_factory() as session:
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now_iso = datetime.now(UTC).isoformat()
             failure_meta = {
                 "last_error": error,
                 "failed_at": now_iso,
@@ -102,9 +102,7 @@ async def _execute_ingestion(
     session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with session_factory() as session:
         await session.execute(
-            update(Document)
-            .where(Document.id == UUID(document_id))
-            .values(status=DocumentStatus.PROCESSING)
+            update(Document).where(Document.id == UUID(document_id)).values(status=DocumentStatus.PROCESSING)
         )
         await session.execute(
             update(IngestionTask)
@@ -215,7 +213,7 @@ def process_document_pipeline(
             max_retries=self.max_retries,
         )
         if retries < self.max_retries:
-            delay = 30 * (2 ** retries)
+            delay = 30 * (2**retries)
             raise self.retry(exc=exc, countdown=delay) from exc
         else:
             logger.critical(

@@ -62,3 +62,10 @@ grafana-data/
 *.tsbuildinfo
 ui_screenshots/
 celerybeat-schedule*
+
+# Benchmarks & local test harnesses
+benchmark_*.py
+retrieval_accuracy_*_results.json
+scale_test_*_results.json
+scale_test_*_report.md
+
