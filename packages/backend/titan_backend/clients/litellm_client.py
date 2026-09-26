@@ -102,7 +102,7 @@ class LiteLLMClient:
             payload["tools"] = tools
 
         url = f"{self.base_url}/chat/completions"
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=120.0, write=5.0, pool=10.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=30.0, write=5.0, pool=10.0)) as client:
             try:
                 async with client.stream("POST", url, headers=self._headers(), json=payload) as response:
                     if response.is_error:

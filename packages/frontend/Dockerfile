@@ -8,6 +8,9 @@ RUN npm ci
 
 FROM base AS builder
 WORKDIR /app
+ENV NODE_ENV=production
+ARG BACKEND_INTERNAL_URL=http://backend:8000
+ENV BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN mkdir -p /app/public

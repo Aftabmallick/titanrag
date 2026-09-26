@@ -24,6 +24,9 @@ from titan_backend.api.v1.schemas.chat import (
     DeepResearchRequest,
     PipelineMode,
     RegenerateRequest,
+    SearchCandidateResult,
+    SearchQueryRequest,
+    SearchResponse,
     SharedSessionDetailResponse,
     ShareSessionResponse,
 )
@@ -70,7 +73,14 @@ from titan_backend.services.retrieval.source_comparator import source_comparator
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["Chat & Retrieval"])
 
 
+_workspace_rag_settings_cache: dict[tuple[UUID, UUID], RAGSettings] = {}
+
+
 async def get_or_create_workspace_settings(db: AsyncSession, tenant_id: UUID, workspace_id: UUID) -> RAGSettings:
+    cache_key = (tenant_id, workspace_id)
+    if cache_key in _workspace_rag_settings_cache:
+        return _workspace_rag_settings_cache[cache_key]
+
     stmt = select(RAGSettings).where(
         RAGSettings.workspace_id == workspace_id,
         RAGSettings.tenant_id == tenant_id,
@@ -97,6 +107,7 @@ async def get_or_create_workspace_settings(db: AsyncSession, tenant_id: UUID, wo
             await db.rollback()
             res = await db.execute(stmt)
             settings_obj = res.scalar_one()
+    _workspace_rag_settings_cache[cache_key] = settings_obj
     return settings_obj
 
 
@@ -325,11 +336,12 @@ async def chat_endpoint(
     dense_validated = [c for c in dense_candidates_list if c.chunk_id in validated_candidates_map]
     sparse_validated = [c for c in sparse_candidates_list if c.chunk_id in validated_candidates_map]
 
-    # 12. Tiered Fusion (RRF + Alpha Blending)
+    # 12. Tiered Fusion (RRF + Dynamic Intent-Calibrated Alpha Blending)
+    chat_alpha = fusion_engine.calculate_dynamic_alpha(search_query, base_alpha=rag_settings.dense_weight)
     fused_candidates = fusion_engine.fuse(
         dense_candidates=dense_validated,
         sparse_candidates=sparse_validated,
-        alpha=rag_settings.dense_weight,
+        alpha=chat_alpha,
         top_k=25,
     )
 
@@ -448,36 +460,73 @@ async def chat_endpoint(
             content=sanitized.clean_text,
         )
 
-    # 17. Return Phased Streaming Generator
+    # 17. Return Phased Streaming Generator with hard timeout guard
+    # P95 target: <8s. Hard ceiling: 25s. Protects against zombie LLM connections.
+    chat_stream_timeout_s = 25.0
+
     async def wrapped_stream() -> AsyncGenerator[str, None]:
         full_text = ""
         citations_list = []
         tokens_count = 0
+        stream_start = time.monotonic()
 
-        async for chunk in phased_stream_generator.generate_stream(
-            request=request,
-            messages=llm_messages,
-            sources=packed_sources,
-            model=payload.model_override,
-            temperature=payload.temperature or 0.2,
-            session_id=session.id if session else None,
-            canary_token=sanitized.canary_token,
-        ):
-            if chunk.startswith("event: token"):
-                try:
-                    data = json.loads(chunk.split("data: ")[1])
-                    full_text += data.get("token", "")
-                    tokens_count += 1
-                except Exception:
-                    pass
-            elif chunk.startswith("event: citation\n"):
-                try:
-                    data = json.loads(chunk.split("data: ")[1])
-                    citations_list = data.get("citations", [])
-                except Exception:
-                    pass
+        try:
+            async for chunk in phased_stream_generator.generate_stream(
+                request=request,
+                messages=llm_messages,
+                sources=packed_sources,
+                model=payload.model_override,
+                temperature=payload.temperature or 0.2,
+                session_id=session.id if session else None,
+                canary_token=sanitized.canary_token,
+            ):
+                # Enforce per-chunk deadline: abort if total elapsed > chat_stream_timeout_s
+                if time.monotonic() - stream_start > chat_stream_timeout_s:
+                    logger.warning(
+                        "chat_stream_timeout",
+                        elapsed_s=round(time.monotonic() - stream_start, 2),
+                        workspace_id=str(workspace_id),
+                    )
+                    yield format_sse(
+                        "error",
+                        {
+                            "code": "STREAM_TIMEOUT",
+                            "message": "Response generation exceeded the time limit. Please try again.",
+                            "elapsed_s": round(time.monotonic() - stream_start, 2),
+                        },
+                    )
+                    return
 
-            yield chunk
+                if chunk.startswith("event: token"):
+                    try:
+                        data = json.loads(chunk.split("data: ")[1])
+                        full_text += data.get("token", "")
+                        tokens_count += 1
+                    except Exception:
+                        pass
+                elif chunk.startswith("event: citation\n"):
+                    try:
+                        data = json.loads(chunk.split("data: ")[1])
+                        citations_list = data.get("citations", [])
+                    except Exception:
+                        pass
+
+                yield chunk
+
+        except TimeoutError:
+            logger.error("chat_stream_asyncio_timeout", workspace_id=str(workspace_id))
+            yield format_sse(
+                "error",
+                {"code": "TIMEOUT", "message": "Response generation timed out."},
+            )
+            return
+        except Exception as stream_err:
+            logger.error("chat_stream_error", error=str(stream_err), workspace_id=str(workspace_id))
+            yield format_sse(
+                "error",
+                {"code": "STREAM_ERROR", "message": "An error occurred during response generation."},
+            )
+            return
 
         # Post-stream persistence and FinOps accounting
         try:
@@ -648,6 +697,106 @@ async def chat_endpoint(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_endpoint(
+    workspace_id: UUID,
+    payload: SearchQueryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+    _: None = Depends(require_permission(Permission.SEARCH)),
+) -> SearchResponse:
+    """Direct multi-stage hybrid search (dense embedding + BM25 sparse + reciprocal rank fusion + reranking)."""
+    t_start = time.perf_counter()
+    tenant_id = current_user.tenant_id
+    user_acl_groups = await resolve_user_acl_groups(
+        user_id=current_user.id,
+        workspace_id=workspace_id,
+        db=db,
+    )
+
+    # 1. Resolve workspace RAG settings
+    rag_settings = await get_or_create_workspace_settings(db, tenant_id, workspace_id)
+
+    # 2. Hybrid search against Qdrant
+    # 2. Hybrid Search Engine (Deepened Candidate Pooling)
+    search_results = await hybrid_search_engine.search(
+        query=payload.query,
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+        user_acl_groups=user_acl_groups,
+        top_k=max(60, payload.top_k * 5),
+        document_ids=payload.document_ids,
+        folder=payload.folder,
+        tags=payload.tags,
+        doc_type=payload.doc_type,
+    )
+
+    # 3. Zero-Trust PostgreSQL Candidate Barrier
+    all_candidate_ids = [c.chunk_id for c in search_results.dense_candidates] + [
+        c.chunk_id for c in search_results.sparse_candidates
+    ]
+    validated_candidates_map = await candidate_validator.validate_candidates(
+        db=db,
+        candidate_ids=all_candidate_ids,
+        tenant_id=tenant_id,
+        workspace_id=workspace_id,
+    )
+
+    dense_validated = [c for c in search_results.dense_candidates if c.chunk_id in validated_candidates_map]
+    sparse_validated = [c for c in search_results.sparse_candidates if c.chunk_id in validated_candidates_map]
+
+    # 4. Dynamic 3-Way Reciprocal Rank Fusion (with Entity / Metadata Match Signal)
+    dynamic_alpha = fusion_engine.calculate_dynamic_alpha(payload.query, base_alpha=rag_settings.dense_weight)
+    fused_candidates = fusion_engine.fuse(
+        dense_candidates=dense_validated,
+        sparse_candidates=sparse_validated,
+        query=payload.query,
+        alpha=dynamic_alpha,
+        top_k=max(60, payload.top_k * 5),
+    )
+
+    fused_validated_objects = [
+        validated_candidates_map[fc.chunk_id] for fc in fused_candidates if fc.chunk_id in validated_candidates_map
+    ]
+
+    # 5. Cross-encoder / semantic reranking
+    t_rerank = time.perf_counter()
+    reranked = await reranker.rerank(
+        query=payload.query,
+        candidates=fused_validated_objects,
+        top_n=payload.top_k,
+    )
+    rerank_lat = (time.perf_counter() - t_rerank) * 1000.0
+
+    # 6. Build candidate results
+    results: list[SearchCandidateResult] = []
+    for r in reranked:
+        vc = r.candidate
+        results.append(
+            SearchCandidateResult(
+                chunk_id=r.chunk_id,
+                document_id=vc.document_id if vc else None,
+                filename=vc.document_name if vc else None,
+                doc_type=payload.doc_type,
+                score=round(float(r.relevance_score), 4),
+                text=vc.chunk_text[:1000] if vc and vc.chunk_text else "",
+                page_number=vc.page_number if vc else None,
+            )
+        )
+
+    total_lat = (time.perf_counter() - t_start) * 1000.0
+
+    return SearchResponse(
+        query=payload.query,
+        total_results=len(results),
+        dense_latency_ms=round(search_results.dense_latency_ms, 2),
+        sparse_latency_ms=round(search_results.sparse_latency_ms, 2),
+        rerank_latency_ms=round(rerank_lat, 2),
+        total_latency_ms=round(total_lat, 2),
+        results=results,
     )
 
 

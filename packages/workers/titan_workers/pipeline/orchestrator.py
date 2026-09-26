@@ -27,7 +27,14 @@ class IngestionPipelineOrchestrator:
     Emits live progress via Redis Pub/Sub, supports checkpoints, and executes saga rollbacks.
     """
 
-    def __init__(self, redis_url: str = "redis://localhost:6379/0", minio_client: Any | None = None):
+    def __init__(self, redis_url: str | None = None, minio_client: Any | None = None):
+        if redis_url is None:
+            import os
+
+            redis_host = os.getenv("REDIS_HOST", "localhost")
+            redis_port = os.getenv("REDIS_PORT", "6379")
+            redis_db = os.getenv("REDIS_DB", "0")
+            redis_url = os.getenv("REDIS_URL") or f"redis://{redis_host}:{redis_port}/{redis_db}"
         self.redis_url = redis_url
         self.chunker = HierarchicalChunker()
         self.redactor = PIIRedactor()

@@ -16,7 +16,7 @@ class TenantRegionRouter:
     """
 
     REGION_BUCKET_MAP: dict[DataResidencyRegion, str] = {
-        DataResidencyRegion.US_EAST: "titan-documents-us-east",
+        DataResidencyRegion.US_EAST: "titanrag-documents",
         DataResidencyRegion.US_WEST: "titan-documents-us-west",
         DataResidencyRegion.EU_CENTRAL: "titan-documents-eu-central",
         DataResidencyRegion.EU_WEST: "titan-documents-eu-west",
@@ -55,8 +55,15 @@ class TenantRegionRouter:
                 qdrant_collection_prefix=prefix,
             )
             session.add(residency)
-            await session.commit()
-            await session.refresh(residency)
+            try:
+                await session.commit()
+                await session.refresh(residency)
+            except Exception:
+                await session.rollback()
+                stmt = select(TenantDataResidency).where(TenantDataResidency.tenant_id == tenant_id)
+                res = (await session.execute(stmt)).scalar_one_or_none()
+                if res:
+                    residency = res
 
         return residency
 

@@ -70,7 +70,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Exclude internal health and metrics from rate limits
         path = request.url.path
-        if path.startswith("/health") or path == "/metrics" or path.startswith("/docs") or path.startswith("/openapi"):
+        if (
+            path.startswith("/health")
+            or path.startswith("/api/v1/health")
+            or path == "/metrics"
+            or path == "/api/v1/metrics"
+            or path.startswith("/docs")
+            or path.startswith("/openapi")
+        ):
             return cast(Response, await call_next(request))
 
         client_ip = request.client.host if request.client else "unknown"

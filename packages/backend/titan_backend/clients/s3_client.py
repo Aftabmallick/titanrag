@@ -3,6 +3,7 @@ from datetime import timedelta
 from uuid import UUID
 
 import structlog
+import urllib3
 from minio import Minio
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,11 +19,17 @@ _minio_client: Minio | None = None
 def get_minio_client() -> Minio:
     global _minio_client
     if _minio_client is None:
+        http_client = urllib3.PoolManager(
+            timeout=urllib3.Timeout(connect=5.0, read=30.0),
+            maxsize=50,
+            retries=urllib3.Retry(total=3, backoff_factor=0.2),
+        )
         _minio_client = Minio(
             endpoint=settings.MINIO_ENDPOINT,
             access_key=settings.MINIO_ROOT_USER,
             secret_key=settings.MINIO_ROOT_PASSWORD,
             secure=settings.MINIO_USE_SSL,
+            http_client=http_client,
         )
     return _minio_client
 

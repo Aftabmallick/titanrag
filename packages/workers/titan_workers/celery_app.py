@@ -32,6 +32,11 @@ celery_app.conf.task_queues = [
 celery_app.conf.task_default_queue = "p1_default"
 celery_app.conf.task_default_exchange = "titan_tasks"
 celery_app.conf.task_default_routing_key = "p1_default"
+celery_app.conf.task_routes = {
+    "titan_workers.tasks.ingestion.process_document_pipeline": {"queue": "p2_bulk_sync"},
+    "titan_workers.tasks.deep_research.execute_deep_research": {"queue": "heavy_ml"},
+    "titan_workers.tasks.nli_guardrail.verify_citations_nli": {"queue": "heavy_ml"},
+}
 
 # Hardened Worker Configuration
 celery_app.conf.update(
@@ -45,6 +50,13 @@ celery_app.conf.update(
     task_acks_late=True,  # Acknowledge only after task completes
     task_reject_on_worker_lost=True,  # Re-queue task if worker crashes
     broker_connection_retry_on_startup=True,
+    worker_send_task_events=True,
+    task_send_sent_event=True,
+    # Hard time limits: prevent zombie ingestion tasks from holding workers forever
+    # soft_time_limit raises SoftTimeLimitExceeded (catchable) for graceful cleanup
+    # time_limit is SIGKILL — last resort
+    task_soft_time_limit=300,  # 5 minutes: raise SoftTimeLimitExceeded for graceful shutdown
+    task_time_limit=360,  # 6 minutes: SIGKILL — absolute ceiling
 )
 
 # Celery Beat Periodic Schedule
