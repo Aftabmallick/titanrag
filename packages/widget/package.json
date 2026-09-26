@@ -15,6 +15,9 @@
     "build": "node build.js",
     "test": "node test.js"
   },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Aftabmallick/titanrag.git",

@@ -15,8 +15,11 @@ if (!fs.existsSync(DIST_DIR)) {
 
 // Locate esbuild binary
 let esbuildBin = "esbuild";
+const localWidgetEsbuild = path.join(ROOT_DIR, "node_modules", ".bin", "esbuild");
 const localFrontendEsbuild = path.join(ROOT_DIR, "..", "frontend", "node_modules", ".bin", "esbuild");
-if (fs.existsSync(localFrontendEsbuild)) {
+if (fs.existsSync(localWidgetEsbuild)) {
+  esbuildBin = localWidgetEsbuild;
+} else if (fs.existsSync(localFrontendEsbuild)) {
   esbuildBin = localFrontendEsbuild;
 }
 
