@@ -2,6 +2,7 @@ import json
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+from titanrag import __version__
 from titanrag.cli.main import app
 from titanrag.models import ChatResponse, Citation, Workspace
 from typer.testing import CliRunner
@@ -13,7 +14,7 @@ def test_cli_version():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
     assert "TitanRAG CLI" in result.stdout
-    assert "0.1.0" in result.stdout
+    assert __version__ in result.stdout
 
 
 def test_cli_whoami_not_logged_in(tmp_path, monkeypatch):

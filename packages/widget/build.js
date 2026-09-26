@@ -35,6 +35,14 @@ try {
   const gzipped = zlib.gzipSync(content);
   const gzipKb = (gzipped.length / 1024).toFixed(2);
 
+  // Copy TypeScript declaration file to dist
+  const DTS_SRC = path.join(ROOT_DIR, "src", "titan-chat.d.ts");
+  const DTS_OUT = path.join(DIST_DIR, "titan-chat.d.ts");
+  if (fs.existsSync(DTS_SRC)) {
+    fs.copyFileSync(DTS_SRC, DTS_OUT);
+    console.log(`Types output:  ${DTS_OUT}`);
+  }
+
   console.log(`\nBuild Succeeded!`);
   console.log(`Bundle output: ${OUT_FILE}`);
   console.log(`Raw size:      ${rawKb} KB`);
