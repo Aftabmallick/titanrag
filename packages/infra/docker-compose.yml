@@ -11,6 +11,7 @@ volumes:
   minio-data:
   grafana-data:
   neo4j-data:
+  loki-data:
 
 services:
   # ---------------------------------------------------------------------------
@@ -26,6 +27,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-titanrag}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
+    command: ["postgres", "-c", "max_connections=500", "-c", "shared_buffers=512MB"]
     volumes:
       - pg-data:/var/lib/postgresql/data
       - ./scripts/init-postgres.sh:/docker-entrypoint-initdb.d/init-postgres.sh:ro
@@ -189,6 +191,10 @@ services:
       QDRANT_HOST: qdrant
       MINIO_ENDPOINT: minio:9000
       NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_SERVICE_NAME: titan-backend
+    command: ["uvicorn", "titan_backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--limit-concurrency", "500", "--timeout-keep-alive", "65"]
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -217,7 +223,41 @@ services:
       REDIS_HOST: redis
       QDRANT_HOST: qdrant
       MINIO_ENDPOINT: minio:9000
-    command: ["celery", "-A", "titan_workers.celery_app.celery_app", "worker", "-l", "info", "-Q", "p0_interactive,p1_default,p2_bulk_sync", "--max-memory-per-child=1048576", "--prefetch-multiplier=1"]
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_SERVICE_NAME: titan-celery
+    # Handles only interactive & default priority queues (low-latency, user-facing tasks)
+    command: ["celery", "-A", "titan_workers.celery_app.celery_app", "worker",
+              "-l", "info", "-Q", "p0_interactive,p1_default",
+              "--max-memory-per-child=1048576", "--prefetch-multiplier=1", "-c", "10"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - titan-net
+
+  celery-ingestion:
+    image: titan-backend:latest
+    container_name: titan-celery-ingestion
+    restart: unless-stopped
+    profiles: ["default", "full"]
+    env_file:
+      - ../../.env.defaults
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      QDRANT_HOST: qdrant
+      MINIO_ENDPOINT: minio:9000
+      OTEL_ENABLED: "true"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OTEL_SERVICE_NAME: titan-celery-ingestion
+    # Dedicated bulk ingestion worker: autoscales 10–40 processes based on queue depth
+    # Handles only p2_bulk_sync to avoid starving interactive responses
+    command: ["celery", "-A", "titan_workers.celery_app.celery_app", "worker",
+              "-l", "info", "-Q", "p2_bulk_sync,heavy_ml,reranking",
+              "--autoscale=40,10", "--max-memory-per-child=512000", "--prefetch-multiplier=2"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -389,6 +429,54 @@ services:
   # ---------------------------------------------------------------------------
   # Observability Stack
   # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.1.0
+    container_name: titan-loki
+    restart: unless-stopped
+    profiles: ["observability", "full"]
+    ports:
+      - "3100:3100"
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki-data:/loki
+    networks:
+      - titan-net
+
+  promtail:
+    image: grafana/promtail:3.1.0
+    container_name: titan-promtail
+    restart: unless-stopped
+    profiles: ["observability", "full"]
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
+    command: ["-config.file=/etc/promtail/config.yml"]
+    depends_on:
+      - loki
+    networks:
+      - titan-net
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: titan-node-exporter
+    restart: unless-stopped
+    profiles: ["observability", "full"]
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    ports:
+      - "9100:9100"
+    networks:
+      - titan-net
+
   prometheus:
     image: prom/prometheus:v2.54.0
     container_name: titan-prometheus
@@ -417,8 +505,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: "traceqlEditor"
     depends_on:
       - prometheus
+      - loki
+      - jaeger
     networks:
       - titan-net
 

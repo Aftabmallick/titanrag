@@ -1,3 +1,4 @@
+import re
 import time
 from typing import NamedTuple
 from uuid import UUID
@@ -15,15 +16,56 @@ class FusedCandidate(NamedTuple):
 
 
 class TieredFusionEngine:
-    """Calibrated Reciprocal Rank Fusion (RRF) with hybrid alpha weighting, recency decay, and deduplication."""
+    """Calibrated Reciprocal Rank Fusion (RRF) with dynamic hybrid alpha weighting, recency decay, and deduplication."""
+
+    @staticmethod
+    def calculate_dynamic_alpha(query: str, base_alpha: float = 0.7) -> float:
+        """Dynamically calibrates dense vs. sparse alpha based on query intent and entity density.
+
+        Returns:
+            alpha: float in [0.25, 0.85] representing dense weight (1 - alpha is BM25 sparse weight).
+        """
+        q = query.strip()
+        if not q:
+            return base_alpha
+
+        # 1. Alphanumeric / technical entity patterns
+        has_identifier = bool(
+            re.search(r'[A-Za-z0-9]+[-_][A-Za-z0-9]+', q)
+            or re.search(r'\b\d{3,}\b', q)
+            or re.search(r'\.(md|html|json|csv|pdf|txt)\b', q, re.IGNORECASE)
+            or re.search(r'\b(rfc|cve|hsm|aes|sha|md5|tls|txn|srv|manifest|audit|telemetry)\b', q, re.IGNORECASE)
+        )
+
+        has_question = bool(
+            re.search(
+                r'\b(what|how|why|when|where|who|explain|describe|summarize|overview|difference|guidelines)\b',
+                q,
+                re.IGNORECASE,
+            )
+        )
+
+        words = q.split()
+        if has_identifier:
+            # Heavily prioritize BM25 sparse matching for exact identifiers/numbers
+            return 0.35 if not has_question else 0.45
+        elif has_question and len(words) >= 5:
+            # Abstract semantic question with no entity tokens
+            return 0.75
+        elif len(words) <= 3:
+            # Short concept phrase -> balanced fusion
+            return 0.50
+        else:
+            return base_alpha
 
     def fuse(
         self,
         dense_candidates: list[SearchCandidate],
         sparse_candidates: list[SearchCandidate],
+        query: str = "",
         alpha: float = 0.7,
         rrf_k: int = 60,
-        top_k: int = 25,
+        top_k: int = 40,
         recency_decay_rate: float = 0.0,
     ) -> list[FusedCandidate]:
         # Track ranks: 1-indexed
@@ -42,6 +84,12 @@ class TieredFusionEngine:
         dense_weight = max(0.0, min(1.0, alpha))
         sparse_weight = 1.0 - dense_weight
 
+        # Extract query entity signatures for metadata match boost (Phase 3)
+        q_clean = query.strip().lower()
+        q_nums = set(re.findall(r'\d+', q_clean))
+        q_num_ints = {int(n) for n in q_nums if n.isdigit()}
+        q_slugs = set(re.findall(r'[a-zA-Z0-9]+[-_][a-zA-Z0-9]+', q_clean))
+
         now_ts = time.time()
         scores: list[FusedCandidate] = []
         for c_id in all_chunk_ids:
@@ -53,6 +101,35 @@ class TieredFusionEngine:
                 score += dense_weight * (1.0 / (rrf_k + d_rank))
             if s_rank is not None:
                 score += sparse_weight * (1.0 / (rrf_k + s_rank))
+
+            # Exact Entity / Filename Metadata Match Boost
+            payload = payloads.get(c_id, {})
+            fname = str(payload.get("filename", "")).lower()
+            section_hier = " ".join(payload.get("section_hierarchy", [])).lower()
+            cand_text = (fname + " " + section_hier).strip()
+
+            if q_clean and fname:
+                base_fname = re.sub(r'\.(md|html|json|csv|pdf|txt)$', '', fname)
+                match_boost = 0.0
+
+                # Direct filename base match in query
+                if base_fname and (base_fname in q_clean or q_clean.startswith(base_fname)):
+                    match_boost += 1.2
+
+                # Numeric ID match between query and filename
+                f_nums = set(re.findall(r'\d+', fname))
+                f_num_ints = {int(n) for n in f_nums if n.isdigit()}
+                if q_num_ints and f_num_ints and (q_num_ints & f_num_ints):
+                    match_boost += 0.8
+
+                # Technical entity slug match in section hierarchy or filename
+                for slug in q_slugs:
+                    if slug in cand_text:
+                        match_boost += 0.5
+                        break
+
+                if match_boost > 0.0:
+                    score += match_boost * (1.0 / (rrf_k + 1))
 
             # Temporal recency decay weighting if enabled and created_at metadata is present
             if recency_decay_rate > 0.0:
@@ -69,7 +146,6 @@ class TieredFusionEngine:
             # Document staleness penalty (Task 6.5)
             is_stale = payloads.get(c_id, {}).get("is_stale", False)
             if is_stale:
-                # Apply configurable score penalty to stale documents to favor fresh documentation
                 score *= settings.FUSION_STALENESS_PENALTY
 
             scores.append(

@@ -1,11 +1,15 @@
 import asyncio
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 import structlog
 from minio import Minio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from titan_backend.core.config import settings
+from titan_backend.db.models.documents import Document, DocumentStatus
+from titan_backend.db.models.ingestion import IngestionTask, TaskStatus
 
 from titan_workers.base_task import TracedTask
 from titan_workers.celery_app import celery_app
@@ -20,13 +24,67 @@ MINIO_ROOT_PASSWORD = settings.MINIO_ROOT_PASSWORD
 MINIO_BUCKET = settings.MINIO_BUCKET
 
 
+import urllib3
+
+
 def _get_minio_client() -> Minio:
+    http_client = urllib3.PoolManager(
+        timeout=urllib3.Timeout(connect=5.0, read=60.0),
+        maxsize=50,
+        retries=urllib3.Retry(total=3, backoff_factor=0.2),
+    )
     return Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
         secret_key=MINIO_ROOT_PASSWORD,
         secure=False,
+        http_client=http_client,
     )
+
+
+async def _record_terminal_failure(
+    tenant_id: str,
+    workspace_id: str,
+    document_id: str,
+    filename: str,
+    mime_type: str,
+    error: str,
+    retries: int = 3,
+) -> None:
+    """Record a terminal failure to the database (DLQ), ensuring Document and IngestionTask are marked FAILED."""
+    try:
+        engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
+        session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+        async with session_factory() as session:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            failure_meta = {
+                "last_error": error,
+                "failed_at": now_iso,
+                "retries": retries,
+                "error_type": "DLQ_INGESTION_FAILURE",
+                "filename": filename,
+                "mime_type": mime_type,
+            }
+            await session.execute(
+                update(Document)
+                .where(Document.id == UUID(document_id))
+                .values(
+                    status=DocumentStatus.FAILED,
+                    meta=failure_meta,
+                )
+            )
+            await session.execute(
+                update(IngestionTask)
+                .where(IngestionTask.document_id == UUID(document_id))
+                .values(
+                    status=TaskStatus.FAILED,
+                    error_message=f"[DLQ Exhausted after {retries} retries]: {error}",
+                )
+            )
+            await session.commit()
+        await engine.dispose()
+    except Exception as e:
+        logger.error("record_terminal_failure_failed", error=str(e), document_id=document_id)
 
 
 async def _execute_ingestion(
@@ -41,6 +99,23 @@ async def _execute_ingestion(
     webhook_secret: str | None = None,
     bucket_name: str | None = None,
 ) -> dict[str, Any]:
+    # 0. Set status to PROCESSING in DB
+    engine = create_async_engine(DATABASE_URL, pool_pre_ping=True)
+    session_factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
+    async with session_factory() as session:
+        await session.execute(
+            update(Document)
+            .where(Document.id == UUID(document_id))
+            .values(status=DocumentStatus.PROCESSING)
+        )
+        await session.execute(
+            update(IngestionTask)
+            .where(IngestionTask.document_id == UUID(document_id))
+            .values(status=TaskStatus.PROCESSING, stage="DOWNLOADING", progress_percent=0.05)
+        )
+        await session.commit()
+    await engine.dispose()
+
     # 1. Download source file from MinIO
     minio_client = _get_minio_client()
     target_bucket = bucket_name or MINIO_BUCKET
@@ -100,8 +175,8 @@ async def _execute_ingestion(
     name="titan_workers.tasks.ingestion.process_document_pipeline",
     bind=True,
     max_retries=3,
-    default_retry_delay=10,
-    queue="p1_default",
+    default_retry_delay=30,
+    queue="p2_bulk_sync",
 )
 def process_document_pipeline(
     self: Any,
@@ -116,7 +191,8 @@ def process_document_pipeline(
     webhook_secret: str | None = None,
     bucket_name: str | None = None,
 ) -> dict[str, Any]:
-    logger.info("processing_document_task_received", document_id=document_id, filename=filename)
+    retries = self.request.retries
+    logger.info("processing_document_task_received", document_id=document_id, filename=filename, retry=retries)
     try:
         return asyncio.run(
             _execute_ingestion(
@@ -133,5 +209,32 @@ def process_document_pipeline(
             )
         )
     except Exception as exc:
-        logger.error("ingestion_task_error", document_id=document_id, error=str(exc))
-        raise self.retry(exc=exc) from exc
+        logger.error(
+            "ingestion_task_error",
+            document_id=document_id,
+            error=str(exc),
+            retry=retries,
+            max_retries=self.max_retries,
+        )
+        if retries < self.max_retries:
+            delay = 30 * (2 ** retries)
+            raise self.retry(exc=exc, countdown=delay) from exc
+        else:
+            logger.critical(
+                "ingestion_task_dlq_terminal_failure",
+                document_id=document_id,
+                error=str(exc),
+                retries=retries,
+            )
+            asyncio.run(
+                _record_terminal_failure(
+                    tenant_id=tenant_id,
+                    workspace_id=workspace_id,
+                    document_id=document_id,
+                    filename=filename,
+                    mime_type=mime_type,
+                    error=str(exc),
+                    retries=retries,
+                )
+            )
+            raise exc

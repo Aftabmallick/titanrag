@@ -114,3 +114,32 @@ class DeepResearchRequest(BaseModel):
 class SharedSessionDetailResponse(BaseModel):
     session: ChatSessionResponse
     messages: list[ChatMessageResponse]
+
+
+class SearchQueryRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=4000, description="Query text to search for")
+    top_k: int = Field(default=10, ge=1, le=50, description="Number of results to retrieve")
+    document_ids: list[UUID] | None = Field(default=None, description="Optional document filter")
+    folder: str | None = Field(default=None, description="Optional folder filter")
+    tags: list[str] | None = Field(default=None, description="Optional tags filter")
+    doc_type: str | None = Field(default=None, description="Optional doc type filter")
+
+
+class SearchCandidateResult(BaseModel):
+    chunk_id: UUID
+    document_id: UUID | None = None
+    filename: str | None = None
+    doc_type: str | None = None
+    score: float
+    text: str
+    page_number: int | None = None
+
+
+class SearchResponse(BaseModel):
+    query: str
+    total_results: int
+    dense_latency_ms: float
+    sparse_latency_ms: float
+    rerank_latency_ms: float
+    total_latency_ms: float
+    results: list[SearchCandidateResult]

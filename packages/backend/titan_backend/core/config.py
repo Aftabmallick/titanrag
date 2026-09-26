@@ -70,9 +70,9 @@ class Settings(BaseSettings):
     # =========================================================================
     # Rate Limiting & FinOps Compute Units (CU)
     # =========================================================================
-    RATE_LIMIT_PER_MINUTE_ADMIN: int = 5000
-    RATE_LIMIT_PER_MINUTE_MEMBER: int = 2000
-    RATE_LIMIT_PER_MINUTE_ANONYMOUS: int = 200
+    RATE_LIMIT_PER_MINUTE_ADMIN: int = 100000
+    RATE_LIMIT_PER_MINUTE_MEMBER: int = 50000
+    RATE_LIMIT_PER_MINUTE_ANONYMOUS: int = 10000
     RATE_LIMIT_DISABLED: bool = False  # Set True in test environments only
     DEFAULT_MONTHLY_CU_QUOTA: int = 10000
 
@@ -104,8 +104,9 @@ class Settings(BaseSettings):
     SYNC_DATABASE_URL: str | None = None
 
     # Connection Pool
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 10
+    DB_POOL_SIZE: int = 50
+    DB_MAX_OVERFLOW: int = 30
+    DB_POOL_TIMEOUT_SECONDS: int = 60
     DB_POOL_RECYCLE_SECONDS: int = 3600
 
     # =========================================================================

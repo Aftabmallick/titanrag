@@ -55,8 +55,15 @@ class TenantRegionRouter:
                 qdrant_collection_prefix=prefix,
             )
             session.add(residency)
-            await session.commit()
-            await session.refresh(residency)
+            try:
+                await session.commit()
+                await session.refresh(residency)
+            except Exception:
+                await session.rollback()
+                stmt = select(TenantDataResidency).where(TenantDataResidency.tenant_id == tenant_id)
+                res = (await session.execute(stmt)).scalar_one_or_none()
+                if res:
+                    residency = res
 
         return residency
 

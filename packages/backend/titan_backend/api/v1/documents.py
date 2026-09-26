@@ -6,6 +6,7 @@ import uuid
 import zipfile
 from collections.abc import AsyncGenerator
 from io import BytesIO
+from typing import Any
 from uuid import UUID
 
 import httpx
@@ -26,6 +27,8 @@ from titan_backend.api.v1.schemas.documents import (
     DocumentUpdateRequest,
     DocumentUploadResponse,
     DocumentVersionResponse,
+    FailedDocumentItem,
+    FailedDocumentsResponse,
     IngestionPreviewChunk,
     IngestionPreviewRequest,
     IngestionPreviewResponse,
@@ -536,12 +539,50 @@ async def list_documents(
     res = await db.execute(paged_stmt)
     docs = res.scalars().all()
 
+
     return DocumentListResponse(
         items=[DocumentResponse.model_validate(d) for d in docs],
         total=total_count,
         page=page,
         limit=limit,
     )
+
+
+@router.get("/failed", response_model=FailedDocumentsResponse)
+async def list_failed_documents(
+    workspace_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.VIEW)),
+) -> FailedDocumentsResponse:
+    """Lists all failed ingestion documents in the workspace with root-cause error information."""
+    stmt = (
+        select(Document)
+        .where(
+            Document.tenant_id == current_user.tenant_id,
+            Document.workspace_id == workspace_id,
+            Document.status == DocumentStatus.FAILED,
+        )
+        .order_by(Document.updated_at.desc())
+    )
+    docs = (await db.execute(stmt)).scalars().all()
+
+    items = []
+    for d in docs:
+        last_error = d.meta.get("last_error") if isinstance(d.meta, dict) else None
+        items.append(
+            FailedDocumentItem(
+                id=d.id,
+                title=d.title,
+                mime_type=d.mime_type,
+                file_size_bytes=d.file_size_bytes,
+                status=d.status.value if hasattr(d.status, "value") else str(d.status),
+                error_message=str(last_error) if last_error else None,
+                created_at=d.created_at,
+                updated_at=d.updated_at,
+                meta=d.meta or {},
+            )
+        )
+    return FailedDocumentsResponse(total=len(items), items=items)
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
@@ -560,6 +601,47 @@ async def get_document(
     if not doc:
         raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
     return DocumentResponse.model_validate(doc)
+
+
+@router.post("/{document_id}/retry", response_model=dict[str, Any])
+async def retry_document_ingestion(
+    workspace_id: UUID,
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(require_permission(Permission.UPLOAD)),
+) -> dict[str, Any]:
+    """Retries ingestion for a failed document by re-queuing it to the bulk ingestion pipeline."""
+    stmt = select(Document).where(
+        Document.id == document_id,
+        Document.tenant_id == current_user.tenant_id,
+        Document.workspace_id == workspace_id,
+    )
+    doc = (await db.execute(stmt)).scalars().first()
+    if not doc:
+        raise AppException(message="Document not found.", status_code=404, error_code="DOCUMENT_NOT_FOUND")
+
+    # Update document status to PENDING
+    doc.status = DocumentStatus.PENDING
+    if isinstance(doc.meta, dict):
+        doc.meta["retry_triggered_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    await db.commit()
+
+    # Re-dispatch Celery task
+    try:
+        from titan_workers.tasks.ingestion import process_document_pipeline
+
+        process_document_pipeline.delay(
+            tenant_id=str(doc.tenant_id),
+            workspace_id=str(doc.workspace_id),
+            document_id=str(doc.id),
+            storage_path=doc.storage_path,
+            filename=doc.title,
+            mime_type=doc.mime_type,
+        )
+    except Exception as e:
+        logger.warning("celery_retry_dispatch_failed", error=str(e), doc_id=str(doc.id))
+
+    return {"status": "requeued", "document_id": str(doc.id), "message": "Document ingestion re-queued successfully."}
 
 
 @router.patch("/{document_id}", response_model=DocumentResponse)

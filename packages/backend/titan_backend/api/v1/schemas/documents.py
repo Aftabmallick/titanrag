@@ -122,3 +122,20 @@ class BulkDeleteRequest(BaseModel):
 class BulkDeleteResponse(BaseModel):
     deleted_count: int
     document_ids: list[UUID]
+
+
+class FailedDocumentItem(BaseModel):
+    id: UUID
+    title: str
+    mime_type: str
+    file_size_bytes: int
+    status: str
+    error_message: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    meta: dict[str, Any] = Field(default_factory=dict)
+
+
+class FailedDocumentsResponse(BaseModel):
+    total: int
+    items: list[FailedDocumentItem]

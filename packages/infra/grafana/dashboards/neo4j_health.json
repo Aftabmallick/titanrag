@@ -1,0 +1,102 @@
+{
+  "id": null,
+  "uid": "neo4j-health",
+  "title": "TitanRAG \u2014 Neo4j Graph Health",
+  "tags": ["titanrag", "neo4j"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Graph Store Status",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "up{job=\"neo4j\"}", "legendFormat": "Neo4j Up", "refId": "A"}
+      ],
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "colorMode": "background",
+        "thresholds": {
+          "steps": [
+            {"color": "red", "value": 0},
+            {"color": "green", "value": 1}
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Active Connections",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [
+        {"expr": "neo4j_bolt_connections_running_total", "legendFormat": "Bolt Connections", "refId": "A"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
+    },
+    {
+      "id": 3,
+      "title": "Transactions/s",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {"expr": "rate(neo4j_transaction_committed_total[1m])", "legendFormat": "Committed/s", "refId": "A"},
+        {"expr": "rate(neo4j_transaction_rolled_back_total[1m])", "legendFormat": "Rollback/s", "refId": "B"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Open Transactions",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "neo4j_transaction_active_total", "legendFormat": "Active", "refId": "A"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
+    },
+    {
+      "id": 5,
+      "title": "Heap Memory Usage",
+      "type": "graph",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "neo4j_vm_heap_used_bytes", "legendFormat": "Heap Used", "refId": "A"},
+        {"expr": "neo4j_vm_heap_committed_bytes", "legendFormat": "Heap Committed", "refId": "B"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Page Cache Hit Ratio",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 4},
+      "targets": [
+        {
+          "expr": "rate(neo4j_page_cache_hits_total[1m]) / (rate(neo4j_page_cache_hits_total[1m]) + rate(neo4j_page_cache_misses_total[1m]))",
+          "legendFormat": "Hit Ratio",
+          "refId": "A"
+        }
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "background"}
+    },
+    {
+      "id": 7,
+      "title": "Neo4j Logs",
+      "type": "logs",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {"expr": "{container=\"titan-neo4j\"}", "refId": "A"}
+      ],
+      "options": {"showTime": true, "wrapLogMessage": false}
+    }
+  ]
+}
