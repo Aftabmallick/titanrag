@@ -28,11 +28,15 @@ from titanrag.models import (
 )
 from titanrag.sync_client import TitanClient
 
-__version__ = "0.1.0"
+# Backwards compatibility alias for async context manager usage
+TitanRAGClient = AsyncTitanClient
+
+__version__ = "0.1.1"
 
 __all__ = [
     "TitanClient",
     "AsyncTitanClient",
+    "TitanRAGClient",
     "TitanRAGError",
     "AuthenticationError",
     "PermissionDeniedError",
